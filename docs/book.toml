@@ -1,0 +1,12 @@
+[book]
+title = "The jsonapi_core Guide"
+authors = ["Rankit Bishnoi"]
+language = "en"
+multilingual = false
+src = "."
+description = "A guide to the jsonapi_core crate — typed JSON:API v1.1 serialization for Rust."
+
+[output.html]
+default-theme = "rust"
+git-repository-url = "https://github.com/rankitbishnoi/jsonapi_core"
+edit-url-template = "https://github.com/rankitbishnoi/jsonapi_core/edit/main/docs/{path}"
