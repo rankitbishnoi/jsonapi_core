@@ -15,6 +15,7 @@
 //! attributes by default. Annotate relationships, meta, and links explicitly.
 //!
 //! ```
+//! # #[cfg(feature = "derive")] {
 //! use jsonapi_core::{JsonApi, Relationship};
 //!
 //! #[derive(Debug, Clone, PartialEq, JsonApi)]
@@ -35,6 +36,7 @@
 //!     id: String,
 //!     name: String,
 //! }
+//! # }
 //! ```
 //!
 //! # Serializing
@@ -43,6 +45,7 @@
 //! the JSON:API envelope (`type`, `id`, `attributes`, `relationships`).
 //!
 //! ```
+//! # #[cfg(feature = "derive")] {
 //! # use jsonapi_core::{JsonApi, Relationship, Document, PrimaryData, Identity,
 //! #     RelationshipData, ResourceIdentifier, ResourceObject};
 //! # #[derive(Debug, Clone, PartialEq, JsonApi)]
@@ -83,6 +86,7 @@
 //!
 //! let json = serde_json::to_string_pretty(&doc).unwrap();
 //! assert!(json.contains("\"type\": \"articles\""));
+//! # }
 //! ```
 //!
 //! # Deserializing and the Registry
@@ -92,6 +96,7 @@
 //! use typed lookups to get concrete structs back.
 //!
 //! ```
+//! # #[cfg(feature = "derive")] {
 //! use jsonapi_core::{JsonApi, Document, PrimaryData, Resource, ResourceObject};
 //!
 //! #[derive(Debug, Clone, PartialEq, JsonApi)]
@@ -122,6 +127,7 @@
 //! // Typed lookup — deserializes the stored Value into a Person
 //! let author: Person = registry.get_by_id("people", "9").unwrap();
 //! assert_eq!(author.name, "Dan Gebhardt");
+//! # }
 //! ```
 //!
 //! # Dynamic Resources
@@ -182,6 +188,7 @@
 //! [`sparse_filter()`] operates on a raw `serde_json::Value` document.
 //!
 //! ```
+//! # #[cfg(feature = "derive")] {
 //! # use jsonapi_core::{JsonApi, Relationship, Identity, RelationshipData,
 //! #     ResourceIdentifier, FieldsetConfig, SparseSerializer, ResourceObject};
 //! # #[derive(Debug, Clone, PartialEq, JsonApi)]
@@ -213,6 +220,7 @@
 //!
 //! assert_eq!(json["attributes"]["title"], "Hello");
 //! assert!(json["attributes"].get("body").is_none());
+//! # }
 //! ```
 //!
 //! # Include Path Validation
@@ -221,6 +229,7 @@
 //! are traversable through the relationship graph.
 //!
 //! ```
+//! # #[cfg(feature = "derive")] {
 //! # use jsonapi_core::{JsonApi, Relationship, TypeRegistry, ResourceObject};
 //! # #[derive(Debug, Clone, PartialEq, JsonApi)]
 //! # #[jsonapi(type = "articles")]
@@ -246,6 +255,7 @@
 //!
 //! // "editor" is not a relationship on articles
 //! assert!(registry.validate_include_paths("articles", &["editor"]).is_err());
+//! # }
 //! ```
 //!
 //! # Query Builder

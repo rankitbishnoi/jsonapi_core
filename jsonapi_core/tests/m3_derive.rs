@@ -1,3 +1,4 @@
+#![cfg(feature = "derive")]
 // Some fixtures intentionally use camelCase field names to exercise the
 // `#[jsonapi(case = "camelCase")]` conversion path. Allow non-snake-case at
 // the module level so that rustc's default lints don't flag them.

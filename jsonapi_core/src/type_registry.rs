@@ -24,7 +24,7 @@ pub struct TypeInfo {
 
 impl TypeInfo {
     /// Build a [`TypeInfo`]. Intended for use by `#[derive(JsonApi)]`-generated
-    /// code and by manual [`ResourceObject`](crate::model::ResourceObject) impls.
+    /// code and by manual [`ResourceObject`] impls.
     #[must_use]
     pub const fn new(
         type_name: &'static str,

@@ -1,3 +1,5 @@
+#![cfg(feature = "derive")]
+
 use jsonapi_core::model::{Identity, RelationshipData, ResourceIdentifier, ResourceObject};
 use jsonapi_core::{FieldsetConfig, Relationship, SparseSerializer, TypeRegistry, sparse_filter};
 

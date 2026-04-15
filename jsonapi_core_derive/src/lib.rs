@@ -2,7 +2,7 @@
 //! Derive macro implementation for [`jsonapi_core`](https://docs.rs/jsonapi_core).
 //!
 //! This crate provides the `#[derive(JsonApi)]` procedural macro that generates
-//! [`ResourceObject`], [`serde::Serialize`], and [`serde::Deserialize`] impls
+//! `ResourceObject`, `serde::Serialize`, and `serde::Deserialize` impls
 //! for user-defined JSON:API resource types. It is re-exported by `jsonapi_core`
 //! under the `derive` feature (on by default) and is not intended to be used
 //! directly.

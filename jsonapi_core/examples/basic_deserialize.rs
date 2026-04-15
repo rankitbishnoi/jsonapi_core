@@ -2,39 +2,47 @@
 //!
 //! Run: `cargo run -p jsonapi_core --example basic_deserialize`
 
-use jsonapi_core::{Document, JsonApi, PrimaryData, Relationship, Resource, ResourceObject};
-
-#[allow(dead_code)]
-#[derive(Debug, Clone, PartialEq, JsonApi)]
-#[jsonapi(type = "articles")]
-struct Article {
-    #[jsonapi(id)]
-    id: String,
-    title: String,
-    body: String,
-    #[jsonapi(relationship, type = "people")]
-    author: Relationship<Person>,
-    #[jsonapi(relationship, type = "comments")]
-    comments: Vec<Relationship<Comment>>,
-}
-
-#[derive(Debug, Clone, PartialEq, JsonApi)]
-#[jsonapi(type = "people")]
-struct Person {
-    #[jsonapi(id)]
-    id: String,
-    name: String,
-}
-
-#[derive(Debug, Clone, PartialEq, JsonApi)]
-#[jsonapi(type = "comments")]
-struct Comment {
-    #[jsonapi(id)]
-    id: String,
-    body: String,
-}
-
+#[cfg(not(feature = "derive"))]
 fn main() {
+    eprintln!("This example requires the `derive` feature (enabled by default).");
+    eprintln!("Run with: cargo run -p jsonapi_core --example basic_deserialize");
+    std::process::exit(1);
+}
+
+#[cfg(feature = "derive")]
+fn main() {
+    use jsonapi_core::{Document, JsonApi, PrimaryData, Relationship, Resource, ResourceObject};
+
+    #[allow(dead_code)]
+    #[derive(Debug, Clone, PartialEq, JsonApi)]
+    #[jsonapi(type = "articles")]
+    struct Article {
+        #[jsonapi(id)]
+        id: String,
+        title: String,
+        body: String,
+        #[jsonapi(relationship, type = "people")]
+        author: Relationship<Person>,
+        #[jsonapi(relationship, type = "comments")]
+        comments: Vec<Relationship<Comment>>,
+    }
+
+    #[derive(Debug, Clone, PartialEq, JsonApi)]
+    #[jsonapi(type = "people")]
+    struct Person {
+        #[jsonapi(id)]
+        id: String,
+        name: String,
+    }
+
+    #[derive(Debug, Clone, PartialEq, JsonApi)]
+    #[jsonapi(type = "comments")]
+    struct Comment {
+        #[jsonapi(id)]
+        id: String,
+        body: String,
+    }
+
     let json = r#"{
         "data": {
             "type": "articles",
