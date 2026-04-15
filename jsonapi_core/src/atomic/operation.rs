@@ -184,26 +184,25 @@ impl AtomicRequest {
                 });
             }
 
-            if let Some(r) = &target.r#ref {
-                if let Identity::Lid(lid) = &r.identity {
-                    if !introduced.contains(lid) {
-                        return Err(crate::Error::InvalidAtomicOperation {
-                            index,
-                            reason: format!("ref.lid `{lid}` not introduced by an earlier `add`"),
-                        });
-                    }
-                }
+            if let Some(r) = &target.r#ref
+                && let Identity::Lid(lid) = &r.identity
+                && !introduced.contains(lid)
+            {
+                return Err(crate::Error::InvalidAtomicOperation {
+                    index,
+                    reason: format!("ref.lid `{lid}` not introduced by an earlier `add`"),
+                });
             }
 
             if let AtomicOperation::Add { data, .. } = op {
                 for resource in primary_data_resources(data) {
-                    if let Some(lid) = &resource.lid {
-                        if !introduced.insert(lid.clone()) {
-                            return Err(crate::Error::InvalidAtomicOperation {
-                                index,
-                                reason: format!("duplicate `lid` introduction: `{lid}`"),
-                            });
-                        }
+                    if let Some(lid) = &resource.lid
+                        && !introduced.insert(lid.clone())
+                    {
+                        return Err(crate::Error::InvalidAtomicOperation {
+                            index,
+                            reason: format!("duplicate `lid` introduction: `{lid}`"),
+                        });
                     }
                 }
             }
