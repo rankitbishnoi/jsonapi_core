@@ -8,6 +8,7 @@ repository.workspace = true
 description = "A typed JSON:API v1.1 serialization library for Rust"
 keywords = ["jsonapi", "json-api", "serialization", "rest", "api"]
 categories = ["encoding", "web-programming"]
+readme = "../README.md"
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -17,7 +18,7 @@ percent-encoding = "2"
 heck = "0.5"
 
 # Derive macro re-export (default feature)
-jsonapi_core_derive = { path = "../jsonapi_core_derive", optional = true }
+jsonapi_core_derive = { path = "../jsonapi_core_derive", version = "0.1.1", optional = true }
 
 [features]
 default = ["derive"]
