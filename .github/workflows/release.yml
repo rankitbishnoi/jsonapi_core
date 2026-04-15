@@ -1,0 +1,85 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Check tag matches workspace version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          WS_VERSION=$(cargo metadata --format-version 1 --no-deps \
+            | python3 -c "import json,sys; m=json.load(sys.stdin); \
+              v=next(p['version'] for p in m['packages'] if p['name']=='jsonapi_core'); print(v)")
+          echo "tag=$TAG workspace=$WS_VERSION"
+          if [ "$TAG" != "$WS_VERSION" ]; then
+            echo "::error::Tag $TAG does not match jsonapi_core version $WS_VERSION"
+            exit 1
+          fi
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - run: cargo test --workspace --all-features
+
+  publish-crates:
+    name: publish to crates.io
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: crates-io
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Publish jsonapi_core_derive
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p jsonapi_core_derive
+
+      - name: Wait for jsonapi_core_derive to appear on the index
+        run: |
+          VERSION=$(cargo metadata --format-version 1 --no-deps \
+            | python3 -c "import json,sys; m=json.load(sys.stdin); \
+              v=next(p['version'] for p in m['packages'] if p['name']=='jsonapi_core_derive'); print(v)")
+          for i in $(seq 1 30); do
+            if cargo search jsonapi_core_derive --limit 1 | grep -q "\"$VERSION\""; then
+              echo "jsonapi_core_derive $VERSION is available"
+              exit 0
+            fi
+            echo "waiting for jsonapi_core_derive $VERSION ($i/30)..."
+            sleep 10
+          done
+          echo "::error::Timed out waiting for jsonapi_core_derive on the registry"
+          exit 1
+
+      - name: Publish jsonapi_core
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p jsonapi_core
+
+  github-release:
+    name: GitHub release
+    needs: publish-crates
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
