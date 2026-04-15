@@ -47,7 +47,7 @@ jobs:
         include:
           # MSRV check (matches rust-version in Cargo.toml)
           - os: ubuntu-latest
-            toolchain: "1.85"
+            toolchain: "1.88"
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
