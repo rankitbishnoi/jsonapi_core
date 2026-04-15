@@ -1,0 +1,5 @@
+error: `type = "..."` is only valid on #[jsonapi(relationship)] fields
+ --> tests/compile_fail/type_on_non_relationship.rs:9:5
+  |
+9 |     title: String,
+  |     ^^^^^

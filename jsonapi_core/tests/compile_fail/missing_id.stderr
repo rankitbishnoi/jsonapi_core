@@ -1,0 +1,5 @@
+error: exactly one #[jsonapi(id)] field is required
+ --> tests/compile_fail/missing_id.rs:5:8
+  |
+5 | struct Bad {
+  |        ^^^

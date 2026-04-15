@@ -1,0 +1,11 @@
+error: duplicate #[jsonapi(id)] field
+ --> tests/compile_fail/duplicate_id.rs:9:5
+  |
+9 |     other_id: String,
+  |     ^^^^^^^^
+
+error: first #[jsonapi(id)] here
+ --> tests/compile_fail/duplicate_id.rs:7:5
+  |
+7 |     id: String,
+  |     ^^

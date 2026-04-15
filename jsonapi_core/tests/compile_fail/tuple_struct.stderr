@@ -1,0 +1,5 @@
+error: #[derive(JsonApi)] only supports structs with named fields
+ --> tests/compile_fail/tuple_struct.rs:5:8
+  |
+5 | struct Thing(String, String);
+  |        ^^^^^

@@ -1,0 +1,5 @@
+error: #[jsonapi(id)] field must be String or Option<String>
+ --> tests/compile_fail/non_string_id.rs:7:5
+  |
+7 |     id: u32,
+  |     ^^

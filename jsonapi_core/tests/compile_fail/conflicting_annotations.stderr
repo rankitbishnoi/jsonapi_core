@@ -1,0 +1,5 @@
+error: conflicting field annotations; only one of id, lid, relationship, meta, links, skip is allowed
+ --> tests/compile_fail/conflicting_annotations.rs:6:19
+  |
+6 |     #[jsonapi(id, relationship)]
+  |                   ^^^^^^^^^^^^

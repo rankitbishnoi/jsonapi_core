@@ -1,0 +1,5 @@
+error: invalid JSON:API type string: must start with [a-zA-Z0-9\u{0080}-\u{FFFF}], got '-'
+ --> tests/compile_fail/invalid_type_name.rs:4:18
+  |
+4 | #[jsonapi(type = "-invalid")]
+  |                  ^^^^^^^^^^

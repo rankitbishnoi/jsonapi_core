@@ -1,0 +1,11 @@
+error: duplicate #[jsonapi(meta)] field
+  --> tests/compile_fail/duplicate_meta.rs:11:5
+   |
+11 |     meta2: Option<jsonapi_core::Meta>,
+   |     ^^^^^
+
+error: first #[jsonapi(meta)] here
+ --> tests/compile_fail/duplicate_meta.rs:9:5
+  |
+9 |     meta1: Option<jsonapi_core::Meta>,
+  |     ^^^^^

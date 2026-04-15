@@ -1,0 +1,20 @@
+[package]
+name = "jsonapi_core_derive"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Derive macro for jsonapi_core"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "2", features = ["full"] }
+quote = "1"
+proc-macro2 = "1"
+heck = "0.5"
+
+[lints]
+workspace = true

@@ -1,0 +1,5 @@
+error: unknown case convention: "SCREAMING_CASE", expected one of: camelCase, snake_case, kebab-case, PascalCase, none
+ --> tests/compile_fail/invalid_case.rs:4:35
+  |
+4 | #[jsonapi(type = "things", case = "SCREAMING_CASE")]
+  |                                   ^^^^^^^^^^^^^^^^

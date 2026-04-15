@@ -1,0 +1,5 @@
+error: expected one of: id, lid, relationship, meta, links, skip, rename, type
+ --> tests/compile_fail/unknown_attr.rs:8:15
+  |
+8 |     #[jsonapi(frobnicate)]
+  |               ^^^^^^^^^^

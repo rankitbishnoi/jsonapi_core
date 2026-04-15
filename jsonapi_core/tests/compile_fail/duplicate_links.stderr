@@ -1,0 +1,11 @@
+error: duplicate #[jsonapi(links)] field
+  --> tests/compile_fail/duplicate_links.rs:11:5
+   |
+11 |     links2: Option<jsonapi_core::Links>,
+   |     ^^^^^^
+
+error: first #[jsonapi(links)] here
+ --> tests/compile_fail/duplicate_links.rs:9:5
+  |
+9 |     links1: Option<jsonapi_core::Links>,
+  |     ^^^^^^

@@ -1,0 +1,11 @@
+error: duplicate #[jsonapi(lid)] field
+  --> tests/compile_fail/duplicate_lid.rs:11:5
+   |
+11 |     lid2: Option<String>,
+   |     ^^^^
+
+error: first #[jsonapi(lid)] here
+ --> tests/compile_fail/duplicate_lid.rs:9:5
+  |
+9 |     lid1: Option<String>,
+  |     ^^^^

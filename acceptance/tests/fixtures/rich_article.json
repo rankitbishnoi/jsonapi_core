@@ -1,0 +1,484 @@
+{
+  "data": {
+    "id": "f2f2f2f2-f2f2-4f2f-8f2f-f2f2f2f2f2f2",
+    "type": "node--article",
+    "attributes": {
+      "stuff_asset_id": "asset-article-002",
+      "field_naviga_id": "f2f2f2f2-f2f2-4f2f-8f2f-f2f2f2f2f2f2",
+      "field_composer_reference_id": null,
+      "title": "Rich Acceptance Test Article",
+      "field_headline_primary": true,
+      "field_slug": "rich-acceptance-test",
+      "field_standfirst": "A rich article with all paragraph types for acceptance testing",
+      "field_byline": "Rich Reporter",
+      "field_short_description": "Rich Attribution",
+      "field_sponsor_name": "Test Sponsor",
+      "field_sponsored_content_url": "https://sponsor.example.com",
+      "field_url_slug": "rich-acceptance-test",
+      "field_url_text": null,
+      "field_canonical_url": null,
+      "field_video_orientation": null,
+      "field_type_of_work": [
+        "news",
+        "opinion"
+      ],
+      "field_user_need": "inform_me",
+      "field_live_blog": false,
+      "field_live_time": null,
+      "field_live_status": false,
+      "field_legacy_content": false,
+      "field_migrated_content": false,
+      "field_indexed": true,
+      "field_show_sentiment": true,
+      "field_breaking": false,
+      "field_sensitivity": "violence",
+      "field_legal_status": "approved",
+      "field_news_value": 3,
+      "field_lifetime": "30D",
+      "field_custom_lifetime": null,
+      "field_hide_byline": false,
+      "field_vibe": null,
+      "field_word_count": 250,
+      "field_exclude_from_web": false,
+      "field_exclude_listing": false,
+      "field_created_by": "test-admin",
+      "field_modified_by": "test-editor",
+      "field_revision_number": 1,
+      "field_published_date": "2024-03-01T09:00:00+13:00",
+      "field_last_publish_time": "2024-03-01T09:30:00+13:00",
+      "field_frontend_updated_date": "2024-03-01T10:00:00+13:00",
+      "field_comments": {
+        "status": 1,
+        "last_comment_name": null,
+        "last_comment_timestamp": null,
+        "comment_count": 0
+      },
+      "status": true,
+      "moderation_state": "published",
+      "path": {
+        "alias": "/news/rich-acceptance-test"
+      },
+      "drupal_internal__nid": 60001,
+      "drupal_internal__vid": 1,
+      "created": "2024-03-01T08:00:00+13:00",
+      "changed": "2024-03-01T10:00:00+13:00",
+      "publish_on": null,
+      "unpublish_on": null
+    },
+    "relationships": {
+      "field_section": {
+        "data": {
+          "id": "22222222-2222-4222-8222-222222222223",
+          "type": "taxonomy_term--section"
+        }
+      },
+      "field_main_publication_channel": {
+        "data": {
+          "id": "11111111-1111-4111-8111-111111111112",
+          "type": "taxonomy_term--publication_channel"
+        }
+      },
+      "field_other_publication_channel": {
+        "data": [
+          {
+            "id": "11111111-1111-4111-8111-111111111112",
+            "type": "taxonomy_term--publication_channel"
+          }
+        ]
+      },
+      "field_topics": {
+        "data": [
+          {
+            "id": "33333333-3333-4333-8333-333333333334",
+            "type": "taxonomy_term--topics"
+          },
+          {
+            "id": "44444444-4444-4444-8444-444444444444",
+            "type": "taxonomy_term--topics"
+          }
+        ]
+      },
+      "field_topic_label": {
+        "data": {
+          "id": "33333333-3333-4333-8333-333333333334",
+          "type": "taxonomy_term--topics"
+        }
+      },
+      "field_entity": {
+        "data": [
+          {
+            "id": "55555555-5555-4555-8555-555555555555",
+            "type": "taxonomy_term--stuff_entity"
+          }
+        ]
+      },
+      "field_team": {
+        "data": [
+          {
+            "id": "66666666-6666-4666-8666-666666666666",
+            "type": "taxonomy_term--team"
+          }
+        ]
+      },
+      "field_source": {
+        "data": {
+          "id": "77777777-7777-4777-8777-777777777777",
+          "type": "taxonomy_term--source"
+        }
+      },
+      "field_series": {
+        "data": [
+          {
+            "id": "88888888-8888-4888-8888-888888888888",
+            "type": "taxonomy_term--series"
+          }
+        ]
+      },
+      "field_author": {
+        "data": [
+          {
+            "id": "d3d3d3d3-d3d3-4d3d-8d3d-d3d3d3d3d3d3",
+            "type": "node--author"
+          }
+        ]
+      },
+      "field_teaser": {
+        "data": {
+          "id": "tsr-para-0001-0001-0001-000000000001",
+          "type": "paragraph--teaser"
+        }
+      },
+      "field_content": {
+        "data": [
+          {
+            "id": "b1b1b1b1-b1b1-4b1b-8b1b-b1b1b1b1b1b1",
+            "type": "paragraph--text"
+          },
+          {
+            "id": "b3b3b3b3-b3b3-4b3b-8b3b-b3b3b3b3b3b3",
+            "type": "paragraph--assets"
+          },
+          {
+            "id": "b4b4b4b4-b4b4-4b4b-8b4b-b4b4b4b4b4b4",
+            "type": "paragraph--video"
+          },
+          {
+            "id": "b5b5b5b5-b5b5-4b5b-8b5b-b5b5b5b5b5b5",
+            "type": "paragraph--reference_gallery"
+          },
+          {
+            "id": "b6b6b6b6-b6b6-4b6b-8b6b-b6b6b6b6b6b6",
+            "type": "paragraph--quote"
+          },
+          {
+            "id": "b7b7b7b7-b7b7-4b7b-8b7b-b7b7b7b7b7b7",
+            "type": "paragraph--list"
+          },
+          {
+            "id": "b8b8b8b8-b8b8-4b8b-8b8b-b8b8b8b8b8b8",
+            "type": "paragraph--content_part"
+          },
+          {
+            "id": "b9b9b9b9-b9b9-4b9b-8b9b-b9b9b9b9b9b9",
+            "type": "paragraph--subheadline"
+          },
+          {
+            "id": "babababa-baba-4bab-8bab-babababababa",
+            "type": "paragraph--embed"
+          },
+          {
+            "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            "type": "paragraph--reusable_html_widget"
+          },
+          {
+            "id": "b2b2b2b2-b2b2-4b2b-8b2b-b2b2b2b2b2b2",
+            "type": "paragraph--text"
+          }
+        ]
+      }
+    }
+  },
+  "included": [
+    {
+      "id": "22222222-2222-4222-8222-222222222223",
+      "type": "taxonomy_term--section",
+      "attributes": {
+        "name": "News",
+        "field_unique_key": "news",
+        "status": true,
+        "drupal_internal__tid": 200,
+        "path": {
+          "alias": "/news"
+        }
+      }
+    },
+    {
+      "id": "11111111-1111-4111-8111-111111111112",
+      "type": "taxonomy_term--publication_channel",
+      "attributes": {
+        "name": "Stuff",
+        "field_unique_key": "stuff",
+        "status": true,
+        "drupal_internal__tid": 100
+      }
+    },
+    {
+      "id": "33333333-3333-4333-8333-333333333334",
+      "type": "taxonomy_term--topics",
+      "attributes": {
+        "name": "Politics",
+        "field_unique_key": "politics",
+        "status": true,
+        "drupal_internal__tid": 300,
+        "path": {
+          "alias": "/topics/politics"
+        }
+      }
+    },
+    {
+      "id": "44444444-4444-4444-8444-444444444444",
+      "type": "taxonomy_term--topics",
+      "attributes": {
+        "name": "Environment",
+        "field_unique_key": "environment",
+        "status": true,
+        "drupal_internal__tid": 301,
+        "path": {
+          "alias": "/topics/environment"
+        }
+      }
+    },
+    {
+      "id": "55555555-5555-4555-8555-555555555555",
+      "type": "taxonomy_term--stuff_entity",
+      "attributes": {
+        "name": "Parliament",
+        "field_unique_key": "parliament",
+        "status": true,
+        "drupal_internal__tid": 400
+      }
+    },
+    {
+      "id": "66666666-6666-4666-8666-666666666666",
+      "type": "taxonomy_term--team",
+      "attributes": {
+        "name": "Investigations",
+        "field_unique_key": "investigations",
+        "status": true,
+        "drupal_internal__tid": 500
+      }
+    },
+    {
+      "id": "77777777-7777-4777-8777-777777777777",
+      "type": "taxonomy_term--source",
+      "attributes": {
+        "name": "NZPA",
+        "field_unique_key": "nzpa",
+        "status": true,
+        "drupal_internal__tid": 600
+      },
+      "relationships": {
+        "field_logo": {
+          "data": null
+        }
+      }
+    },
+    {
+      "id": "88888888-8888-4888-8888-888888888888",
+      "type": "taxonomy_term--series",
+      "attributes": {
+        "name": "Deep Dive",
+        "field_unique_key": "deep-dive",
+        "status": true,
+        "drupal_internal__tid": 700
+      }
+    },
+    {
+      "id": "d3d3d3d3-d3d3-4d3d-8d3d-d3d3d3d3d3d3",
+      "type": "node--author",
+      "attributes": {
+        "title": "Rich Reporter",
+        "field_naviga_id": "d3d3d3d3-d3d3-4d3d-8d3d-d3d3d3d3d3d3",
+        "stuff_asset_id": "author-001",
+        "status": true,
+        "drupal_internal__nid": 70001
+      },
+      "relationships": {
+        "field_profile_picture": {
+          "data": null
+        }
+      }
+    },
+    {
+      "id": "tsr-para-0001-0001-0001-000000000001",
+      "type": "paragraph--teaser",
+      "attributes": {
+        "field_teaser_headline": "Rich Test Teaser",
+        "field_intro": "Teaser intro for rich article"
+      },
+      "relationships": {
+        "field_media_override": {
+          "data": {
+            "id": "img-tsr-0001-0001-0001-000000000001",
+            "type": "media--image",
+            "meta": {
+              "caption": "Teaser image caption",
+              "alt_txt": "Teaser alt text",
+              "credit": "Teaser Photographer",
+              "source": "",
+              "author": "",
+              "focal_point": "50,50",
+              "crop_used": null,
+              "value": ""
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "b1b1b1b1-b1b1-4b1b-8b1b-b1b1b1b1b1b1",
+      "type": "paragraph--text",
+      "attributes": {
+        "field_body": {
+          "value": "<p>Opening paragraph of the rich article.</p>"
+        }
+      }
+    },
+    {
+      "id": "b3b3b3b3-b3b3-4b3b-8b3b-b3b3b3b3b3b3",
+      "type": "paragraph--assets",
+      "attributes": {},
+      "relationships": {
+        "field_media_override": {
+          "data": {
+            "id": "img-body-0001-0001-0001-000000000001",
+            "type": "media--image",
+            "meta": {
+              "caption": "Body image caption",
+              "alt_txt": "Body image alt",
+              "credit": "Body Photographer",
+              "source": "",
+              "author": "",
+              "focal_point": "50,50",
+              "crop_used": null,
+              "value": ""
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "b4b4b4b4-b4b4-4b4b-8b4b-b4b4b4b4b4b4",
+      "type": "paragraph--video",
+      "attributes": {},
+      "relationships": {
+        "field_video": {
+          "data": {
+            "id": "vid-body-0001-0001-0001-000000000001",
+            "type": "node--video"
+          }
+        }
+      }
+    },
+    {
+      "id": "b5b5b5b5-b5b5-4b5b-8b5b-b5b5b5b5b5b5",
+      "type": "paragraph--reference_gallery",
+      "attributes": {},
+      "relationships": {
+        "field_gallery": {
+          "data": {
+            "id": "gal-body-0001-0001-0001-000000000001",
+            "type": "node--gallery"
+          }
+        }
+      }
+    },
+    {
+      "id": "b6b6b6b6-b6b6-4b6b-8b6b-b6b6b6b6b6b6",
+      "type": "paragraph--quote",
+      "attributes": {
+        "field_quote": "This is a pullquote for testing",
+        "field_source": "Quote Author"
+      }
+    },
+    {
+      "id": "b7b7b7b7-b7b7-4b7b-8b7b-b7b7b7b7b7b7",
+      "type": "paragraph--list",
+      "attributes": {
+        "field_list_type": "bullet",
+        "field_items_list": [
+          "Item one",
+          "Item two",
+          "Item three"
+        ]
+      }
+    },
+    {
+      "id": "b8b8b8b8-b8b8-4b8b-8b8b-b8b8b8b8b8b8",
+      "type": "paragraph--content_part",
+      "attributes": {
+        "field_content_part_type": "key_points",
+        "field_facts_headline": "Key Points",
+        "field_content_description": [
+          {
+            "value": "Point one"
+          },
+          {
+            "value": "Point two"
+          }
+        ]
+      }
+    },
+    {
+      "id": "b9b9b9b9-b9b9-4b9b-8b9b-b9b9b9b9b9b9",
+      "type": "paragraph--subheadline",
+      "attributes": {
+        "field_subheadline": {
+          "value": "A subheadline in the article"
+        }
+      }
+    },
+    {
+      "id": "babababa-baba-4bab-8bab-babababababa",
+      "type": "paragraph--embed",
+      "attributes": {
+        "field_script": {
+          "value": "<script>console.log('embed')</script>"
+        }
+      }
+    },
+    {
+      "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      "type": "paragraph--reusable_html_widget",
+      "attributes": {},
+      "relationships": {
+        "field_html_widget": {
+          "data": {
+            "id": "html-wdgt-0001-0001-0001-000000000001",
+            "type": "node--html_widget"
+          }
+        }
+      }
+    },
+    {
+      "id": "html-wdgt-0001-0001-0001-000000000001",
+      "type": "node--html_widget",
+      "attributes": {
+        "stuff_asset_id": "asset-html-001",
+        "title": "Test HTML Widget",
+        "field_html_body": "<div>Test widget content</div>",
+        "moderation_state": "published",
+        "status": true
+      }
+    },
+    {
+      "id": "b2b2b2b2-b2b2-4b2b-8b2b-b2b2b2b2b2b2",
+      "type": "paragraph--text",
+      "attributes": {
+        "field_body": {
+          "value": "<p>Closing paragraph of the rich article.</p>"
+        }
+      }
+    }
+  ]
+}
