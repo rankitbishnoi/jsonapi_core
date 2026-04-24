@@ -191,7 +191,9 @@ struct ArticleFull {
 }
 
 fn id_of(identity: &Identity) -> &str {
-    identity.as_id().expect("expected server id, got lid or future variant")
+    identity
+        .as_id()
+        .expect("expected server id, got lid or future variant")
 }
 
 #[test]
@@ -199,8 +201,7 @@ fn test_deep_typed_article_with_registry() {
     // One-shot parse: `Document<ArticleFull>` uses the default `I = Resource`,
     // which handles the heterogeneous `included` without a two-stage
     // deserialize.
-    let doc: jsonapi_core::Document<ArticleFull> =
-        serde_json::from_str(RICH_ARTICLE_JSON).unwrap();
+    let doc: jsonapi_core::Document<ArticleFull> = serde_json::from_str(RICH_ARTICLE_JSON).unwrap();
     let article = match &doc {
         jsonapi_core::Document::Data {
             data: jsonapi_core::PrimaryData::Single(a),
@@ -218,7 +219,9 @@ fn test_deep_typed_article_with_registry() {
     assert_eq!(section.field_unique_key, "news");
     assert_eq!(section.drupal_internal__tid, 200);
 
-    let channel: PublicationChannel = registry.get(&article.field_main_publication_channel).unwrap();
+    let channel: PublicationChannel = registry
+        .get(&article.field_main_publication_channel)
+        .unwrap();
     assert_eq!(channel.name, "Stuff");
 
     let teaser: Teaser = registry.get(&article.field_teaser).unwrap();

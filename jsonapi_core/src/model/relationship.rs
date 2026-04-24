@@ -95,7 +95,9 @@ impl<T> Relationship<T> {
     /// Iterator over server-assigned IDs, regardless of cardinality.
     /// Skips `Lid` identifiers and null to-one relationships.
     pub fn ids(&self) -> impl Iterator<Item = &str> + '_ {
-        self.identifiers().iter().filter_map(|rid| rid.identity.as_id())
+        self.identifiers()
+            .iter()
+            .filter_map(|rid| rid.identity.as_id())
     }
 
     /// The first server-assigned ID in the relationship, or `None` if the

@@ -1023,7 +1023,9 @@ fn deserialize_error_names_offending_attribute() {
             "body": "World"
         }
     }"#;
-    let err = serde_json::from_str::<Article>(json).unwrap_err().to_string();
+    let err = serde_json::from_str::<Article>(json)
+        .unwrap_err()
+        .to_string();
     assert!(
         err.contains("title"),
         "error should name the offending field, got: {err}"
@@ -1146,7 +1148,9 @@ fn deserialize_error_names_offending_option_attribute() {
             "phone_number": 42
         }
     }"#;
-    let err = serde_json::from_str::<Profile>(json).unwrap_err().to_string();
+    let err = serde_json::from_str::<Profile>(json)
+        .unwrap_err()
+        .to_string();
     assert!(
         err.contains("phone_number"),
         "error should name the offending field, got: {err}"

@@ -198,14 +198,13 @@ where
             // the offending index.
             let included: Vec<I> = match obj.get("included") {
                 Some(v) => {
-                    let arr = v.as_array().ok_or_else(|| {
-                        de::Error::custom("`included` must be a JSON array")
-                    })?;
+                    let arr = v
+                        .as_array()
+                        .ok_or_else(|| de::Error::custom("`included` must be a JSON array"))?;
                     let mut out = Vec::with_capacity(arr.len());
                     for (idx, entry) in arr.iter().enumerate() {
-                        let parsed: I = serde_json::from_value(entry.clone()).map_err(|e| {
-                            de::Error::custom(format!("in included[{idx}]: {e}"))
-                        })?;
+                        let parsed: I = serde_json::from_value(entry.clone())
+                            .map_err(|e| de::Error::custom(format!("in included[{idx}]: {e}")))?;
                         out.push(parsed);
                     }
                     out
