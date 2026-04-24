@@ -2,7 +2,7 @@ use serde::de::{self, DeserializeOwned};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use super::{ApiError, JsonApiObject, Links, Meta, ResourceObject};
+use super::{ApiError, JsonApiObject, Links, Meta, Resource, ResourceObject};
 
 /// Primary data: null (empty to-one), single resource, or collection.
 #[non_exhaustive]
@@ -49,15 +49,21 @@ impl<'de, T: DeserializeOwned> Deserialize<'de> for PrimaryData<T> {
 
 /// Top-level JSON:API document.
 /// `data` and `errors` are mutually exclusive per the spec.
+///
+/// Generic over the primary type `P` and the included type `I`. The default
+/// `I = Resource` keeps the included array open-set, which is what most
+/// real-world payloads need — `included` in a compound document is typically
+/// heterogeneous (authors, comments, tags, taxonomies, …). If you want a
+/// fully-typed homogeneous document, write `Document<T, T>` explicitly.
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq)]
-pub enum Document<T> {
+pub enum Document<P, I = Resource> {
     /// A successful response containing primary data.
     Data {
         /// The primary resource data.
-        data: PrimaryData<T>,
+        data: PrimaryData<P>,
         /// Resources related to the primary data (compound document).
-        included: Vec<T>,
+        included: Vec<I>,
         /// Top-level meta information.
         meta: Option<Meta>,
         /// The `jsonapi` member describing server implementation.
@@ -87,7 +93,7 @@ pub enum Document<T> {
     },
 }
 
-impl<T: ResourceObject> Serialize for Document<T> {
+impl<P: ResourceObject, I: Serialize> Serialize for Document<P, I> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
 
@@ -149,7 +155,11 @@ impl<T: ResourceObject> Serialize for Document<T> {
     }
 }
 
-impl<'de, T: ResourceObject + DeserializeOwned> Deserialize<'de> for Document<T> {
+impl<'de, P, I> Deserialize<'de> for Document<P, I>
+where
+    P: ResourceObject + DeserializeOwned,
+    I: DeserializeOwned,
+{
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let value = serde_json::Value::deserialize(deserializer)?;
         let obj = value
@@ -182,14 +192,26 @@ impl<'de, T: ResourceObject + DeserializeOwned> Deserialize<'de> for Document<T>
             .map_err(de::Error::custom)?;
 
         if has_data {
-            let data: PrimaryData<T> =
-                serde_json::from_value(obj["data"].clone()).map_err(de::Error::custom)?;
-            let included: Vec<T> = obj
-                .get("included")
-                .map(|v| serde_json::from_value(v.clone()))
-                .transpose()
-                .map_err(de::Error::custom)?
-                .unwrap_or_default();
+            let data: PrimaryData<P> = serde_json::from_value(obj["data"].clone())
+                .map_err(|e| de::Error::custom(format!("in primary data: {e}")))?;
+            // Deserialize each included entry individually so errors can name
+            // the offending index.
+            let included: Vec<I> = match obj.get("included") {
+                Some(v) => {
+                    let arr = v.as_array().ok_or_else(|| {
+                        de::Error::custom("`included` must be a JSON array")
+                    })?;
+                    let mut out = Vec::with_capacity(arr.len());
+                    for (idx, entry) in arr.iter().enumerate() {
+                        let parsed: I = serde_json::from_value(entry.clone()).map_err(|e| {
+                            de::Error::custom(format!("in included[{idx}]: {e}"))
+                        })?;
+                        out.push(parsed);
+                    }
+                    out
+                }
+                None => Vec::new(),
+            };
             Ok(Document::Data {
                 data,
                 included,
@@ -220,9 +242,14 @@ impl<'de, T: ResourceObject + DeserializeOwned> Deserialize<'de> for Document<T>
     }
 }
 
-impl<T: ResourceObject> Document<T> {
+impl<P, I: ResourceObject> Document<P, I> {
     /// Build a [`Registry`](crate::registry::Registry) from this document's `included` resources.
     /// Returns an empty registry for `Errors` and `Meta` variants.
+    ///
+    /// The included type `I` must implement [`ResourceObject`]. The default
+    /// `I = Resource` always satisfies that; if you override `I` with a custom
+    /// type that doesn't implement `ResourceObject`, `.registry()` becomes
+    /// unavailable and you'll need to build the registry manually.
     pub fn registry(&self) -> crate::Result<crate::registry::Registry> {
         match self {
             Document::Data { included, .. } => crate::registry::Registry::from_included(included),

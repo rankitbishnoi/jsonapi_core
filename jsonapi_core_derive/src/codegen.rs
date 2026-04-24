@@ -443,29 +443,61 @@ fn gen_field_extract(field: &ParsedField, source_var: &str) -> TokenStream {
         chain
     };
 
+    let wire = field.wire_name.as_ref().unwrap();
     if field.is_option {
+        // Preserve pass-through semantics for `Option<serde_json::Value>`: we
+        // deserialize on the *inner* type (via inference through the Some
+        // branch), so `Option<Value>` with wire `null` yields
+        // `Some(Value::Null)`. For all other inner types, a wire `null` fails
+        // inner deserialization — we then fall back to `None` so Drupal-style
+        // "null for unset optional" payloads parse cleanly.
         quote! {
-            let #ident: #ty = #lookup
-                .map(|v| ::serde_json::from_value(v.clone()).map_err(::serde::de::Error::custom))
-                .transpose()?;
+            let #ident: #ty = match #lookup {
+                ::core::option::Option::Some(__v) => {
+                    let __is_null = __v.is_null();
+                    match ::serde_json::from_value(__v.clone()) {
+                        ::core::result::Result::Ok(__parsed) => {
+                            ::core::option::Option::Some(__parsed)
+                        }
+                        ::core::result::Result::Err(__err) => {
+                            if __is_null {
+                                ::core::option::Option::None
+                            } else {
+                                return ::core::result::Result::Err(
+                                    <__D::Error as ::serde::de::Error>::custom(
+                                        ::std::format!("field `{}`: {}", #wire, __err),
+                                    ),
+                                );
+                            }
+                        }
+                    }
+                }
+                ::core::option::Option::None => ::core::option::Option::None,
+            };
         }
     } else if field.is_vec {
         quote! {
             let #ident: #ty = match #lookup {
                 ::core::option::Option::Some(v) => {
-                    ::serde_json::from_value(v.clone()).map_err(::serde::de::Error::custom)?
+                    ::serde_json::from_value(v.clone()).map_err(|__err| {
+                        <__D::Error as ::serde::de::Error>::custom(
+                            ::std::format!("field `{}`: {}", #wire, __err),
+                        )
+                    })?
                 }
                 ::core::option::Option::None => ::core::default::Default::default(),
             };
         }
     } else {
-        let wire = field.wire_name.as_ref().unwrap();
         quote! {
             let __raw = #lookup
-                .ok_or_else(|| ::serde::de::Error::missing_field(#wire))?
+                .ok_or_else(|| <__D::Error as ::serde::de::Error>::missing_field(#wire))?
                 .clone();
-            let #ident: #ty = ::serde_json::from_value(__raw)
-                .map_err(::serde::de::Error::custom)?;
+            let #ident: #ty = ::serde_json::from_value(__raw).map_err(|__err| {
+                <__D::Error as ::serde::de::Error>::custom(
+                    ::std::format!("field `{}`: {}", #wire, __err),
+                )
+            })?;
         }
     }
 }

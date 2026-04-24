@@ -92,8 +92,10 @@
 //! # Deserializing and the Registry
 //!
 //! Parse a JSON:API response and use the [`Registry`] to look up included resources.
-//! Deserialize with [`Document<Resource>`] to handle mixed types in `included`, then
-//! use typed lookups to get concrete structs back.
+//! [`Document<P>`](Document) is generic over the primary type `P` and, separately, the
+//! included type (which defaults to [`Resource`] so mixed `included` arrays Just Work).
+//! Write `Document<Article>` for a typed primary with dynamic included, `Document<Resource>`
+//! for fully dynamic, or `Document<Article, Article>` for a homogeneous typed document.
 //!
 //! ```
 //! # #[cfg(feature = "derive")] {
@@ -129,6 +131,17 @@
 //! assert_eq!(author.name, "Dan Gebhardt");
 //! # }
 //! ```
+//!
+//! # Working with Relationships
+//!
+//! [`Relationship<T>`] and [`Identity`] expose small helper methods so consumers
+//! don't need to `match` on the `#[non_exhaustive]` variants directly.
+//!
+//! - [`Relationship::ids()`](Relationship::ids) — iterator of server-assigned IDs, regardless of cardinality.
+//! - [`Relationship::first_id()`](Relationship::first_id) — the first server id (or `None` for null / empty / lid-only).
+//! - [`Relationship::first_id_or_lid()`](Relationship::first_id_or_lid) — the first identifier of either kind.
+//! - [`Relationship::identifiers()`](Relationship::identifiers) — unified slice view of all identifiers.
+//! - [`Identity::as_id()`](Identity::as_id) / [`Identity::as_lid()`](Identity::as_lid) — `Option<&str>` accessors.
 //!
 //! # Dynamic Resources
 //!

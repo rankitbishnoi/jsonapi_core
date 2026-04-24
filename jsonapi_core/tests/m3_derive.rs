@@ -731,6 +731,99 @@ fn document_collection_with_derived_type() {
     }
 }
 
+// ============================================================
+// Position-aware type-mismatch errors in Document (improvement #7b)
+// ============================================================
+
+#[test]
+fn document_primary_type_mismatch_error_names_primary_position() {
+    // Primary data is the wrong type — error should locate it in `primary data`.
+    let json = r#"{
+        "data": {
+            "type": "people",
+            "id": "1",
+            "attributes": {"name": "Ada"}
+        }
+    }"#;
+    let err = serde_json::from_str::<Document<Article>>(json)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        err.contains("primary data"),
+        "error should locate mismatch in primary data, got: {err}"
+    );
+    assert!(
+        err.contains("articles") && err.contains("people"),
+        "error should still name the mismatched types, got: {err}"
+    );
+}
+
+#[test]
+fn document_included_type_mismatch_error_names_index_zero() {
+    // Boundary: mismatch at included[0] must still be named correctly.
+    let json = r#"{
+        "data": {
+            "type": "articles",
+            "id": "1",
+            "attributes": {"title": "t", "body": "b"}
+        },
+        "included": [
+            {"type": "people", "id": "9", "attributes": {"name": "Ada"}}
+        ]
+    }"#;
+    let err = serde_json::from_str::<Document<Article, Article>>(json)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        err.contains("included[0]"),
+        "error should name the included index, got: {err}"
+    );
+}
+
+#[test]
+fn document_included_not_an_array_is_rejected() {
+    let json = r#"{
+        "data": {
+            "type": "articles",
+            "id": "1",
+            "attributes": {"title": "t", "body": "b"}
+        },
+        "included": "not-an-array"
+    }"#;
+    let err = serde_json::from_str::<Document<Article>>(json)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        err.contains("`included` must be a JSON array"),
+        "error should reject non-array included, got: {err}"
+    );
+}
+
+#[test]
+fn document_included_type_mismatch_error_names_included_index() {
+    // Primary is fine; included[1] is a type that doesn't deserialize as
+    // Article. With `Document<Article, Article>` (both positions typed), the
+    // error should point at the exact index inside `included`.
+    let json = r#"{
+        "data": {
+            "type": "articles",
+            "id": "1",
+            "attributes": {"title": "t", "body": "b"}
+        },
+        "included": [
+            {"type": "articles", "id": "2", "attributes": {"title": "u", "body": "v"}},
+            {"type": "people", "id": "9", "attributes": {"name": "Ada"}}
+        ]
+    }"#;
+    let err = serde_json::from_str::<Document<Article, Article>>(json)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        err.contains("included[1]"),
+        "error should name the included index, got: {err}"
+    );
+}
+
 #[test]
 fn document_serialize_derived_type() {
     let article = Article {
@@ -748,4 +841,314 @@ fn document_serialize_derived_type() {
     let json = serde_json::to_value(&doc).unwrap();
     assert_eq!(json["data"]["type"], "articles");
     assert_eq!(json["data"]["attributes"]["title"], "Hello");
+}
+
+// ============================================================
+// Option<T> with wire null (improvement #1)
+// ============================================================
+
+#[test]
+fn option_string_attribute_accepts_wire_null() {
+    let json = r#"{
+        "type": "profiles",
+        "id": "1",
+        "attributes": {
+            "first_name": "Ada",
+            "last_name": "Lovelace",
+            "phone_number": null
+        }
+    }"#;
+    let profile: Profile = serde_json::from_str(json).unwrap();
+    assert_eq!(profile.phone_number, None);
+}
+
+#[test]
+fn option_string_attribute_preserves_present_value() {
+    let json = r#"{
+        "type": "profiles",
+        "id": "1",
+        "attributes": {
+            "first_name": "Ada",
+            "last_name": "Lovelace",
+            "phone_number": "555-0100"
+        }
+    }"#;
+    let profile: Profile = serde_json::from_str(json).unwrap();
+    assert_eq!(profile.phone_number.as_deref(), Some("555-0100"));
+}
+
+#[test]
+fn option_string_attribute_absent_field_stays_none() {
+    let json = r#"{
+        "type": "profiles",
+        "id": "1",
+        "attributes": {
+            "first_name": "Ada",
+            "last_name": "Lovelace"
+        }
+    }"#;
+    let profile: Profile = serde_json::from_str(json).unwrap();
+    assert_eq!(profile.phone_number, None);
+}
+
+// Option<serde_json::Value> must preserve Some(Value::Null) on the wire —
+// otherwise pass-through fields lose the distinction between "absent" and
+// "present but null". This is the edge case flagged in IMPROVEMENTS.md #1.
+#[derive(Debug, Clone, PartialEq, jsonapi_core::JsonApi)]
+#[jsonapi(type = "widgets")]
+struct WidgetWithPassthrough {
+    #[jsonapi(id)]
+    id: String,
+    payload: Option<serde_json::Value>,
+}
+
+// Option<Option<T>> is the canonical way to encode three-state fields
+// (absent / explicit null / value). The derive must keep all three states
+// distinguishable, otherwise double-Option users lose "explicit null".
+#[derive(Debug, Clone, PartialEq, jsonapi_core::JsonApi)]
+#[jsonapi(type = "tri_states")]
+struct TriState {
+    #[jsonapi(id)]
+    id: String,
+    // serde handles `Option<T>` with wire null → None, so the outer Option
+    // wraps to `Some(None)` for explicit null.
+    field: Option<Option<String>>,
+}
+
+// Option<Vec<T>> — a wire `null` should fall back to `None` (the Vec inner
+// deserializer rejects null, our Option fix coerces to None).
+#[derive(Debug, Clone, PartialEq, jsonapi_core::JsonApi)]
+#[jsonapi(type = "taggables")]
+struct Taggable {
+    #[jsonapi(id)]
+    id: String,
+    tags: Option<Vec<String>>,
+}
+
+#[test]
+fn option_value_passthrough_preserves_null_as_value() {
+    let json = r#"{
+        "type": "widgets",
+        "id": "1",
+        "attributes": {
+            "payload": null
+        }
+    }"#;
+    let widget: WidgetWithPassthrough = serde_json::from_str(json).unwrap();
+    assert_eq!(widget.payload, Some(serde_json::Value::Null));
+}
+
+#[test]
+fn option_value_passthrough_absent_field_is_none() {
+    let json = r#"{
+        "type": "widgets",
+        "id": "1",
+        "attributes": {}
+    }"#;
+    let widget: WidgetWithPassthrough = serde_json::from_str(json).unwrap();
+    assert_eq!(widget.payload, None);
+}
+
+#[test]
+fn option_option_string_preserves_explicit_null_as_some_none() {
+    // Wire `null` for `Option<Option<String>>` must become `Some(None)` —
+    // this is how double-Option users distinguish "explicit null" from
+    // "absent". If the Option-null fix were too eager (collapsing any null
+    // to outer None), this test would fail.
+    let json = r#"{
+        "type": "tri_states",
+        "id": "1",
+        "attributes": { "field": null }
+    }"#;
+    let tri: TriState = serde_json::from_str(json).unwrap();
+    assert_eq!(tri.field, Some(None));
+}
+
+#[test]
+fn option_option_string_absent_field_is_outer_none() {
+    let json = r#"{
+        "type": "tri_states",
+        "id": "1",
+        "attributes": {}
+    }"#;
+    let tri: TriState = serde_json::from_str(json).unwrap();
+    assert_eq!(tri.field, None);
+}
+
+#[test]
+fn option_option_string_with_value_is_some_some() {
+    let json = r#"{
+        "type": "tri_states",
+        "id": "1",
+        "attributes": { "field": "hello" }
+    }"#;
+    let tri: TriState = serde_json::from_str(json).unwrap();
+    assert_eq!(tri.field, Some(Some("hello".into())));
+}
+
+#[test]
+fn option_vec_with_wire_null_collapses_to_none() {
+    let json = r#"{
+        "type": "taggables",
+        "id": "1",
+        "attributes": { "tags": null }
+    }"#;
+    let t: Taggable = serde_json::from_str(json).unwrap();
+    assert_eq!(t.tags, None);
+}
+
+#[test]
+fn option_vec_with_array_is_some() {
+    let json = r#"{
+        "type": "taggables",
+        "id": "1",
+        "attributes": { "tags": ["red", "blue"] }
+    }"#;
+    let t: Taggable = serde_json::from_str(json).unwrap();
+    assert_eq!(t.tags, Some(vec!["red".into(), "blue".into()]));
+}
+
+// ============================================================
+// Field-name threaded into deserialization errors (improvement #7a)
+// ============================================================
+
+#[test]
+fn deserialize_error_names_offending_attribute() {
+    // Non-option attribute receives a type-incompatible value.
+    let json = r#"{
+        "type": "articles",
+        "id": "1",
+        "attributes": {
+            "title": 123,
+            "body": "World"
+        }
+    }"#;
+    let err = serde_json::from_str::<Article>(json).unwrap_err().to_string();
+    assert!(
+        err.contains("title"),
+        "error should name the offending field, got: {err}"
+    );
+}
+
+// ============================================================
+// Relationship cardinality pinning (improvement #6)
+//
+// The docs previously implied `Vec<Relationship<T>>` was "to-many" in the
+// JSON:API sense and "collapsed on the wire into a single { data: [...] }
+// block." It does not. These tests pin down the actual behaviour so the
+// docs stay honest:
+//
+// - Spec-standard to-many (`"rel": { "data": [rid, rid] }`) deserializes
+//   into a single `Relationship<T>` with `data: ToMany(vec)`.
+// - `Vec<Relationship<T>>` is for the non-standard array-of-wrappers
+//   shape (`"rel": [ {data: rid}, {data: rid} ]`).
+// - Handing the spec-standard to-many shape to `Vec<Relationship<T>>`
+//   errors.
+// ============================================================
+
+#[derive(Debug, Clone, PartialEq, jsonapi_core::JsonApi)]
+#[jsonapi(type = "posts")]
+struct PostSpecToMany {
+    #[jsonapi(id)]
+    id: String,
+    title: String,
+    #[jsonapi(relationship)]
+    comments: Relationship<Comment>,
+}
+
+#[test]
+fn spec_standard_to_many_parses_into_single_relationship() {
+    // JSON:API 1.1 spec shape: one `{ data: [rid, rid] }` object.
+    let json = r#"{
+        "type": "posts",
+        "id": "1",
+        "attributes": {"title": "Hello"},
+        "relationships": {
+            "comments": {
+                "data": [
+                    {"type": "comments", "id": "1"},
+                    {"type": "comments", "id": "2"}
+                ]
+            }
+        }
+    }"#;
+    let post: PostSpecToMany = serde_json::from_str(json).unwrap();
+    match &post.comments.data {
+        RelationshipData::ToMany(rids) => {
+            assert_eq!(rids.len(), 2);
+            assert_eq!(rids[0].type_, "comments");
+        }
+        other => panic!("expected ToMany, got {other:?}"),
+    }
+}
+
+#[test]
+fn vec_relationship_rejects_spec_standard_to_many_shape() {
+    // Hand the spec-standard `{ data: [rid, rid] }` to a
+    // `Vec<Relationship<Comment>>` field: must error, because the derive
+    // expects an *array* of relationship-wrapper objects at this key.
+    let json = r#"{
+        "type": "posts",
+        "id": "1",
+        "attributes": {"title": "Hello"},
+        "relationships": {
+            "author": {"data": {"type": "people", "id": "9"}},
+            "comments": {
+                "data": [
+                    {"type": "comments", "id": "1"},
+                    {"type": "comments", "id": "2"}
+                ]
+            }
+        }
+    }"#;
+    let err = serde_json::from_str::<Post>(json).unwrap_err().to_string();
+    // Error must name the offending field so users can find the mismatch.
+    assert!(
+        err.contains("comments"),
+        "error should name the offending field, got: {err}"
+    );
+}
+
+#[test]
+fn vec_relationship_parses_non_standard_array_of_wrappers() {
+    // The non-standard shape `Vec<Relationship<T>>` is designed for.
+    let json = r#"{
+        "type": "posts",
+        "id": "1",
+        "attributes": {"title": "Hello"},
+        "relationships": {
+            "author": {"data": {"type": "people", "id": "9"}},
+            "comments": [
+                {"data": {"type": "comments", "id": "1"}},
+                {"data": {"type": "comments", "id": "2"}}
+            ]
+        }
+    }"#;
+    let post: Post = serde_json::from_str(json).unwrap();
+    assert_eq!(post.comments.len(), 2);
+    // Each outer Relationship carries a single ToOne(Some(rid)) — they do
+    // not collapse into one ToMany.
+    match &post.comments[0].data {
+        RelationshipData::ToOne(Some(rid)) => assert_eq!(rid.type_, "comments"),
+        other => panic!("expected ToOne(Some), got {other:?}"),
+    }
+}
+
+#[test]
+fn deserialize_error_names_offending_option_attribute() {
+    // Option<String> receives a non-null, non-string value.
+    let json = r#"{
+        "type": "profiles",
+        "id": "1",
+        "attributes": {
+            "first_name": "Ada",
+            "last_name": "Lovelace",
+            "phone_number": 42
+        }
+    }"#;
+    let err = serde_json::from_str::<Profile>(json).unwrap_err().to_string();
+    assert!(
+        err.contains("phone_number"),
+        "error should name the offending field, got: {err}"
+    );
 }

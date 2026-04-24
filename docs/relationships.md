@@ -86,18 +86,62 @@ let author: Relationship<Person> = Relationship::new(
 
 ## To-one vs to-many at the field level
 
-The macro looks at the field type to figure out cardinality:
+The macro looks at the field type to figure out cardinality. The important
+thing to internalise: **`Vec<Relationship<T>>` is not JSON:API to-many.** For
+spec-standard to-many you want `Relationship<T>` — the same type you use for
+to-one — and the wire payload populates it as `data: ToMany(vec)`.
 
-| Field type | Cardinality |
-|------------|-------------|
-| `Relationship<T>` | to-one |
-| `Vec<Relationship<T>>` | to-many |
+| Field type | Wire shape it parses / emits | When to use |
+|------------|------------------------------|-------------|
+| `Relationship<T>` | `"rel": { "data": null \| rid \| [rid, rid, ...] }` | **Spec-standard to-one and to-many.** The enum inside `data` distinguishes the cardinalities (`RelationshipData::ToOne(..)` vs `ToMany(..)`). |
+| `Vec<Relationship<T>>` | `"rel": [ { "data": rid, "meta": .. }, { "data": rid, .. } ]` | **Non-standard**: an array of full relationship-wrapper objects, each with its own `data` / `links` / `meta`. Only use this when a server speaks this shape. |
 
-A `Vec<Relationship<T>>` collapses on the wire into a single
-`{ "data": [ ...identifiers... ] }` block — each `Relationship<T>` in the `Vec`
-contributes one identifier. (`links` and `meta` from individual elements are
-not preserved when collapsed; use the dynamic `Resource` flow if you need to
-preserve them.)
+> **⚠ Common pitfall.** Writing `Vec<Relationship<T>>` for a JSON:API
+> to-many field will produce a parse error at runtime — the derive expects
+> a JSON array at the relationship key, not the spec's `{ "data": [..] }`
+> wrapper. Use `Relationship<T>` and match on `data` instead.
+
+### Worked example: spec-standard to-many
+
+```rust
+use jsonapi_core::{JsonApi, Relationship, RelationshipData};
+
+#[derive(JsonApi)]
+#[jsonapi(type = "posts")]
+struct Post {
+    #[jsonapi(id)]
+    id: String,
+    #[jsonapi(relationship)]
+    comments: Relationship<Comment>,  // ← single Relationship
+}
+
+// Wire payload:
+//   "relationships": {
+//     "comments": { "data": [ {"type":"comments","id":"1"}, ... ] }
+//   }
+//
+// After deserialize: `post.comments.data` is
+// `RelationshipData::ToMany(vec![rid, rid, ...])`.
+```
+
+The same `Relationship<Comment>` field also handles the null to-one
+(`{ "data": null }`) and the single-identifier to-one (`{ "data": rid }`)
+shapes — `RelationshipData` is the enum that disambiguates.
+
+### When `Vec<Relationship<T>>` is correct
+
+Only when a server emits an array of relationship-wrapper objects at the
+relationship key — i.e.
+
+```json
+"comments": [
+  { "data": { "type": "comments", "id": "1" }, "meta": { "pinned": true } },
+  { "data": { "type": "comments", "id": "2" } }
+]
+```
+
+That shape is outside JSON:API 1.1. If you find yourself wanting it for a
+standard API, you probably want `Relationship<T>` instead.
 
 ## Looking up the related value
 
@@ -115,11 +159,12 @@ if let Document::Data { data: PrimaryData::Single(article), .. } = &doc {
     // The article's relationships are a BTreeMap<String, RelationshipData>
     let author_data = &article.relationships["author"];
     if let RelationshipData::ToOne(Some(rid)) = author_data {
-        // Typed lookup by explicit type/id pair
-        let author: Person = registry.get_by_id(&rid.type_, match &rid.identity {
-            Identity::Id(s) => s,
-            Identity::Lid(_) => panic!("unexpected lid in response"),
-        })?;
+        // `as_id()` returns `Option<&str>` — `None` for a client-local `lid`
+        // or any future `#[non_exhaustive]` variant. Use `as_lid()` or
+        // `identity.as_id().or_else(|| identity.as_lid())` if you also
+        // accept client-local ids.
+        let id = rid.identity.as_id().expect("server id expected");
+        let author: Person = registry.get_by_id(&rid.type_, id)?;
     }
 }
 ```

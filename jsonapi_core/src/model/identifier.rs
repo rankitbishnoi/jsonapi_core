@@ -12,6 +12,28 @@ pub enum Identity {
     Lid(String),
 }
 
+impl Identity {
+    /// `Some(&str)` for a server-assigned `Id`, `None` for `Lid` or future
+    /// `#[non_exhaustive]` variants.
+    #[must_use]
+    pub fn as_id(&self) -> Option<&str> {
+        match self {
+            Identity::Id(id) => Some(id),
+            _ => None,
+        }
+    }
+
+    /// `Some(&str)` for a client-local `Lid`, `None` for `Id` or future
+    /// `#[non_exhaustive]` variants.
+    #[must_use]
+    pub fn as_lid(&self) -> Option<&str> {
+        match self {
+            Identity::Lid(lid) => Some(lid),
+            _ => None,
+        }
+    }
+}
+
 /// JSON:API resource identifier object.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ResourceIdentifier {
@@ -93,6 +115,20 @@ impl<'de> Deserialize<'de> for ResourceIdentifier {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_identity_as_id_variant() {
+        let id = Identity::Id("42".into());
+        assert_eq!(id.as_id(), Some("42"));
+        assert_eq!(id.as_lid(), None);
+    }
+
+    #[test]
+    fn test_identity_as_lid_variant() {
+        let lid = Identity::Lid("local-1".into());
+        assert_eq!(lid.as_id(), None);
+        assert_eq!(lid.as_lid(), Some("local-1"));
+    }
 
     #[test]
     fn test_resource_identifier_with_id() {

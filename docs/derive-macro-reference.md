@@ -17,7 +17,7 @@ flat lookup.
 |-----------|-------------|
 | `#[jsonapi(id)]` | Marks the resource ID field. **Required**, exactly one per struct. Type: `String` or `Option<String>`. |
 | `#[jsonapi(lid)]` | Marks the local-identifier field (JSON:API 1.1). At most one. Type: `Option<String>`. |
-| `#[jsonapi(relationship)]` | Field appears in `relationships`, not `attributes`. Type must be `Relationship<T>` or `Vec<Relationship<T>>`. |
+| `#[jsonapi(relationship)]` | Field appears in `relationships`, not `attributes`. Use `Relationship<T>` for spec-standard JSON:API relationships (both to-one and to-many — cardinality lives inside `RelationshipData`). Use `Vec<Relationship<T>>` only for the non-standard array-of-wrappers wire shape. See [Relationships](./relationships.md#to-one-vs-to-many-at-the-field-level). |
 | `#[jsonapi(relationship, type = "...")]` | Relationship plus an explicit target type for `TypeRegistry`. |
 | `#[jsonapi(meta)]` | Maps to the resource-level `meta` member. At most one. Type: `Option<Meta>`. |
 | `#[jsonapi(links)]` | Maps to the resource-level `links` member. At most one. Type: `Option<Links>`. |

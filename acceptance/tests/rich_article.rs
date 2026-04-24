@@ -39,17 +39,10 @@ struct FieldComments {
     comment_count: i64,
 }
 
-// Note: `Option<String>` fields whose wire value is literally `null` (rather
-// than absent) currently fail the derive's deserialize — the codegen unwraps
-// the Option before delegating to `serde_json::from_value`, so `null` is
-// passed to `from_value::<String>` and errors with "invalid type: null,
-// expected a string". The Drupal fixture has many such fields (e.g.
-// `field_canonical_url`, `publish_on`). This test therefore exercises
-// Option+null through the nested `FieldComments` (which uses plain
-// `#[derive(serde::Deserialize)]`, where the behaviour is correct), and
-// omits the article-level Option<String> fields whose wire value is null.
-// Tracked as a follow-up — see "Deferred: derive Option<T>-with-null gap"
-// in next-steps.
+// `Option<String>` fields whose wire value is literally `null` are handled
+// by the derive — see IMPROVEMENTS.md #1. The Drupal fixture has such
+// fields (`field_canonical_url`, `field_video_orientation`, `publish_on`),
+// which we can now type as `Option<String>` without preprocessing.
 #[derive(Debug, Clone, PartialEq, jsonapi_core::JsonApi)]
 #[jsonapi(type = "node--article")]
 #[allow(dead_code)]
@@ -65,6 +58,9 @@ struct ArticleShallow {
     field_published_date: String,
     moderation_state: String,
     drupal_internal__nid: i64,
+    field_canonical_url: Option<String>,
+    field_video_orientation: Option<String>,
+    publish_on: Option<String>,
 }
 
 #[test]
@@ -85,14 +81,15 @@ fn test_shallow_typed_article() {
     assert_eq!(article.field_published_date, "2024-03-01T09:00:00+13:00");
     assert_eq!(article.moderation_state, "published");
     assert_eq!(article.drupal_internal__nid, 60001);
+    // Wire `null` Option<String> fields collapse to None (IMPROVEMENTS.md #1).
+    assert_eq!(article.field_canonical_url, None);
+    assert_eq!(article.field_video_orientation, None);
+    assert_eq!(article.publish_on, None);
 }
 
 // ---------- Test 2: deep typed + registry ----------
 
-use jsonapi_core::{
-    Identity, Registry, Relationship, RelationshipData, Resource, ResourceIdentifier,
-};
-use serde::de::DeserializeOwned;
+use jsonapi_core::{Identity, Relationship, RelationshipData, Resource, ResourceIdentifier};
 
 #[derive(Debug, Clone, PartialEq, jsonapi_core::JsonApi)]
 #[jsonapi(type = "taxonomy_term--section")]
@@ -194,49 +191,37 @@ struct ArticleFull {
 }
 
 fn id_of(identity: &Identity) -> &str {
-    match identity {
-        Identity::Id(s) => s,
-        Identity::Lid(_) => panic!("expected id, got lid"),
-        _ => panic!("unknown Identity variant"),
-    }
-}
-
-/// Resolve a to-one relationship through the registry, panicking on the
-/// "must be to-one and present" invariants since every assertion here is
-/// known to satisfy them.
-fn one_of<T, U>(reg: &Registry, rel: &Relationship<U>) -> T
-where
-    T: DeserializeOwned,
-{
-    let rid = match &rel.data {
-        RelationshipData::ToOne(Some(rid)) => rid,
-        _ => panic!("expected to-one present"),
-    };
-    reg.get_by_id(&rid.type_, id_of(&rid.identity)).unwrap()
+    identity.as_id().expect("expected server id, got lid or future variant")
 }
 
 #[test]
 fn test_deep_typed_article_with_registry() {
-    // Two-stage parse: the envelope's `included` is heterogeneous, so we
-    // cannot use `Document<ArticleFull>`. Parse the whole doc to Value,
-    // then deserialize primary as ArticleFull and included as Vec<Resource>.
-    let v: serde_json::Value = serde_json::from_str(RICH_ARTICLE_JSON).unwrap();
-    let article: ArticleFull = serde_json::from_value(v["data"].clone()).unwrap();
-    let included: Vec<Resource> = serde_json::from_value(v["included"].clone()).unwrap();
-    let registry = Registry::from_included(&included).unwrap();
+    // One-shot parse: `Document<ArticleFull>` uses the default `I = Resource`,
+    // which handles the heterogeneous `included` without a two-stage
+    // deserialize.
+    let doc: jsonapi_core::Document<ArticleFull> =
+        serde_json::from_str(RICH_ARTICLE_JSON).unwrap();
+    let article = match &doc {
+        jsonapi_core::Document::Data {
+            data: jsonapi_core::PrimaryData::Single(a),
+            ..
+        } => a.as_ref(),
+        _ => panic!("expected Document::Data with a single primary resource"),
+    };
+    let registry = doc.registry().unwrap();
 
     assert_eq!(article.title, "Rich Acceptance Test Article");
 
-    // Typed to-one
-    let section: Section = one_of(&registry, &article.field_section);
+    // Typed to-one — registry.get uses the relationship's phantom type.
+    let section: Section = registry.get(&article.field_section).unwrap();
     assert_eq!(section.name, "News");
     assert_eq!(section.field_unique_key, "news");
     assert_eq!(section.drupal_internal__tid, 200);
 
-    let channel: PublicationChannel = one_of(&registry, &article.field_main_publication_channel);
+    let channel: PublicationChannel = registry.get(&article.field_main_publication_channel).unwrap();
     assert_eq!(channel.name, "Stuff");
 
-    let teaser: Teaser = one_of(&registry, &article.field_teaser);
+    let teaser: Teaser = registry.get(&article.field_teaser).unwrap();
     assert_eq!(teaser.field_teaser_headline, "Rich Test Teaser");
 
     // Typed to-many via registry.get_many (reads RelationshipData::ToMany)
@@ -278,9 +263,31 @@ fn test_deep_typed_article_with_registry() {
     assert_eq!(quote.field_source, "Quote Author");
 }
 
-// ---------- Test 3: dynamic + round-trip ----------
+// ---------- Test 2b: typed primary with default dynamic included ----------
 
 use jsonapi_core::{Document, PrimaryData, ResourceObject};
+
+#[test]
+fn test_typed_primary_with_default_dynamic_included() {
+    // With `Document<ArticleFull>` (default `I = Resource`), the envelope's
+    // heterogeneous `included` deserialises cleanly — no two-stage parse.
+    let doc: Document<ArticleFull> = serde_json::from_str(RICH_ARTICLE_JSON).unwrap();
+
+    let article = match &doc {
+        Document::Data {
+            data: PrimaryData::Single(article),
+            ..
+        } => article,
+        _ => panic!("expected Document::Data with a single primary resource"),
+    };
+    assert_eq!(article.title, "Rich Acceptance Test Article");
+
+    let registry = doc.registry().unwrap();
+    let section: Section = registry.get(&article.field_section).unwrap();
+    assert_eq!(section.name, "News");
+}
+
+// ---------- Test 3: dynamic + round-trip ----------
 
 #[test]
 fn test_dynamic_lossless_round_trip() {
