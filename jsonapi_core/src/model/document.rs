@@ -257,6 +257,318 @@ impl<P, I: ResourceObject> Document<P, I> {
     }
 }
 
+impl<P, I> Document<P, I> {
+    /// Consume the document and return the single primary resource.
+    ///
+    /// Returns [`Error::UnexpectedDocumentShape`](crate::Error::UnexpectedDocumentShape)
+    /// if the document is a collection, null, errors, or meta-only.
+    ///
+    /// This is the typed-primary fast path: write
+    /// `let article = doc.into_single()?;` instead of pattern-matching on
+    /// [`Document`] and [`PrimaryData`].
+    pub fn into_single(self) -> crate::Result<P> {
+        match self {
+            Document::Data {
+                data: PrimaryData::Single(boxed),
+                ..
+            } => Ok(*boxed),
+            Document::Data {
+                data: PrimaryData::Many(_),
+                ..
+            } => Err(unexpected_shape("single resource", "resource collection")),
+            Document::Data {
+                data: PrimaryData::Null,
+                ..
+            } => Err(unexpected_shape("single resource", "null primary data")),
+            Document::Errors { .. } => {
+                Err(unexpected_shape("single resource", "errors document"))
+            }
+            Document::Meta { .. } => {
+                Err(unexpected_shape("single resource", "meta-only document"))
+            }
+        }
+    }
+
+    /// Consume the document and return the primary resources as a [`Vec`].
+    ///
+    /// Returns [`Error::UnexpectedDocumentShape`](crate::Error::UnexpectedDocumentShape)
+    /// if the document is a single resource, null, errors, or meta-only.
+    pub fn into_many(self) -> crate::Result<Vec<P>> {
+        match self {
+            Document::Data {
+                data: PrimaryData::Many(items),
+                ..
+            } => Ok(items),
+            Document::Data {
+                data: PrimaryData::Single(_),
+                ..
+            } => Err(unexpected_shape("resource collection", "single resource")),
+            Document::Data {
+                data: PrimaryData::Null,
+                ..
+            } => Err(unexpected_shape("resource collection", "null primary data")),
+            Document::Errors { .. } => {
+                Err(unexpected_shape("resource collection", "errors document"))
+            }
+            Document::Meta { .. } => {
+                Err(unexpected_shape("resource collection", "meta-only document"))
+            }
+        }
+    }
+
+    /// Consume the document and return its meta block.
+    ///
+    /// Succeeds for [`Document::Meta`] (the meta-only variant) and for
+    /// [`Document::Data`] / [`Document::Errors`] when the top-level `meta`
+    /// member is present. Returns
+    /// [`Error::UnexpectedDocumentShape`](crate::Error::UnexpectedDocumentShape)
+    /// when no meta is available.
+    pub fn into_meta(self) -> crate::Result<Meta> {
+        match self {
+            Document::Meta { meta, .. } => Ok(meta),
+            Document::Data {
+                meta: Some(meta), ..
+            } => Ok(meta),
+            Document::Errors {
+                meta: Some(meta), ..
+            } => Ok(meta),
+            Document::Data { .. } => Err(unexpected_shape(
+                "meta-only or data-with-meta",
+                "data document without meta",
+            )),
+            Document::Errors { .. } => Err(unexpected_shape(
+                "meta-only or errors-with-meta",
+                "errors document without meta",
+            )),
+        }
+    }
+
+    /// Borrow the single primary resource without consuming the document.
+    ///
+    /// See [`into_single`](Self::into_single) for the consuming version.
+    pub fn as_single(&self) -> crate::Result<&P> {
+        match self {
+            Document::Data {
+                data: PrimaryData::Single(boxed),
+                ..
+            } => Ok(boxed.as_ref()),
+            Document::Data {
+                data: PrimaryData::Many(_),
+                ..
+            } => Err(unexpected_shape("single resource", "resource collection")),
+            Document::Data {
+                data: PrimaryData::Null,
+                ..
+            } => Err(unexpected_shape("single resource", "null primary data")),
+            Document::Errors { .. } => {
+                Err(unexpected_shape("single resource", "errors document"))
+            }
+            Document::Meta { .. } => {
+                Err(unexpected_shape("single resource", "meta-only document"))
+            }
+        }
+    }
+
+    /// Borrow the primary resource collection as a slice without consuming the document.
+    ///
+    /// See [`into_many`](Self::into_many) for the consuming version.
+    pub fn as_many(&self) -> crate::Result<&[P]> {
+        match self {
+            Document::Data {
+                data: PrimaryData::Many(items),
+                ..
+            } => Ok(items.as_slice()),
+            Document::Data {
+                data: PrimaryData::Single(_),
+                ..
+            } => Err(unexpected_shape("resource collection", "single resource")),
+            Document::Data {
+                data: PrimaryData::Null,
+                ..
+            } => Err(unexpected_shape("resource collection", "null primary data")),
+            Document::Errors { .. } => {
+                Err(unexpected_shape("resource collection", "errors document"))
+            }
+            Document::Meta { .. } => {
+                Err(unexpected_shape("resource collection", "meta-only document"))
+            }
+        }
+    }
+
+    /// Borrow the primary data envelope without distinguishing single vs. many.
+    ///
+    /// Returns [`Error::UnexpectedDocumentShape`](crate::Error::UnexpectedDocumentShape)
+    /// for [`Document::Errors`] and [`Document::Meta`].
+    pub fn primary(&self) -> crate::Result<&PrimaryData<P>> {
+        match self {
+            Document::Data { data, .. } => Ok(data),
+            Document::Errors { .. } => Err(unexpected_shape("data document", "errors document")),
+            Document::Meta { .. } => {
+                Err(unexpected_shape("data document", "meta-only document"))
+            }
+        }
+    }
+
+    /// Borrow the document's `included` slice. Returns an empty slice for
+    /// [`Document::Errors`] and [`Document::Meta`] — cardinality is always
+    /// "zero or more", never an error.
+    #[must_use]
+    pub fn included(&self) -> &[I] {
+        match self {
+            Document::Data { included, .. } => included.as_slice(),
+            _ => &[],
+        }
+    }
+}
+
+#[inline]
+fn unexpected_shape(expected: &'static str, found: &'static str) -> crate::Error {
+    crate::Error::UnexpectedDocumentShape { expected, found }
+}
+
+impl<P, I> Document<P, I>
+where
+    P: ResourceObject + DeserializeOwned,
+    I: DeserializeOwned,
+{
+    /// Parse a JSON:API document from a string with structural pre-validation.
+    ///
+    /// Identical in success cases to `serde_json::from_str::<Document<P, I>>(s)`,
+    /// but surfaces structurally-detectable errors as typed
+    /// [`Error`](crate::Error) variants ([`Error::TypeMismatch`](crate::Error::TypeMismatch),
+    /// [`Error::MalformedRelationship`](crate::Error::MalformedRelationship))
+    /// rather than opaque [`serde_json::Error`] strings. Consumers can map
+    /// each typed error to the right HTTP status (e.g. 502 for type
+    /// mismatch — upstream sent the wrong shape — vs. 422 for client
+    /// validation problems).
+    ///
+    /// The pre-validation runs only when the primary type `P` carries a
+    /// non-empty `type_name` (i.e. it was derived with
+    /// `#[jsonapi(type = "...")]`); for the dynamic
+    /// [`Resource`](crate::Resource) fallback the pre-pass is a no-op.
+    pub fn from_str(s: &str) -> crate::Result<Self> {
+        let value: serde_json::Value = serde_json::from_str(s)?;
+        Self::from_value(value)
+    }
+
+    /// Parse a JSON:API document from a byte slice. See [`Document::from_str`]
+    /// for semantics.
+    pub fn from_slice(bytes: &[u8]) -> crate::Result<Self> {
+        let value: serde_json::Value = serde_json::from_slice(bytes)?;
+        Self::from_value(value)
+    }
+
+    /// Parse a JSON:API document from a `serde_json::Value` with structural
+    /// pre-validation. See [`Document::from_str`] for semantics.
+    pub fn from_value(value: serde_json::Value) -> crate::Result<Self> {
+        prevalidate::<P>(&value)?;
+        serde_json::from_value(value).map_err(crate::Error::Json)
+    }
+}
+
+/// Structural pre-pass: catches type mismatches and malformed relationships
+/// before the generated `Deserialize` runs and converts them to typed errors.
+fn prevalidate<P: ResourceObject>(value: &serde_json::Value) -> crate::Result<()> {
+    let info = P::type_info();
+    let expected = info.type_name;
+
+    let obj = match value.as_object() {
+        Some(obj) => obj,
+        // Non-object payloads are caught by the regular Deserialize impl.
+        None => return Ok(()),
+    };
+
+    let Some(data) = obj.get("data") else {
+        // Errors / meta documents do not carry primary data; nothing to validate.
+        return Ok(());
+    };
+
+    match data {
+        serde_json::Value::Object(_) => check_resource(data, "data", expected)?,
+        serde_json::Value::Array(arr) => {
+            for (idx, item) in arr.iter().enumerate() {
+                let location = format!("data[{idx}]");
+                check_resource(item, &location, expected)?;
+            }
+        }
+        // Null primary data is always valid structurally.
+        _ => {}
+    }
+    Ok(())
+}
+
+fn check_resource(
+    item: &serde_json::Value,
+    location: &str,
+    expected_type: &'static str,
+) -> crate::Result<()> {
+    let obj = match item.as_object() {
+        Some(o) => o,
+        None => return Ok(()),
+    };
+
+    // Only run the type check when P carries a known wire type — dynamic
+    // resources (Resource) have an empty type_name, in which case any
+    // wire-side `type` is acceptable.
+    if !expected_type.is_empty()
+        && let Some(serde_json::Value::String(got)) = obj.get("type")
+        && got != expected_type
+    {
+        return Err(crate::Error::TypeMismatch {
+            expected: expected_type,
+            got: got.clone(),
+            location: location.to_string(),
+        });
+    }
+
+    if let Some(rels) = obj.get("relationships").and_then(|v| v.as_object()) {
+        for (name, rel_value) in rels {
+            check_relationship(name, rel_value, location)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn check_relationship(
+    name: &str,
+    rel_value: &serde_json::Value,
+    location: &str,
+) -> crate::Result<()> {
+    let rel_obj = rel_value.as_object().ok_or_else(|| crate::Error::MalformedRelationship {
+        name: name.to_string(),
+        location: location.to_string(),
+        reason: "relationship value must be an object".into(),
+    })?;
+
+    // A relationship may omit `data` (links/meta only), but if `data` is
+    // present it must be null, an object, or an array.
+    if let Some(data) = rel_obj.get("data") {
+        match data {
+            serde_json::Value::Null
+            | serde_json::Value::Object(_)
+            | serde_json::Value::Array(_) => {}
+            other => {
+                let kind = match other {
+                    serde_json::Value::Bool(_) => "boolean",
+                    serde_json::Value::Number(_) => "number",
+                    serde_json::Value::String(_) => "string",
+                    _ => "unknown",
+                };
+                return Err(crate::Error::MalformedRelationship {
+                    name: name.to_string(),
+                    location: location.to_string(),
+                    reason: format!(
+                        "`data` must be null, an object, or an array; got {kind}"
+                    ),
+                });
+            }
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -456,5 +768,199 @@ mod tests {
         let registry = doc.registry().unwrap();
         let result: std::result::Result<Resource, _> = registry.get_by_id("people", "9");
         assert!(result.is_err());
+    }
+
+    // ----- Document accessors (improvement #1) -----
+
+    fn single_doc_json() -> &'static str {
+        r#"{"data":{"type":"articles","id":"1","attributes":{"title":"Hello"}}}"#
+    }
+
+    fn many_doc_json() -> &'static str {
+        r#"{"data":[{"type":"articles","id":"1","attributes":{}},{"type":"articles","id":"2","attributes":{}}]}"#
+    }
+
+    fn null_doc_json() -> &'static str {
+        r#"{"data":null}"#
+    }
+
+    fn errors_doc_json() -> &'static str {
+        r#"{"errors":[{"status":"404","title":"Not Found"}]}"#
+    }
+
+    fn meta_doc_json() -> &'static str {
+        r#"{"meta":{"total":42}}"#
+    }
+
+    #[test]
+    fn into_single_returns_resource() {
+        let doc: Document<Resource> = serde_json::from_str(single_doc_json()).unwrap();
+        let resource = doc.into_single().unwrap();
+        assert_eq!(resource.resource_type(), "articles");
+        assert_eq!(resource.resource_id(), Some("1"));
+    }
+
+    #[test]
+    fn into_single_rejects_collection() {
+        let doc: Document<Resource> = serde_json::from_str(many_doc_json()).unwrap();
+        let err = doc.into_single().unwrap_err();
+        match err {
+            crate::Error::UnexpectedDocumentShape { expected, found } => {
+                assert_eq!(expected, "single resource");
+                assert_eq!(found, "resource collection");
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn into_single_rejects_null() {
+        let doc: Document<Resource> = serde_json::from_str(null_doc_json()).unwrap();
+        let err = doc.into_single().unwrap_err();
+        assert!(matches!(
+            err,
+            crate::Error::UnexpectedDocumentShape {
+                found: "null primary data",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn into_single_rejects_errors() {
+        let doc: Document<Resource> = serde_json::from_str(errors_doc_json()).unwrap();
+        let err = doc.into_single().unwrap_err();
+        assert!(matches!(
+            err,
+            crate::Error::UnexpectedDocumentShape {
+                found: "errors document",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn into_single_rejects_meta() {
+        let doc: Document<Resource> = serde_json::from_str(meta_doc_json()).unwrap();
+        let err = doc.into_single().unwrap_err();
+        assert!(matches!(
+            err,
+            crate::Error::UnexpectedDocumentShape {
+                found: "meta-only document",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn into_many_returns_collection() {
+        let doc: Document<Resource> = serde_json::from_str(many_doc_json()).unwrap();
+        let resources = doc.into_many().unwrap();
+        assert_eq!(resources.len(), 2);
+        assert_eq!(resources[0].resource_id(), Some("1"));
+        assert_eq!(resources[1].resource_id(), Some("2"));
+    }
+
+    #[test]
+    fn into_many_rejects_single() {
+        let doc: Document<Resource> = serde_json::from_str(single_doc_json()).unwrap();
+        let err = doc.into_many().unwrap_err();
+        assert!(matches!(
+            err,
+            crate::Error::UnexpectedDocumentShape {
+                expected: "resource collection",
+                found: "single resource",
+            }
+        ));
+    }
+
+    #[test]
+    fn into_meta_returns_meta() {
+        let doc: Document<Resource> = serde_json::from_str(meta_doc_json()).unwrap();
+        let meta = doc.into_meta().unwrap();
+        assert_eq!(meta["total"], 42);
+    }
+
+    #[test]
+    fn into_meta_returns_meta_from_data_doc() {
+        let json =
+            r#"{"data":{"type":"articles","id":"1","attributes":{}},"meta":{"page":7}}"#;
+        let doc: Document<Resource> = serde_json::from_str(json).unwrap();
+        let meta = doc.into_meta().unwrap();
+        assert_eq!(meta["page"], 7);
+    }
+
+    #[test]
+    fn into_meta_rejects_data_without_meta() {
+        let doc: Document<Resource> = serde_json::from_str(single_doc_json()).unwrap();
+        let err = doc.into_meta().unwrap_err();
+        assert!(matches!(
+            err,
+            crate::Error::UnexpectedDocumentShape {
+                found: "data document without meta",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn as_single_borrows_without_consuming() {
+        let doc: Document<Resource> = serde_json::from_str(single_doc_json()).unwrap();
+        let r1 = doc.as_single().unwrap();
+        assert_eq!(r1.resource_id(), Some("1"));
+        // Doc is still usable.
+        let r2 = doc.as_single().unwrap();
+        assert_eq!(r2.resource_id(), Some("1"));
+    }
+
+    #[test]
+    fn as_many_borrows_slice() {
+        let doc: Document<Resource> = serde_json::from_str(many_doc_json()).unwrap();
+        let slice = doc.as_many().unwrap();
+        assert_eq!(slice.len(), 2);
+        // Doc is still usable for further borrows.
+        let _ = doc.as_many().unwrap();
+    }
+
+    #[test]
+    fn primary_returns_envelope() {
+        let doc: Document<Resource> = serde_json::from_str(many_doc_json()).unwrap();
+        match doc.primary().unwrap() {
+            PrimaryData::Many(v) => assert_eq!(v.len(), 2),
+            _ => panic!("expected Many"),
+        }
+    }
+
+    #[test]
+    fn primary_rejects_errors() {
+        let doc: Document<Resource> = serde_json::from_str(errors_doc_json()).unwrap();
+        let err = doc.primary().unwrap_err();
+        assert!(matches!(
+            err,
+            crate::Error::UnexpectedDocumentShape {
+                expected: "data document",
+                found: "errors document",
+            }
+        ));
+    }
+
+    #[test]
+    fn included_returns_slice_for_data() {
+        let json = r#"{
+            "data": {"type":"articles","id":"1","attributes":{"title":"Hello"}},
+            "included": [{"type":"people","id":"9","attributes":{"name":"Dan"}}]
+        }"#;
+        let doc: Document<Resource> = serde_json::from_str(json).unwrap();
+        assert_eq!(doc.included().len(), 1);
+        assert_eq!(doc.included()[0].resource_type(), "people");
+    }
+
+    #[test]
+    fn included_returns_empty_for_errors_and_meta() {
+        let errors: Document<Resource> = serde_json::from_str(errors_doc_json()).unwrap();
+        assert!(errors.included().is_empty());
+
+        let meta: Document<Resource> = serde_json::from_str(meta_doc_json()).unwrap();
+        assert!(meta.included().is_empty());
     }
 }

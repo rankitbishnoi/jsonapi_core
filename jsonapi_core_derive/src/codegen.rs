@@ -3,7 +3,8 @@ use quote::{format_ident, quote};
 
 use crate::parse::{FieldKind, ParsedField, StructAttrs};
 
-/// Generate all three impls: ResourceObject, Serialize, Deserialize.
+/// Generate all impls: ResourceObject, Serialize, Deserialize, and the
+/// HasLinks / HasMeta accessor traits when applicable.
 pub fn generate(
     name: &syn::Ident,
     struct_attrs: &StructAttrs,
@@ -12,11 +13,54 @@ pub fn generate(
     let resource_object_impl = gen_resource_object(name, struct_attrs, fields);
     let serialize_impl = gen_serialize(name, struct_attrs, fields);
     let deserialize_impl = gen_deserialize(name, struct_attrs, fields);
+    let accessor_impls = gen_accessor_traits(name, fields);
 
     quote! {
         #resource_object_impl
         #serialize_impl
         #deserialize_impl
+        #accessor_impls
+    }
+}
+
+/// Emit `HasLinks` / `HasMeta` impls only when the resource carries the
+/// corresponding `#[jsonapi(links)]` / `#[jsonapi(meta)]` field. We
+/// intentionally don't emit a default-`None` impl for resources without the
+/// field — that would silently lie about the resource's shape.
+fn gen_accessor_traits(name: &syn::Ident, fields: &[ParsedField]) -> TokenStream {
+    let links_impl = fields
+        .iter()
+        .find(|f| matches!(f.kind, FieldKind::Links))
+        .map(|f| {
+            let ident = &f.ident;
+            quote! {
+                impl ::jsonapi_core::model::HasLinks for #name {
+                    fn links(&self) -> ::core::option::Option<&::jsonapi_core::model::Links> {
+                        self.#ident.as_ref()
+                    }
+                }
+            }
+        })
+        .unwrap_or_default();
+
+    let meta_impl = fields
+        .iter()
+        .find(|f| matches!(f.kind, FieldKind::Meta))
+        .map(|f| {
+            let ident = &f.ident;
+            quote! {
+                impl ::jsonapi_core::model::HasMeta for #name {
+                    fn meta(&self) -> ::core::option::Option<&::jsonapi_core::model::Meta> {
+                        self.#ident.as_ref()
+                    }
+                }
+            }
+        })
+        .unwrap_or_default();
+
+    quote! {
+        #links_impl
+        #meta_impl
     }
 }
 

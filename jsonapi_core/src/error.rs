@@ -99,6 +99,48 @@ pub enum Error {
         /// Human-readable explanation.
         reason: String,
     },
+
+    /// Caller asked the document for a specific shape (e.g.
+    /// [`Document::into_single`](crate::Document::into_single)) but the
+    /// document carries a different shape.
+    #[error("expected {expected} document, got {found}")]
+    UnexpectedDocumentShape {
+        /// What the caller expected, e.g. `"single resource"`,
+        /// `"resource collection"`, `"meta-only"`.
+        expected: &'static str,
+        /// What the document actually is, e.g. `"resource collection"`,
+        /// `"errors document"`, `"meta-only document"`, `"null primary data"`.
+        found: &'static str,
+    },
+
+    /// The wire-side resource `type` does not match the type declared by the
+    /// Rust type the document is being deserialized into. Surfaced by
+    /// [`Document::from_str`](crate::Document::from_str),
+    /// [`Document::from_slice`](crate::Document::from_slice), and
+    /// [`Document::from_value`](crate::Document::from_value).
+    #[error("type mismatch at {location}: expected `{expected}`, got `{got}`")]
+    TypeMismatch {
+        /// The Rust-side `#[jsonapi(type = "...")]` value.
+        expected: &'static str,
+        /// The `type` value found on the wire.
+        got: String,
+        /// JSON pointer-style path to the offending resource, e.g. `"data"`,
+        /// `"data[3]"`, or `"included[2]"`.
+        location: String,
+    },
+
+    /// A relationship object on the wire is structurally malformed
+    /// (e.g. missing the required `data` member, or a `data` value that is
+    /// neither `null`, an object, nor an array).
+    #[error("malformed relationship `{name}` at {location}: {reason}")]
+    MalformedRelationship {
+        /// Wire name of the offending relationship.
+        name: String,
+        /// JSON pointer-style path to the resource carrying the relationship.
+        location: String,
+        /// Human-readable explanation of what is wrong.
+        reason: String,
+    },
 }
 
 /// Convenience alias.

@@ -52,9 +52,58 @@ pub enum Link {
 }
 
 /// Map of link names to link values. Null links are represented as `None`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Links(pub BTreeMap<String, Option<Link>>);
+
+impl Links {
+    /// Construct an empty link map.
+    #[must_use]
+    pub fn new() -> Self {
+        Self(BTreeMap::new())
+    }
+
+    /// `true` if the map contains the given link name, regardless of whether
+    /// the link itself is `null`. Use [`Links::get`] when you need a non-null
+    /// link.
+    #[must_use]
+    pub fn contains(&self, rel: &str) -> bool {
+        self.0.contains_key(rel)
+    }
+
+    /// Borrow the link for `rel` if it is present *and* non-null.
+    ///
+    /// Returns `None` for both "key absent" and "key present, value `null`".
+    /// Use `links.0.get(rel)` directly if you need to distinguish the two.
+    #[must_use]
+    pub fn get(&self, rel: &str) -> Option<&Link> {
+        self.0.get(rel).and_then(Option::as_ref)
+    }
+
+    /// Iterate `(name, &Link)` pairs, skipping entries whose value is `null`.
+    pub fn iter(&self) -> impl Iterator<Item = (&str, &Link)> + '_ {
+        self.0
+            .iter()
+            .filter_map(|(k, v)| v.as_ref().map(|link| (k.as_str(), link)))
+    }
+
+    /// Iterate the link names in lexicographic order.
+    pub fn keys(&self) -> impl Iterator<Item = &str> + '_ {
+        self.0.keys().map(String::as_str)
+    }
+
+    /// Total number of entries (counts `null`-valued entries too).
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// `true` if there are no entries at all.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -114,5 +163,81 @@ mod tests {
             }
             _ => panic!("expected Link::Object"),
         }
+    }
+
+    // ----- Links inherent helpers (improvement #4) -----
+
+    fn sample_links() -> Links {
+        let json = r#"{
+            "self": "http://example.com/articles/1",
+            "related": null,
+            "next": {"href": "http://example.com/articles?page=2", "title": "Next page"}
+        }"#;
+        serde_json::from_str(json).unwrap()
+    }
+
+    #[test]
+    fn links_new_is_empty() {
+        let links = Links::new();
+        assert!(links.is_empty());
+        assert_eq!(links.len(), 0);
+    }
+
+    #[test]
+    fn links_default_matches_new() {
+        assert_eq!(Links::default(), Links::new());
+    }
+
+    #[test]
+    fn links_contains_returns_true_for_null_entry() {
+        let links = sample_links();
+        assert!(links.contains("self"));
+        assert!(links.contains("related"));
+        assert!(links.contains("next"));
+        assert!(!links.contains("missing"));
+    }
+
+    #[test]
+    fn links_get_returns_link_for_present_non_null() {
+        let links = sample_links();
+        match links.get("self") {
+            Some(Link::String(s)) => assert_eq!(s, "http://example.com/articles/1"),
+            other => panic!("expected Link::String, got {other:?}"),
+        }
+        assert!(matches!(links.get("next"), Some(Link::Object(_))));
+    }
+
+    #[test]
+    fn links_get_returns_none_for_null_entry() {
+        let links = sample_links();
+        assert!(links.get("related").is_none());
+    }
+
+    #[test]
+    fn links_get_returns_none_for_missing_key() {
+        let links = sample_links();
+        assert!(links.get("missing").is_none());
+    }
+
+    #[test]
+    fn links_iter_skips_null_entries() {
+        let links = sample_links();
+        let names: Vec<&str> = links.iter().map(|(k, _)| k).collect();
+        // BTreeMap iterates in lexicographic order; "related" is null and skipped.
+        assert_eq!(names, vec!["next", "self"]);
+    }
+
+    #[test]
+    fn links_keys_includes_null_entries() {
+        let links = sample_links();
+        let names: Vec<&str> = links.keys().collect();
+        assert_eq!(names, vec!["next", "related", "self"]);
+    }
+
+    #[test]
+    fn links_len_counts_all_entries() {
+        let links = sample_links();
+        assert_eq!(links.len(), 3);
+        assert!(!links.is_empty());
     }
 }

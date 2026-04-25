@@ -132,6 +132,59 @@
 //! # }
 //! ```
 //!
+//! # Document Accessors
+//!
+//! Pattern-matching on [`Document`] and [`PrimaryData`] for the common single-primary
+//! case is verbose. The accessors on [`Document`] do the unwrap for you and return
+//! [`Error::UnexpectedDocumentShape`](crate::Error::UnexpectedDocumentShape) when
+//! the shape is wrong:
+//!
+//! - [`Document::into_single`] / [`Document::into_many`] / [`Document::into_meta`] — consuming.
+//! - [`Document::as_single`] / [`Document::as_many`] / [`Document::primary`] / [`Document::included`] — borrowing.
+//! - [`Document::from_str`] / [`Document::from_slice`] / [`Document::from_value`] —
+//!   parse with a structural pre-pass that surfaces
+//!   [`Error::TypeMismatch`](crate::Error::TypeMismatch) and
+//!   [`Error::MalformedRelationship`](crate::Error::MalformedRelationship)
+//!   as typed errors instead of `serde_json::Error` strings.
+//!
+//! ```
+//! # use jsonapi_core::{Document, Resource, ResourceObject};
+//! let json = r#"{"data":{"type":"articles","id":"1","attributes":{"title":"Hi"}}}"#;
+//! let doc: Document<Resource> = serde_json::from_str(json).unwrap();
+//!
+//! let article = doc.into_single().unwrap();
+//! assert_eq!(article.resource_type(), "articles");
+//! assert_eq!(article.resource_id(), Some("1"));
+//! ```
+//!
+//! # Resource-Level `links` and `meta`
+//!
+//! When a resource carries a `#[jsonapi(links)]` or `#[jsonapi(meta)]` field,
+//! the derive auto-implements the [`HasLinks`] / [`HasMeta`] traits so
+//! consumers can read those blocks uniformly without pattern-matching on
+//! concrete types. Resources without those fields do *not* implement the
+//! traits — the absence is part of the type's contract.
+//!
+//! ```
+//! # #[cfg(feature = "derive")] {
+//! use jsonapi_core::{HasMeta, JsonApi, Meta};
+//!
+//! #[derive(Debug, Clone, PartialEq, JsonApi)]
+//! #[jsonapi(type = "articles")]
+//! struct Article {
+//!     #[jsonapi(id)]
+//!     id: String,
+//!     title: String,
+//!     #[jsonapi(meta)]
+//!     extra: Option<Meta>,
+//! }
+//!
+//! fn meta_count<R: HasMeta>(r: &R) -> usize {
+//!     r.meta().map(|m| m.len()).unwrap_or(0)
+//! }
+//! # }
+//! ```
+//!
 //! # Working with Relationships
 //!
 //! [`Relationship<T>`] and [`Identity`] expose small helper methods so consumers
@@ -140,6 +193,7 @@
 //! - [`Relationship::ids()`](Relationship::ids) — iterator of server-assigned IDs, regardless of cardinality.
 //! - [`Relationship::first_id()`](Relationship::first_id) — the first server id (or `None` for null / empty / lid-only).
 //! - [`Relationship::first_id_or_lid()`](Relationship::first_id_or_lid) — the first identifier of either kind.
+//! - [`Relationship::single_id()`](Relationship::single_id) — type-checked to-one access; errors on null, lid-only, or to-many.
 //! - [`Relationship::identifiers()`](Relationship::identifiers) — unified slice view of all identifiers.
 //! - [`Identity::as_id()`](Identity::as_id) / [`Identity::as_lid()`](Identity::as_lid) — `Option<&str>` accessors.
 //!
@@ -413,9 +467,9 @@ pub use error::{Error, Result};
 pub use fieldset::{FieldsetConfig, SparseSerializer, sparse_filter};
 pub use media_type::{JsonApiMediaType, negotiate_accept, validate_content_type};
 pub use model::{
-    ApiError, Document, ErrorLinks, ErrorSource, Hreflang, Identity, JsonApiObject, Link,
-    LinkObject, Links, Meta, PrimaryData, Relationship, RelationshipData, Resource,
-    ResourceIdentifier, ResourceObject,
+    ApiError, Document, ErrorLinks, ErrorSource, HasLinks, HasMeta, Hreflang, Identity,
+    JsonApiObject, Link, LinkObject, Links, Meta, PrimaryData, Relationship, RelationshipData,
+    Resource, ResourceIdentifier, ResourceObject,
 };
 pub use query::QueryBuilder;
 pub use registry::{Registry, ResolveConfig};

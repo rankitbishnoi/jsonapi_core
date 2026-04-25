@@ -9,6 +9,7 @@
 //! `#[derive(JsonApi)]`. For open-set handling of unknown types, use
 //! [`Document<Resource>`].
 
+mod accessors;
 mod document;
 mod error;
 mod identifier;
@@ -18,6 +19,7 @@ mod meta;
 mod relationship;
 mod resource;
 
+pub use accessors::{HasLinks, HasMeta};
 pub use document::{Document, PrimaryData};
 pub use error::{ApiError, ErrorLinks, ErrorSource};
 pub use identifier::{Identity, ResourceIdentifier};

@@ -4,7 +4,7 @@ use serde::de;
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use super::{Links, Meta, RelationshipData};
+use super::{HasLinks, HasMeta, Links, Meta, RelationshipData};
 
 /// Unifying trait for typed resources and the dynamic `Resource` fallback.
 pub trait ResourceObject: Serialize + for<'de> Deserialize<'de> {
@@ -76,6 +76,18 @@ impl ResourceObject for Resource {
             field_names: &[],
             relationships: &[],
         }
+    }
+}
+
+impl HasLinks for Resource {
+    fn links(&self) -> Option<&Links> {
+        self.links.as_ref()
+    }
+}
+
+impl HasMeta for Resource {
+    fn meta(&self) -> Option<&Meta> {
+        self.meta.as_ref()
     }
 }
 

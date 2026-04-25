@@ -120,6 +120,83 @@ Or browse the markdown directly starting at [`docs/introduction.md`](docs/introd
 | `acceptance/` | Spec-conformance integration tests. |
 | `docs/` | The guide book (this is what you're reading). |
 
+## Versioning policy
+
+`jsonapi_core` follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
+
+### Lockstep workspace versions
+
+The `jsonapi_core` and `jsonapi_core_derive` crates are versioned in lockstep
+via `workspace.package.version`. They are always released together. Pin only
+`jsonapi_core` in your `Cargo.toml`; the derive crate is re-exported via the
+`derive` feature.
+
+### What is public API
+
+The following are **public API** and changes to them are governed by SemVer:
+
+- All items re-exported at the `jsonapi_core` crate root (`Document`,
+  `PrimaryData`, `Resource`, `ResourceObject`, `ResourceIdentifier`,
+  `Identity`, `Relationship`, `RelationshipData`, `Links`, `Link`,
+  `LinkObject`, `Hreflang`, `Meta`, `JsonApiObject`, `ApiError`, `ErrorLinks`,
+  `ErrorSource`, `Registry`, `ResolveConfig`, `TypeRegistry`, `TypeInfo`,
+  `QueryBuilder`, `FieldsetConfig`, `SparseSerializer`, `sparse_filter`,
+  `CaseConfig`, `CaseConvention`, `Error`, `Result`, `JsonApiMediaType`,
+  `validate_content_type`, `negotiate_accept`, `validate_member_name`,
+  `MemberNameKind`).
+- All items re-exported under the `atomic-ops` feature (`AtomicRequest`,
+  `AtomicResponse`, `AtomicResult`, `AtomicOperation`, `OperationTarget`,
+  `OperationRef`, `ATOMIC_EXT_URI`).
+- The `#[derive(JsonApi)]` attribute set: `type`, `case` on the struct;
+  `id`, `lid`, `relationship`, `meta`, `links`, `rename`, `skip`, and
+  relationship `type` on fields.
+- Default behaviours documented in the crate-level rustdoc and the
+  [guide](docs/SUMMARY.md): the fuzzy-deserialization alias set, the
+  `Option::None` → omitted-on-serialize rule, the `null` → `None` deserialize
+  fall-through, the registry's silent skip on shape mismatch, the resolver's
+  cycle detection.
+- The minimum supported Rust version (MSRV).
+
+### What is *not* public API
+
+- Anything inside a `pub(crate)` or private module path. Items not re-exported
+  at the crate root may be relocated or removed in any release.
+- The exact text of error `Display` messages (the `Error` *enum variants* are
+  public; the formatted strings are not).
+- The exact alias ordering inside the fuzzy-deserialization fall-through chain
+  (the *set* of accepted aliases is public; ties resolve in implementation
+  order).
+- Internals of the `jsonapi_core_derive` proc-macro crate. Use the derive only
+  through `jsonapi_core`'s `derive` feature; do not depend on
+  `jsonapi_core_derive` directly.
+- Unreleased items behind unstable feature flags (none currently exist; this
+  applies to any future `unstable_*` flags).
+
+### `#[non_exhaustive]` guarantees
+
+All public enums (`PrimaryData`, `Document`, `RelationshipData`, `Identity`,
+`Hreflang`, `Link`, `CaseConvention`, `MemberNameKind`, `Error`, …) carry
+`#[non_exhaustive]`. New variants may be added in **minor** releases. Match
+arms in consumer code must include a `_ =>` fall-through.
+
+### MSRV policy
+
+The minimum supported Rust version is currently **1.88**. MSRV bumps require
+a minor-version release (≥ `0.x.0` while pre-1.0; ≥ `x.0.0` post-1.0) and
+will be called out in the [changelog](./CHANGELOG.md).
+
+### Pre-1.0 caveat
+
+While at `0.x`, breaking changes follow the SemVer pre-1.0 convention: a bump
+to `0.(x+1).0` may include breaking changes. We will continue to maintain a
+detailed changelog so each upgrade has a clear migration path. A 1.0 release
+is planned once the typed parse-error story is resolved (see the project's
+improvement-tracking notes).
+
+### Changelog
+
+See [`CHANGELOG.md`](./CHANGELOG.md) for a release-by-release record.
+
 ## License
 
 Licensed under either of [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0)

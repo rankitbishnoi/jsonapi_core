@@ -1,0 +1,23 @@
+error[E0277]: the trait bound `Person: HasLinks` is not satisfied
+  --> tests/compile_fail/has_links_not_impl.rs:23:24
+   |
+23 |     requires_has_links(&p);
+   |     ------------------ ^^ unsatisfied trait bound
+   |     |
+   |     required by a bound introduced by this call
+   |
+help: the trait `HasLinks` is not implemented for `Person`
+  --> tests/compile_fail/has_links_not_impl.rs:10:1
+   |
+10 | struct Person {
+   | ^^^^^^^^^^^^^
+help: the trait `HasLinks` is implemented for `Resource`
+  --> src/model/resource.rs
+   |
+   | impl HasLinks for Resource {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: required by a bound in `requires_has_links`
+  --> tests/compile_fail/has_links_not_impl.rs:16:26
+   |
+16 | fn requires_has_links<T: HasLinks>(_: &T) {}
+   |                          ^^^^^^^^ required by this bound in `requires_has_links`

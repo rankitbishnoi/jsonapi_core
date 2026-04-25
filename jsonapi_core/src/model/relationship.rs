@@ -118,6 +118,28 @@ impl<T> Relationship<T> {
             .first()
             .and_then(|rid| rid.identity.as_id().or_else(|| rid.identity.as_lid()))
     }
+
+    /// Type-checked to-one access: returns the single server-assigned id, or
+    /// an error explaining why the relationship is not a usable to-one.
+    ///
+    /// Use this when the schema says the relationship is to-one and you want
+    /// the compiler to remind you to handle the null and to-many cases:
+    ///
+    /// - [`crate::Error::NullRelationship`] for `ToOne(None)`.
+    /// - [`crate::Error::LidNotIndexed`] for `ToOne(Some(lid-only))`.
+    /// - [`crate::Error::RelationshipCardinalityMismatch`] for `ToMany`.
+    pub fn single_id(&self) -> crate::Result<&str> {
+        match &self.data {
+            RelationshipData::ToOne(Some(rid)) => rid
+                .identity
+                .as_id()
+                .ok_or(crate::Error::LidNotIndexed),
+            RelationshipData::ToOne(None) => Err(crate::Error::NullRelationship),
+            RelationshipData::ToMany(_) => Err(crate::Error::RelationshipCardinalityMismatch {
+                expected: "to-one",
+            }),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -304,5 +326,52 @@ mod tests {
             rid("tags", "server-id"),
         ]));
         assert_eq!(rel.first_id_or_lid(), Some("local"));
+    }
+
+    // ----- single_id (improvement #6) -----
+
+    #[test]
+    fn single_id_returns_to_one_id() {
+        let rel: Relationship<Target> =
+            Relationship::new(RelationshipData::ToOne(Some(rid("people", "9"))));
+        assert_eq!(rel.single_id().unwrap(), "9");
+    }
+
+    #[test]
+    fn single_id_errors_for_null_to_one() {
+        let rel: Relationship<Target> = Relationship::new(RelationshipData::ToOne(None));
+        let err = rel.single_id().unwrap_err();
+        assert!(matches!(err, crate::Error::NullRelationship));
+    }
+
+    #[test]
+    fn single_id_errors_for_lid_only_to_one() {
+        let rel: Relationship<Target> =
+            Relationship::new(RelationshipData::ToOne(Some(lid_rid("tags", "local-a"))));
+        let err = rel.single_id().unwrap_err();
+        assert!(matches!(err, crate::Error::LidNotIndexed));
+    }
+
+    #[test]
+    fn single_id_errors_for_to_many() {
+        let rel: Relationship<Target> = Relationship::new(RelationshipData::ToMany(vec![
+            rid("tags", "1"),
+            rid("tags", "2"),
+        ]));
+        let err = rel.single_id().unwrap_err();
+        assert!(matches!(
+            err,
+            crate::Error::RelationshipCardinalityMismatch { expected: "to-one" }
+        ));
+    }
+
+    #[test]
+    fn single_id_errors_for_empty_to_many() {
+        let rel: Relationship<Target> = Relationship::new(RelationshipData::ToMany(vec![]));
+        let err = rel.single_id().unwrap_err();
+        assert!(matches!(
+            err,
+            crate::Error::RelationshipCardinalityMismatch { expected: "to-one" }
+        ));
     }
 }
