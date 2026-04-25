@@ -189,9 +189,14 @@ will be called out in the [changelog](./CHANGELOG.md).
 
 While at `0.x`, breaking changes follow the SemVer pre-1.0 convention: a bump
 to `0.(x+1).0` may include breaking changes. We will continue to maintain a
-detailed changelog so each upgrade has a clear migration path. A 1.0 release
-is planned once the typed parse-error story is resolved (see the project's
-improvement-tracking notes).
+detailed changelog so each upgrade has a clear migration path.
+
+The typed parse-error story is now complete — `TypeMismatch`,
+`MalformedRelationship`, `MissingAttribute`, and `IncludedRefMissing` all
+flow through `Document::from_str` / `from_slice` / `from_value`. A 1.0 tag
+will follow once the next round of consumer-feedback churn settles: if no
+breaking changes land for two consecutive minor releases after this work,
+1.0 becomes a tag-when-ready event.
 
 ### Changelog
 

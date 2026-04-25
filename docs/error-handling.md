@@ -33,6 +33,11 @@ pub enum Error {
     Structure(String),
     InvalidIncludePath { path: String, segment: String, type_name: String },
     InvalidAtomicOperation { index: usize, reason: String },
+    UnexpectedDocumentShape { expected: &'static str, found: &'static str },
+    TypeMismatch { expected: &'static str, got: String, location: String },
+    MalformedRelationship { name: String, location: String, reason: String },
+    MissingAttribute { resource_type: &'static str, attribute: &'static str, location: String },
+    IncludedRefMissing { name: String, type_: String, id: String, location: String },
 }
 ```
 
@@ -58,6 +63,56 @@ so the `?` operator works when interleaving with serde calls. It is
 | `Structure` | Document structure rule violated (e.g. data + errors both present). |
 | `InvalidIncludePath` | `TypeRegistry::validate_include_paths` couldn't resolve a hop. |
 | `InvalidAtomicOperation` | `AtomicRequest::validate_lid_refs` failed (Atomic Ops extension). |
+| `UnexpectedDocumentShape` | Caller used an accessor like `Document::into_single` on a document of the wrong shape. |
+| `TypeMismatch` | `Document::from_*` pre-pass: wire `data.type` ≠ `#[jsonapi(type = "...")]`. |
+| `MalformedRelationship` | `Document::from_*` pre-pass: relationship value isn't an object, or its `data` is structurally invalid. |
+| `MissingAttribute` | `Document::from_*` pre-pass: a required (non-`Option`, non-`Vec`) attribute is absent on the primary resource. |
+| `IncludedRefMissing` | `Document::from_*` pre-pass: a primary-resource relationship references `(type, id)` not in the wire `included` array. |
+
+### Typed parse errors
+
+`Document::from_str`, `Document::from_slice`, and `Document::from_value` run a
+structural pre-pass over the wire payload before delegating to
+`serde_json::from_value`. The pre-pass surfaces four typed errors instead of
+opaque `serde_json::Error` strings, so consumers can map upstream-format
+failures to specific HTTP statuses.
+
+| Variant | Fires when | Location format |
+| --- | --- | --- |
+| `TypeMismatch` | Wire `data.type` doesn't match the consumer's `#[jsonapi(type = "...")]`. | `"data"` or `"data[N]"` |
+| `MalformedRelationship` | Relationship value isn't a JSON object, or its `data` member is neither null/object/array. | `"data"` or `"data[N]"` |
+| `MissingAttribute` | A non-`Option`, non-`Vec` attribute on the consumer's struct is absent from the wire `attributes` block on the primary resource. | `"data"` or `"data[N]"` |
+| `IncludedRefMissing` | A primary-resource relationship references a `(type, id)` pair that is not present in the wire `included` array. | `"data.relationships.<rel>"` or `"data[N].relationships.<rel>"` |
+
+**Pre-pass walk order** (first error wins):
+
+1. `TypeMismatch` (primary data)
+2. `MissingAttribute` (primary data)
+3. `MalformedRelationship` (primary data)
+4. `IncludedRefMissing` (primary data)
+
+**`IncludedRefMissing` is intentionally primary-data-only.** Relationships
+*inside* an included resource (e.g. an included `author` whose own
+`organization` relationship references a non-included org) are not validated.
+Partial-include APIs routinely return compound documents whose included
+resources reference other resources the consumer did not request. Strict
+transitive validation belongs in a separate opt-in entrypoint (not yet
+shipped) — `from_str` matches the most permissive consumer-friendly default.
+
+**References that use only `lid`** (no `id`) are also skipped — those are
+atomic-operation client-local identifiers, resolved at request execution time
+rather than at parse time.
+
+**`Document<Resource>` semantics.** When the primary type `P` is the dynamic
+`Resource`, the type check and required-attribute check are skipped (open-set
+primary type). The relationship walk and `IncludedRefMissing` check still
+run, so `Document::<Resource>::from_str` validates compound-document
+references on documents with arbitrary primary shapes.
+
+**Empty-set behaviour.** When the wire payload's `included` array is absent
+or empty, `IncludedRefMissing` does not fire — there is no compound resolution
+to validate against. `IncludedRefMissing` only fires when `included` is
+present and non-empty, but a referenced `(type, id)` is missing from it.
 
 ### Mapping to HTTP status codes
 
@@ -70,6 +125,29 @@ A natural translation table for a handler:
 | `Structure`, `InvalidMemberName`, `InvalidIncludePath`, `InvalidAtomicOperation` | 400 Bad Request |
 | `Json` (during request parsing) | 400 Bad Request |
 | `RegistryLookup`, `NullRelationship`, `RelationshipCardinalityMismatch`, `LidNotIndexed` | Internal — these reflect *your* code's assumptions about the document |
+| `TypeMismatch`, `MalformedRelationship`, `IncludedRefMissing` | 502 Bad Gateway — upstream payload structurally wrong |
+| `MissingAttribute` | 422 Unprocessable Entity — consumer's schema requires a field upstream omitted |
+| `UnexpectedDocumentShape` | Internal — caller used the wrong accessor |
+
+`MissingAttribute` deserves `422 Unprocessable Entity` because the failure is
+a contract mismatch (consumer expected a field upstream considers optional);
+the other three pre-pass typed errors are `502 Bad Gateway` because the wire
+payload itself is broken.
+
+```rust
+use jsonapi_core::Error;
+
+fn map_to_http_status(err: &Error) -> u16 {
+    match err {
+        Error::TypeMismatch { .. }
+        | Error::MalformedRelationship { .. }
+        | Error::IncludedRefMissing { .. } => 502,
+        Error::MissingAttribute { .. } => 422,
+        Error::Json(_) => 400,
+        _ => 500,
+    }
+}
+```
 
 ## `ApiError` — the wire error object
 

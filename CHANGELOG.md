@@ -46,18 +46,35 @@ refer to that shared workspace version.
 - **Typed parse errors** via new `Document::from_str` / `from_slice` /
   `from_value` constructors that run a structural pre-pass before delegating
   to the existing `Deserialize` impl. Replaces opaque `serde_json::Error`
-  text with two new structured variants:
+  text with four new structured variants:
   - `Error::TypeMismatch { expected, got, location }` — the wire-side
     `data.type` (or any `data[i].type`) does not match the type declared on
     the Rust resource.
   - `Error::MalformedRelationship { name, location, reason }` — a
     relationship object is structurally invalid (non-object value, or `data`
     that is not null/object/array).
+  - `Error::MissingAttribute { resource_type, attribute, location }` — a
+    non-`Option`, non-`Vec` attribute on the consumer's struct is absent
+    from the wire `attributes` block on the primary resource.
+  - `Error::IncludedRefMissing { name, type_, id, location }` — a
+    primary-resource relationship references a `(type, id)` pair not present
+    in the wire `included` array. Intentionally primary-data-only —
+    references inside an included resource are not validated, because
+    partial-include APIs routinely return compound documents whose included
+    resources reference other resources the consumer did not request.
+    Skipped silently when `included` is absent or empty, and for `lid`-only
+    references (atomic-ops resolves those at request execution time).
   Consumers can map these to specific HTTP statuses (e.g. 502 for upstream
-  type drift) instead of one-size-fits-all parse errors. The pre-pass is a
-  no-op for `Document<Resource>` (open-set primary type).
-  Follow-ups tracked for `Error::MissingAttribute` (needs richer required-vs-optional
-  metadata in `TypeInfo`) and `Error::IncludedRefMissing` (registry-level lookup).
+  type drift, 422 for required-attribute mismatches) instead of
+  one-size-fits-all parse errors. The pre-pass is a no-op for
+  `Document<Resource>` on the type and required-attribute checks (open-set
+  primary type); the relationship walk and `IncludedRefMissing` check still
+  run.
+- **`TypeInfo::required_attribute_names`** — new `&'static [&'static str]`
+  field on `TypeInfo`, populated automatically by the derive (filter:
+  attribute fields that are neither `Option` nor `Vec`). Backed by a new
+  `TypeInfo::with_required_attributes(...)` builder method so manual
+  `TypeInfo::new(...)` callers stay source-compatible.
 
 ## [0.2.0] — 2026-04-24
 

@@ -71,11 +71,7 @@ impl ResourceObject for Resource {
     }
 
     fn type_info() -> crate::type_registry::TypeInfo {
-        crate::type_registry::TypeInfo {
-            type_name: "",
-            field_names: &[],
-            relationships: &[],
-        }
+        crate::type_registry::TypeInfo::new("", &[], &[])
     }
 }
 

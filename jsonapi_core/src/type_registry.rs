@@ -20,11 +20,24 @@ pub struct TypeInfo {
     pub field_names: &'static [&'static str],
     /// Relationship name to target type string pairs.
     pub relationships: &'static [(&'static str, &'static str)],
+    /// Wire names of attributes the consumer's struct declared as required
+    /// (non-`Option`, non-`Vec`). Used by
+    /// [`Document::from_str`](crate::Document::from_str) and friends to
+    /// surface [`Error::MissingAttribute`](crate::Error::MissingAttribute).
+    /// Empty for the dynamic [`Resource`](crate::Resource) and for any
+    /// manual `TypeInfo::new(...)` caller that does not opt in via
+    /// [`with_required_attributes`](Self::with_required_attributes).
+    pub required_attribute_names: &'static [&'static str],
 }
 
 impl TypeInfo {
     /// Build a [`TypeInfo`]. Intended for use by `#[derive(JsonApi)]`-generated
     /// code and by manual [`ResourceObject`] impls.
+    ///
+    /// Defaults `required_attribute_names` to an empty slice. Callers that
+    /// care about the [`Error::MissingAttribute`](crate::Error::MissingAttribute)
+    /// pre-pass should chain
+    /// [`with_required_attributes`](Self::with_required_attributes).
     #[must_use]
     pub const fn new(
         type_name: &'static str,
@@ -35,7 +48,20 @@ impl TypeInfo {
             type_name,
             field_names,
             relationships,
+            required_attribute_names: &[],
         }
+    }
+
+    /// Attach the set of attribute wire names the consumer's struct declared
+    /// as required (non-`Option`, non-`Vec`). Returns the same [`TypeInfo`]
+    /// with the field set; intended to be chained on top of [`new`](Self::new).
+    #[must_use]
+    pub const fn with_required_attributes(
+        mut self,
+        names: &'static [&'static str],
+    ) -> Self {
+        self.required_attribute_names = names;
+        self
     }
 }
 
@@ -150,11 +176,13 @@ mod tests {
     #[test]
     fn test_registry_register_and_get() {
         let mut registry = TypeRegistry::new();
-        registry.register_info(TypeInfo {
-            type_name: "articles",
-            field_names: &["title", "body", "author"],
-            relationships: &[("author", "people")],
-        });
+        registry.register_info(
+            TypeInfo::new(
+                "articles",
+                &["title", "body", "author"],
+                &[("author", "people")],
+            ),
+        );
         let info = registry.get("articles").unwrap();
         assert_eq!(info.type_name, "articles");
         assert_eq!(info.field_names, &["title", "body", "author"]);
@@ -178,11 +206,11 @@ mod tests {
     #[test]
     fn test_validate_single_hop_path() {
         let mut registry = TypeRegistry::new();
-        registry.register_info(TypeInfo {
-            type_name: "articles",
-            field_names: &["title", "author"],
-            relationships: &[("author", "people")],
-        });
+        registry.register_info(TypeInfo::new(
+            "articles",
+            &["title", "author"],
+            &[("author", "people")],
+        ));
         assert!(
             registry
                 .validate_include_paths("articles", &["author"])
@@ -193,16 +221,16 @@ mod tests {
     #[test]
     fn test_validate_multi_hop_path() {
         let mut registry = TypeRegistry::new();
-        registry.register_info(TypeInfo {
-            type_name: "articles",
-            field_names: &["title", "comments"],
-            relationships: &[("comments", "comments")],
-        });
-        registry.register_info(TypeInfo {
-            type_name: "comments",
-            field_names: &["body", "author"],
-            relationships: &[("author", "people")],
-        });
+        registry.register_info(TypeInfo::new(
+            "articles",
+            &["title", "comments"],
+            &[("comments", "comments")],
+        ));
+        registry.register_info(TypeInfo::new(
+            "comments",
+            &["body", "author"],
+            &[("author", "people")],
+        ));
         assert!(
             registry
                 .validate_include_paths("articles", &["comments.author"])
@@ -213,11 +241,7 @@ mod tests {
     #[test]
     fn test_validate_invalid_path() {
         let mut registry = TypeRegistry::new();
-        registry.register_info(TypeInfo {
-            type_name: "articles",
-            field_names: &["title"],
-            relationships: &[],
-        });
+        registry.register_info(TypeInfo::new("articles", &["title"], &[]));
         let err = registry
             .validate_include_paths("articles", &["nonexistent"])
             .unwrap_err();
@@ -252,11 +276,11 @@ mod tests {
     #[test]
     fn test_validate_terminal_hop_unregistered_target() {
         let mut registry = TypeRegistry::new();
-        registry.register_info(TypeInfo {
-            type_name: "articles",
-            field_names: &["title", "author"],
-            relationships: &[("author", "people")],
-        });
+        registry.register_info(TypeInfo::new(
+            "articles",
+            &["title", "author"],
+            &[("author", "people")],
+        ));
         // "people" is NOT registered, but "author" is the terminal hop — should pass
         assert!(
             registry
@@ -268,11 +292,11 @@ mod tests {
     #[test]
     fn test_validate_intermediate_hop_unregistered_target() {
         let mut registry = TypeRegistry::new();
-        registry.register_info(TypeInfo {
-            type_name: "articles",
-            field_names: &["title", "author"],
-            relationships: &[("author", "people")],
-        });
+        registry.register_info(TypeInfo::new(
+            "articles",
+            &["title", "author"],
+            &[("author", "people")],
+        ));
         // "people" is NOT registered, but "author.name" tries to traverse through it
         let err = registry
             .validate_include_paths("articles", &["author.name"])
@@ -297,15 +321,40 @@ mod tests {
     #[test]
     fn test_validate_multiple_paths() {
         let mut registry = TypeRegistry::new();
-        registry.register_info(TypeInfo {
-            type_name: "articles",
-            field_names: &["title", "author", "tags"],
-            relationships: &[("author", "people"), ("tags", "tags")],
-        });
+        registry.register_info(TypeInfo::new(
+            "articles",
+            &["title", "author", "tags"],
+            &[("author", "people"), ("tags", "tags")],
+        ));
         assert!(
             registry
                 .validate_include_paths("articles", &["author", "tags"])
                 .is_ok()
         );
+    }
+
+    #[test]
+    fn test_type_info_default_required_attributes_empty() {
+        let info = Resource::type_info();
+        assert_eq!(info.required_attribute_names, &[] as &[&str]);
+    }
+
+    #[test]
+    fn test_type_info_with_required_attributes_round_trip() {
+        let info = TypeInfo::new("articles", &["title", "body"], &[])
+            .with_required_attributes(&["title"]);
+        assert_eq!(info.required_attribute_names, &["title"]);
+        assert_eq!(info.type_name, "articles");
+        assert_eq!(info.field_names, &["title", "body"]);
+    }
+
+    #[test]
+    fn test_required_attribute_names_round_trip_through_register_info() {
+        let mut registry = TypeRegistry::new();
+        registry.register_info(
+            TypeInfo::new("articles", &["title"], &[]).with_required_attributes(&["title"]),
+        );
+        let info = registry.get("articles").unwrap();
+        assert_eq!(info.required_attribute_names, &["title"]);
     }
 }

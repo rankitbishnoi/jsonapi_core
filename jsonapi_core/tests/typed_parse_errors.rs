@@ -218,3 +218,374 @@ fn invalid_json_surfaces_as_json_error() {
     let err = Document::<Article>::from_str("not json").unwrap_err();
     assert!(matches!(err, Error::Json(_)));
 }
+
+// ============================================================
+// MissingAttribute — deferred-variants plan
+// ============================================================
+
+#[derive(Debug, Clone, PartialEq, JsonApi)]
+#[jsonapi(type = "books")]
+struct Book {
+    #[jsonapi(id)]
+    id: String,
+    title: String,
+    subtitle: Option<String>,
+}
+
+#[test]
+fn from_str_surfaces_missing_required_attribute_on_primary_single() {
+    let json = r#"{
+        "data": {
+            "type": "books",
+            "id": "1",
+            "attributes": { "subtitle": "tagline only" }
+        }
+    }"#;
+    let err = Document::<Book>::from_str(json).unwrap_err();
+    assert!(
+        matches!(
+            &err,
+            Error::MissingAttribute {
+                resource_type: "books",
+                attribute: "title",
+                location,
+            } if location == "data"
+        ),
+        "expected MissingAttribute, got: {err:?}",
+    );
+}
+
+#[test]
+fn from_str_surfaces_missing_required_attribute_on_primary_collection() {
+    let json = r#"{
+        "data": [
+            { "type": "books", "id": "1", "attributes": { "title": "First" } },
+            { "type": "books", "id": "2", "attributes": { "subtitle": "no title" } }
+        ]
+    }"#;
+    let err = Document::<Book>::from_str(json).unwrap_err();
+    assert!(
+        matches!(
+            &err,
+            Error::MissingAttribute {
+                resource_type: "books",
+                attribute: "title",
+                location,
+            } if location == "data[1]"
+        ),
+        "expected MissingAttribute at data[1], got: {err:?}",
+    );
+}
+
+#[test]
+fn from_str_optional_attribute_omission_is_not_an_error() {
+    let json = r#"{
+        "data": {
+            "type": "books",
+            "id": "1",
+            "attributes": { "title": "Hello" }
+        }
+    }"#;
+    let doc = Document::<Book>::from_str(json).expect("parse");
+    let book = doc.into_single().expect("single");
+    assert_eq!(book.title, "Hello");
+    assert_eq!(book.subtitle, None);
+}
+
+#[test]
+fn from_str_optional_attribute_explicit_null_is_not_an_error() {
+    let json = r#"{
+        "data": {
+            "type": "books",
+            "id": "1",
+            "attributes": { "title": "Hello", "subtitle": null }
+        }
+    }"#;
+    let doc = Document::<Book>::from_str(json).expect("parse");
+    let book = doc.into_single().expect("single");
+    assert_eq!(book.subtitle, None);
+}
+
+#[test]
+fn from_str_required_attribute_check_skipped_for_dynamic_resource() {
+    let json = r#"{
+        "data": {
+            "type": "books",
+            "id": "1",
+            "attributes": { "subtitle": "no title" }
+        }
+    }"#;
+    let doc = Document::<Resource>::from_str(json)
+        .expect("dynamic Resource accepts any shape");
+    let res = doc.into_single().expect("single");
+    assert_eq!(res.resource_type(), "books");
+}
+
+// ============================================================
+// IncludedRefMissing — deferred-variants plan
+// ============================================================
+
+#[derive(Debug, Clone, PartialEq, JsonApi)]
+#[jsonapi(type = "comments")]
+struct Comment {
+    #[jsonapi(id)]
+    id: String,
+    body: String,
+}
+
+#[derive(Debug, Clone, PartialEq, JsonApi)]
+#[jsonapi(type = "articles_with_rels")]
+struct ArticleWithRels {
+    #[jsonapi(id)]
+    id: String,
+    title: String,
+    #[jsonapi(relationship, type = "people")]
+    author: Relationship<Person>,
+    #[jsonapi(relationship, type = "comments")]
+    comments: Relationship<Comment>,
+}
+
+#[test]
+fn from_str_surfaces_included_ref_missing_on_primary_to_one() {
+    let json = r#"{
+        "data": {
+            "type": "articles_with_rels",
+            "id": "1",
+            "attributes": { "title": "Hello" },
+            "relationships": {
+                "author":   { "data": { "type": "people", "id": "9" } },
+                "comments": { "data": [] }
+            }
+        },
+        "included": [
+            { "type": "people", "id": "1", "attributes": { "name": "Other" } }
+        ]
+    }"#;
+    let err = Document::<ArticleWithRels>::from_str(json).unwrap_err();
+    assert!(
+        matches!(
+            &err,
+            Error::IncludedRefMissing { name, type_, id, location }
+                if name == "author" && type_ == "people" && id == "9"
+                && location == "data.relationships.author"
+        ),
+        "got: {err:?}",
+    );
+}
+
+#[test]
+fn from_str_surfaces_included_ref_missing_on_primary_to_many() {
+    let json = r#"{
+        "data": {
+            "type": "articles_with_rels",
+            "id": "1",
+            "attributes": { "title": "Hello" },
+            "relationships": {
+                "author":   { "data": null },
+                "comments": { "data": [
+                    { "type": "comments", "id": "1" },
+                    { "type": "comments", "id": "9" },
+                    { "type": "comments", "id": "2" }
+                ]}
+            }
+        },
+        "included": [
+            { "type": "comments", "id": "1", "attributes": { "body": "a" } },
+            { "type": "comments", "id": "2", "attributes": { "body": "c" } }
+        ]
+    }"#;
+    let err = Document::<ArticleWithRels>::from_str(json).unwrap_err();
+    assert!(
+        matches!(
+            &err,
+            Error::IncludedRefMissing { name, type_, id, location }
+                if name == "comments" && type_ == "comments" && id == "9"
+                && location == "data.relationships.comments"
+        ),
+        "got: {err:?}",
+    );
+}
+
+#[test]
+fn from_str_does_not_fire_included_ref_missing_for_transitive_references() {
+    // IncludedRefMissing is intentionally primary-data-only. References
+    // *inside* an included resource are not validated against the included
+    // set, because partial-include APIs (Drupal etc.) routinely return
+    // included resources whose own relationships point to non-included
+    // resources the consumer didn't ask for.
+    let json = r#"{
+        "data": {
+            "type": "articles_with_rels",
+            "id": "1",
+            "attributes": { "title": "Hello" },
+            "relationships": {
+                "author":   { "data": { "type": "people", "id": "1" } },
+                "comments": { "data": [] }
+            }
+        },
+        "included": [
+            {
+                "type": "people",
+                "id": "1",
+                "attributes": { "name": "Dan" },
+                "relationships": {
+                    "organization": { "data": { "type": "orgs", "id": "42" } }
+                }
+            }
+        ]
+    }"#;
+    Document::<ArticleWithRels>::from_str(json)
+        .expect("transitive included references must not fire IncludedRefMissing");
+}
+
+#[test]
+fn from_str_lid_only_relationship_skipped() {
+    let json = r#"{
+        "data": {
+            "type": "articles_with_rels",
+            "id": "1",
+            "attributes": { "title": "Hello" },
+            "relationships": {
+                "author":   { "data": { "type": "people", "lid": "tmp-1" } },
+                "comments": { "data": [] }
+            }
+        },
+        "included": [
+            { "type": "people", "id": "1", "attributes": { "name": "Dan" } }
+        ]
+    }"#;
+    // Pre-pass must not fire IncludedRefMissing for lid-only references.
+    let result = Document::<ArticleWithRels>::from_str(json);
+    if let Err(err) = &result {
+        assert!(
+            !matches!(err, Error::IncludedRefMissing { .. }),
+            "lid-only references must not trigger IncludedRefMissing, got: {err:?}",
+        );
+    }
+}
+
+#[test]
+fn from_str_relationship_with_null_data_is_not_an_error() {
+    let json = r#"{
+        "data": {
+            "type": "articles_with_rels",
+            "id": "1",
+            "attributes": { "title": "Hello" },
+            "relationships": {
+                "author":   { "data": null },
+                "comments": { "data": [] }
+            }
+        }
+    }"#;
+    Document::<ArticleWithRels>::from_str(json).expect("parse");
+}
+
+#[test]
+fn from_str_error_precedence_order_type_mismatch_first() {
+    // Payload broken three ways: wrong primary type, missing required
+    // attribute, broken included ref. TypeMismatch must fire first.
+    let json = r#"{
+        "data": {
+            "type": "novels",
+            "id": "1",
+            "attributes": {},
+            "relationships": {
+                "author":   { "data": { "type": "people", "id": "missing" } },
+                "comments": { "data": [] }
+            }
+        },
+        "included": [
+            { "type": "people", "id": "1", "attributes": { "name": "x" } }
+        ]
+    }"#;
+    let err = Document::<ArticleWithRels>::from_str(json).unwrap_err();
+    assert!(
+        matches!(&err, Error::TypeMismatch { .. }),
+        "expected TypeMismatch first, got: {err:?}",
+    );
+}
+
+#[test]
+fn from_str_error_precedence_order_missing_attribute_before_included_ref() {
+    // Type matches, but attribute is missing AND a relationship ref is
+    // missing. MissingAttribute must fire first.
+    let json = r#"{
+        "data": {
+            "type": "articles_with_rels",
+            "id": "1",
+            "attributes": {},
+            "relationships": {
+                "author":   { "data": { "type": "people", "id": "missing" } },
+                "comments": { "data": [] }
+            }
+        },
+        "included": [
+            { "type": "people", "id": "1", "attributes": { "name": "x" } }
+        ]
+    }"#;
+    let err = Document::<ArticleWithRels>::from_str(json).unwrap_err();
+    assert!(
+        matches!(&err, Error::MissingAttribute { .. }),
+        "expected MissingAttribute before IncludedRefMissing, got: {err:?}",
+    );
+}
+
+#[test]
+fn from_str_present_reference_is_not_an_error() {
+    let json = r#"{
+        "data": {
+            "type": "articles_with_rels",
+            "id": "1",
+            "attributes": { "title": "Hello" },
+            "relationships": {
+                "author":   { "data": { "type": "people", "id": "1" } },
+                "comments": { "data": [
+                    { "type": "comments", "id": "10" }
+                ]}
+            }
+        },
+        "included": [
+            { "type": "people",   "id": "1",  "attributes": { "name": "Dan" } },
+            { "type": "comments", "id": "10", "attributes": { "body": "hi" } }
+        ]
+    }"#;
+    Document::<ArticleWithRels>::from_str(json).expect("parse");
+}
+
+#[test]
+fn from_str_surfaces_included_ref_missing_on_primary_collection() {
+    let json = r#"{
+        "data": [
+            {
+                "type": "articles_with_rels",
+                "id": "1",
+                "attributes": { "title": "first" },
+                "relationships": {
+                    "author":   { "data": null },
+                    "comments": { "data": [] }
+                }
+            },
+            {
+                "type": "articles_with_rels",
+                "id": "2",
+                "attributes": { "title": "second" },
+                "relationships": {
+                    "author":   { "data": { "type": "people", "id": "missing" } },
+                    "comments": { "data": [] }
+                }
+            }
+        ],
+        "included": [
+            { "type": "people", "id": "1", "attributes": { "name": "Dan" } }
+        ]
+    }"#;
+    let err = Document::<ArticleWithRels>::from_str(json).unwrap_err();
+    assert!(
+        matches!(
+            &err,
+            Error::IncludedRefMissing { location, .. }
+                if location == "data[1].relationships.author"
+        ),
+        "got: {err:?}",
+    );
+}

@@ -1156,3 +1156,59 @@ fn deserialize_error_names_offending_option_attribute() {
         "error should name the offending field, got: {err}"
     );
 }
+
+// ============================================================
+// Required-attribute codegen — Task 4 of typed-parse-errors plan
+// ============================================================
+
+mod required_attributes_codegen {
+    use jsonapi_core::Relationship;
+    use jsonapi_core::model::ResourceObject;
+
+    #[derive(jsonapi_core::JsonApi)]
+    #[jsonapi(type = "widgets")]
+    struct WidgetMixed {
+        #[jsonapi(id)]
+        id: String,
+        title: String,
+        subtitle: Option<String>,
+        tags: Vec<String>,
+        #[jsonapi(relationship)]
+        author: Relationship<jsonapi_core::Resource>,
+    }
+
+    #[derive(jsonapi_core::JsonApi)]
+    #[jsonapi(type = "all_optional")]
+    struct AllOptional {
+        #[jsonapi(id)]
+        id: String,
+        a: Option<String>,
+        b: Option<u32>,
+    }
+
+    #[derive(jsonapi_core::JsonApi)]
+    #[jsonapi(type = "vec_only")]
+    struct VecOnly {
+        #[jsonapi(id)]
+        id: String,
+        items: Vec<String>,
+    }
+
+    #[test]
+    fn required_attribute_names_excludes_option_vec_and_relationships() {
+        let info = WidgetMixed::type_info();
+        assert_eq!(info.required_attribute_names, &["title"]);
+    }
+
+    #[test]
+    fn required_attribute_names_empty_when_all_optional() {
+        let info = AllOptional::type_info();
+        assert_eq!(info.required_attribute_names, &[] as &[&str]);
+    }
+
+    #[test]
+    fn required_attribute_names_empty_when_only_vecs() {
+        let info = VecOnly::type_info();
+        assert_eq!(info.required_attribute_names, &[] as &[&str]);
+    }
+}

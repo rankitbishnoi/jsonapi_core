@@ -136,15 +136,14 @@
 //!
 //! Pattern-matching on [`Document`] and [`PrimaryData`] for the common single-primary
 //! case is verbose. The accessors on [`Document`] do the unwrap for you and return
-//! [`Error::UnexpectedDocumentShape`](crate::Error::UnexpectedDocumentShape) when
-//! the shape is wrong:
+//! [`Error::UnexpectedDocumentShape`] when the shape is wrong:
 //!
 //! - [`Document::into_single`] / [`Document::into_many`] / [`Document::into_meta`] — consuming.
 //! - [`Document::as_single`] / [`Document::as_many`] / [`Document::primary`] / [`Document::included`] — borrowing.
 //! - [`Document::from_str`] / [`Document::from_slice`] / [`Document::from_value`] —
 //!   parse with a structural pre-pass that surfaces
-//!   [`Error::TypeMismatch`](crate::Error::TypeMismatch) and
-//!   [`Error::MalformedRelationship`](crate::Error::MalformedRelationship)
+//!   [`Error::TypeMismatch`], [`Error::MalformedRelationship`],
+//!   [`Error::MissingAttribute`], and [`Error::IncludedRefMissing`]
 //!   as typed errors instead of `serde_json::Error` strings.
 //!
 //! ```

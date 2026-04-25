@@ -141,6 +141,52 @@ pub enum Error {
         /// Human-readable explanation of what is wrong.
         reason: String,
     },
+
+    /// A required attribute is absent from the wire `attributes` block.
+    /// Surfaced by [`Document::from_str`](crate::Document::from_str),
+    /// [`Document::from_slice`](crate::Document::from_slice), and
+    /// [`Document::from_value`](crate::Document::from_value).
+    ///
+    /// "Required" here means a field declared on the consumer's resource
+    /// struct as a non-`Option`, non-`Vec` attribute. `Option<T>` attributes
+    /// are silently absent on the wire; `Vec<T>` attributes default to empty.
+    #[error("missing required attribute `{attribute}` on `{resource_type}` at {location}")]
+    MissingAttribute {
+        /// The Rust-side `#[jsonapi(type = "...")]` value of the resource
+        /// carrying the missing attribute.
+        resource_type: &'static str,
+        /// Wire name of the attribute that the consumer declared as required
+        /// but the payload did not include.
+        attribute: &'static str,
+        /// JSON pointer-style path to the offending resource, e.g. `"data"`
+        /// or `"data[3]"`.
+        location: String,
+    },
+
+    /// A relationship references a `(type, id)` pair that is not present in
+    /// the wire `included` array. Surfaced by
+    /// [`Document::from_str`](crate::Document::from_str),
+    /// [`Document::from_slice`](crate::Document::from_slice), and
+    /// [`Document::from_value`](crate::Document::from_value).
+    ///
+    /// References that use only `lid` (no `id`) are intentionally skipped:
+    /// those are atomic-operation client-local identifiers, resolved at
+    /// request execution rather than at parse time.
+    #[error(
+        "relationship `{name}` at {location} references {type_}:{id}, but no such resource is included"
+    )]
+    IncludedRefMissing {
+        /// Wire name of the offending relationship.
+        name: String,
+        /// Wire-side referenced resource type.
+        type_: String,
+        /// Wire-side referenced resource id.
+        id: String,
+        /// JSON pointer-style path to the offending relationship, e.g.
+        /// `"data.relationships.author"` or
+        /// `"included[3].relationships.organization"`.
+        location: String,
+    },
 }
 
 /// Convenience alias.
@@ -179,6 +225,33 @@ mod tests {
         assert_eq!(
             err.to_string(),
             "invalid include path 'author.posts': relationship 'posts' not found on type 'people'"
+        );
+    }
+
+    #[test]
+    fn test_missing_attribute_display() {
+        let err = Error::MissingAttribute {
+            resource_type: "articles",
+            attribute: "title",
+            location: "data".into(),
+        };
+        assert_eq!(
+            err.to_string(),
+            "missing required attribute `title` on `articles` at data"
+        );
+    }
+
+    #[test]
+    fn test_included_ref_missing_display() {
+        let err = Error::IncludedRefMissing {
+            name: "author".into(),
+            type_: "people".into(),
+            id: "9".into(),
+            location: "data.relationships.author".into(),
+        };
+        assert_eq!(
+            err.to_string(),
+            "relationship `author` at data.relationships.author references people:9, but no such resource is included"
         );
     }
 }

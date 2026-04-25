@@ -113,6 +113,14 @@ fn gen_resource_object(
     let rel_name_tokens: Vec<&str> = rel_pairs.iter().map(|(n, _)| *n).collect();
     let rel_target_tokens: Vec<&str> = rel_pairs.iter().map(|(_, t)| *t).collect();
 
+    // Wire names of attributes the consumer declared as required:
+    // attribute fields that are neither Option nor Vec.
+    let required_attr_strs: Vec<&str> = fields
+        .iter()
+        .filter(|f| matches!(f.kind, FieldKind::Attribute) && !f.is_option && !f.is_vec)
+        .filter_map(|f| f.wire_name.as_deref())
+        .collect();
+
     quote! {
         impl ::jsonapi_core::model::ResourceObject for #name {
             fn resource_type(&self) -> &str {
@@ -137,6 +145,7 @@ fn gen_resource_object(
                     &[#(#field_name_strs),*],
                     &[#((#rel_name_tokens, #rel_target_tokens)),*],
                 )
+                .with_required_attributes(&[#(#required_attr_strs),*])
             }
         }
     }
