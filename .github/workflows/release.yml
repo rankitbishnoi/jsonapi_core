@@ -77,9 +77,24 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Extract release notes from CHANGELOG
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          awk -v ver="$TAG_VERSION" '
+            $0 ~ "^## \\[" ver "\\]" { in_section = 1; print; next }
+            in_section && /^## \[/ { exit }
+            in_section { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "::warning::No CHANGELOG section [$TAG_VERSION]; falling back to auto-generated notes only. Did you rename [Unreleased] → [$TAG_VERSION] before tagging?"
+          else
+            echo "::notice::Curated release notes extracted from CHANGELOG.md [$TAG_VERSION]"
+          fi
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
+          body_path: release-notes.md
           generate_release_notes: true
+          append_body: true
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
