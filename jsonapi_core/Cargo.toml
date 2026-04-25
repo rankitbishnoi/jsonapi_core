@@ -18,7 +18,7 @@ percent-encoding = "2"
 heck = "0.5"
 
 # Derive macro re-export (default feature)
-jsonapi_core_derive = { path = "../jsonapi_core_derive", version = "0.2.0", optional = true }
+jsonapi_core_derive = { path = "../jsonapi_core_derive", version = "0.2.1", optional = true }
 
 [features]
 default = ["derive"]

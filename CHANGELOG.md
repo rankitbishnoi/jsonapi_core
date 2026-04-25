@@ -13,6 +13,11 @@ refer to that shared workspace version.
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-04-25
+
+Additive consumer-DX release. All changes are source-compatible with 0.2.0;
+new API is additive and gated behind `#[non_exhaustive]` extension points.
+
 ### Added
 
 - **`Document` accessors** removing the
