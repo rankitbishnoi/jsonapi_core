@@ -48,6 +48,7 @@ jobs:
           # MSRV check (matches rust-version in Cargo.toml)
           - os: ubuntu-latest
             toolchain: "1.88"
+            skip_trybuild: "1"
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9 # master
@@ -59,10 +60,16 @@ jobs:
       - name: Build (default features)
         run: cargo build --workspace --verbose
       - name: Test (default features)
+        env:
+          SKIP_TRYBUILD: ${{ matrix.skip_trybuild }}
         run: cargo test --workspace --verbose
       - name: Test (all features)
+        env:
+          SKIP_TRYBUILD: ${{ matrix.skip_trybuild }}
         run: cargo test --workspace --all-features --verbose
       - name: Test (no default features)
+        env:
+          SKIP_TRYBUILD: ${{ matrix.skip_trybuild }}
         run: cargo test -p jsonapi_core --no-default-features --verbose
 
   docs:
