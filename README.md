@@ -181,7 +181,7 @@ arms in consumer code must include a `_ =>` fall-through.
 
 ### MSRV policy
 
-The minimum supported Rust version is currently **1.88**. MSRV bumps require
+The minimum supported Rust version is currently **1.94.1**. MSRV bumps require
 a minor-version release (≥ `0.x.0` while pre-1.0; ≥ `x.0.0` post-1.0) and
 will be called out in the [changelog](./CHANGELOG.md).
 
