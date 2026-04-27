@@ -6,9 +6,11 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "A typed JSON:API v1.1 serialization library for Rust"
+documentation = "https://docs.rs/jsonapi_core"
 keywords = ["jsonapi", "json-api", "serialization", "rest", "api"]
 categories = ["encoding", "web-programming"]
 readme = "../README.md"
+exclude = ["tests/**"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -30,3 +32,7 @@ trybuild = { version = "1", features = ["diff"] }
 
 [lints]
 workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

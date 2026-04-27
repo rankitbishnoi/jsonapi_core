@@ -81,6 +81,15 @@ new API is additive and gated behind `#[non_exhaustive]` extension points.
   `TypeInfo::with_required_attributes(...)` builder method so manual
   `TypeInfo::new(...)` callers stay source-compatible.
 
+### Packaging
+
+- Published tarball trimmed: `jsonapi_core` now excludes `tests/**`
+  (76 → 37 files). Test sources remain in the source repo for local and CI
+  builds; only the registry artefact is leaner.
+- `docs.rs` is configured to build both crates with `--all-features` so
+  `atomic-ops` items are visible on the rendered documentation.
+- `documentation` URL set on both crates' `[package]` metadata.
+
 ## [0.2.0] — 2026-04-24
 
 The first DX-focused release. Bundles five derive and model improvements
@@ -243,7 +252,8 @@ Initial release.
 - `Error` enum with structured variants for registry, member-name, media-type,
   document-structure, and include-path failures.
 
-[Unreleased]: https://github.com/rankitbishnoi/jsonapi_core/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/rankitbishnoi/jsonapi_core/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/rankitbishnoi/jsonapi_core/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/rankitbishnoi/jsonapi_core/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/rankitbishnoi/jsonapi_core/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/rankitbishnoi/jsonapi_core/compare/v0.1.0...v0.1.1
