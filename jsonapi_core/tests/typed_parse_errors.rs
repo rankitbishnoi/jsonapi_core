@@ -315,8 +315,7 @@ fn from_str_required_attribute_check_skipped_for_dynamic_resource() {
             "attributes": { "subtitle": "no title" }
         }
     }"#;
-    let doc = Document::<Resource>::from_str(json)
-        .expect("dynamic Resource accepts any shape");
+    let doc = Document::<Resource>::from_str(json).expect("dynamic Resource accepts any shape");
     let res = doc.into_single().expect("single");
     assert_eq!(res.resource_type(), "books");
 }

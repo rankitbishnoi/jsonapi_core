@@ -280,12 +280,8 @@ impl<P, I> Document<P, I> {
                 data: PrimaryData::Null,
                 ..
             } => Err(unexpected_shape("single resource", "null primary data")),
-            Document::Errors { .. } => {
-                Err(unexpected_shape("single resource", "errors document"))
-            }
-            Document::Meta { .. } => {
-                Err(unexpected_shape("single resource", "meta-only document"))
-            }
+            Document::Errors { .. } => Err(unexpected_shape("single resource", "errors document")),
+            Document::Meta { .. } => Err(unexpected_shape("single resource", "meta-only document")),
         }
     }
 
@@ -310,9 +306,10 @@ impl<P, I> Document<P, I> {
             Document::Errors { .. } => {
                 Err(unexpected_shape("resource collection", "errors document"))
             }
-            Document::Meta { .. } => {
-                Err(unexpected_shape("resource collection", "meta-only document"))
-            }
+            Document::Meta { .. } => Err(unexpected_shape(
+                "resource collection",
+                "meta-only document",
+            )),
         }
     }
 
@@ -360,12 +357,8 @@ impl<P, I> Document<P, I> {
                 data: PrimaryData::Null,
                 ..
             } => Err(unexpected_shape("single resource", "null primary data")),
-            Document::Errors { .. } => {
-                Err(unexpected_shape("single resource", "errors document"))
-            }
-            Document::Meta { .. } => {
-                Err(unexpected_shape("single resource", "meta-only document"))
-            }
+            Document::Errors { .. } => Err(unexpected_shape("single resource", "errors document")),
+            Document::Meta { .. } => Err(unexpected_shape("single resource", "meta-only document")),
         }
     }
 
@@ -389,9 +382,10 @@ impl<P, I> Document<P, I> {
             Document::Errors { .. } => {
                 Err(unexpected_shape("resource collection", "errors document"))
             }
-            Document::Meta { .. } => {
-                Err(unexpected_shape("resource collection", "meta-only document"))
-            }
+            Document::Meta { .. } => Err(unexpected_shape(
+                "resource collection",
+                "meta-only document",
+            )),
         }
     }
 
@@ -403,9 +397,7 @@ impl<P, I> Document<P, I> {
         match self {
             Document::Data { data, .. } => Ok(data),
             Document::Errors { .. } => Err(unexpected_shape("data document", "errors document")),
-            Document::Meta { .. } => {
-                Err(unexpected_shape("data document", "meta-only document"))
-            }
+            Document::Meta { .. } => Err(unexpected_shape("data document", "meta-only document")),
         }
     }
 
@@ -493,15 +485,15 @@ where
     }
 }
 
-fn build_included_set(
-    value: &serde_json::Value,
-) -> std::collections::HashSet<(String, String)> {
+fn build_included_set(value: &serde_json::Value) -> std::collections::HashSet<(String, String)> {
     let mut set = std::collections::HashSet::new();
     let Some(arr) = value.get("included").and_then(|v| v.as_array()) else {
         return set;
     };
     for entry in arr {
-        let Some(obj) = entry.as_object() else { continue };
+        let Some(obj) = entry.as_object() else {
+            continue;
+        };
         let (Some(type_), Some(id)) = (
             obj.get("type").and_then(|v| v.as_str()),
             obj.get("id").and_then(|v| v.as_str()),
@@ -658,11 +650,13 @@ fn check_relationship(
     location: &str,
     included_set: &std::collections::HashSet<(String, String)>,
 ) -> crate::Result<()> {
-    let rel_obj = rel_value.as_object().ok_or_else(|| crate::Error::MalformedRelationship {
-        name: name.to_string(),
-        location: location.to_string(),
-        reason: "relationship value must be an object".into(),
-    })?;
+    let rel_obj = rel_value
+        .as_object()
+        .ok_or_else(|| crate::Error::MalformedRelationship {
+            name: name.to_string(),
+            location: location.to_string(),
+            reason: "relationship value must be an object".into(),
+        })?;
 
     let rel_location = format!("{location}.relationships.{name}");
 
@@ -690,9 +684,7 @@ fn check_relationship(
                 return Err(crate::Error::MalformedRelationship {
                     name: name.to_string(),
                     location: location.to_string(),
-                    reason: format!(
-                        "`data` must be null, an object, or an array; got {kind}"
-                    ),
+                    reason: format!("`data` must be null, an object, or an array; got {kind}"),
                 });
             }
         }
@@ -758,10 +750,7 @@ mod prepass_helpers {
         let identity = serde_json::json!({ "type": "people", "id": "1" });
         let mut set = HashSet::new();
         set.insert(("people".to_string(), "1".to_string()));
-        assert!(
-            check_included_ref("author", "data.relationships.author", &identity, &set)
-                .is_ok()
-        );
+        assert!(check_included_ref("author", "data.relationships.author", &identity, &set).is_ok());
     }
 
     #[test]
@@ -770,8 +759,7 @@ mod prepass_helpers {
         let mut set: HashSet<(String, String)> = HashSet::new();
         set.insert(("people".to_string(), "1".to_string()));
         let err =
-            check_included_ref("author", "data.relationships.author", &identity, &set)
-                .unwrap_err();
+            check_included_ref("author", "data.relationships.author", &identity, &set).unwrap_err();
         assert!(
             matches!(
                 &err,
@@ -790,10 +778,7 @@ mod prepass_helpers {
         // Empty set means "no included on the wire" — refs are unverified.
         let identity = serde_json::json!({ "type": "people", "id": "9" });
         let set: HashSet<(String, String)> = HashSet::new();
-        assert!(
-            check_included_ref("author", "data.relationships.author", &identity, &set)
-                .is_ok()
-        );
+        assert!(check_included_ref("author", "data.relationships.author", &identity, &set).is_ok());
     }
 
     #[test]
@@ -801,10 +786,7 @@ mod prepass_helpers {
         let identity = serde_json::json!({ "type": "people", "lid": "tmp-1" });
         let mut set: HashSet<(String, String)> = HashSet::new();
         set.insert(("other".to_string(), "x".to_string()));
-        assert!(
-            check_included_ref("author", "data.relationships.author", &identity, &set)
-                .is_ok()
-        );
+        assert!(check_included_ref("author", "data.relationships.author", &identity, &set).is_ok());
     }
 
     #[test]
@@ -812,10 +794,7 @@ mod prepass_helpers {
         let identity = serde_json::Value::Null;
         let mut set: HashSet<(String, String)> = HashSet::new();
         set.insert(("other".to_string(), "x".to_string()));
-        assert!(
-            check_included_ref("author", "data.relationships.author", &identity, &set)
-                .is_ok()
-        );
+        assert!(check_included_ref("author", "data.relationships.author", &identity, &set).is_ok());
     }
 }
 
@@ -1133,8 +1112,7 @@ mod tests {
 
     #[test]
     fn into_meta_returns_meta_from_data_doc() {
-        let json =
-            r#"{"data":{"type":"articles","id":"1","attributes":{}},"meta":{"page":7}}"#;
+        let json = r#"{"data":{"type":"articles","id":"1","attributes":{}},"meta":{"page":7}}"#;
         let doc: Document<Resource> = serde_json::from_str(json).unwrap();
         let meta = doc.into_meta().unwrap();
         assert_eq!(meta["page"], 7);

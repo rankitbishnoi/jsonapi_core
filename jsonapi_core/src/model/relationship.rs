@@ -130,14 +130,13 @@ impl<T> Relationship<T> {
     /// - [`crate::Error::RelationshipCardinalityMismatch`] for `ToMany`.
     pub fn single_id(&self) -> crate::Result<&str> {
         match &self.data {
-            RelationshipData::ToOne(Some(rid)) => rid
-                .identity
-                .as_id()
-                .ok_or(crate::Error::LidNotIndexed),
+            RelationshipData::ToOne(Some(rid)) => {
+                rid.identity.as_id().ok_or(crate::Error::LidNotIndexed)
+            }
             RelationshipData::ToOne(None) => Err(crate::Error::NullRelationship),
-            RelationshipData::ToMany(_) => Err(crate::Error::RelationshipCardinalityMismatch {
-                expected: "to-one",
-            }),
+            RelationshipData::ToMany(_) => {
+                Err(crate::Error::RelationshipCardinalityMismatch { expected: "to-one" })
+            }
         }
     }
 }

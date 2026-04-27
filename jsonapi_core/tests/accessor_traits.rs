@@ -180,7 +180,8 @@ fn dynamic_resource_implements_hasmeta() {
 #[test]
 fn generic_function_can_bound_on_haslinks() {
     fn first_link_name<R: HasLinks>(r: &R) -> Option<String> {
-        r.links().and_then(|l| l.iter().next().map(|(k, _)| k.to_string()))
+        r.links()
+            .and_then(|l| l.iter().next().map(|(k, _)| k.to_string()))
     }
 
     let article = ArticleWithBoth {

@@ -56,10 +56,7 @@ impl TypeInfo {
     /// as required (non-`Option`, non-`Vec`). Returns the same [`TypeInfo`]
     /// with the field set; intended to be chained on top of [`new`](Self::new).
     #[must_use]
-    pub const fn with_required_attributes(
-        mut self,
-        names: &'static [&'static str],
-    ) -> Self {
+    pub const fn with_required_attributes(mut self, names: &'static [&'static str]) -> Self {
         self.required_attribute_names = names;
         self
     }
@@ -176,13 +173,11 @@ mod tests {
     #[test]
     fn test_registry_register_and_get() {
         let mut registry = TypeRegistry::new();
-        registry.register_info(
-            TypeInfo::new(
-                "articles",
-                &["title", "body", "author"],
-                &[("author", "people")],
-            ),
-        );
+        registry.register_info(TypeInfo::new(
+            "articles",
+            &["title", "body", "author"],
+            &[("author", "people")],
+        ));
         let info = registry.get("articles").unwrap();
         assert_eq!(info.type_name, "articles");
         assert_eq!(info.field_names, &["title", "body", "author"]);
@@ -341,8 +336,8 @@ mod tests {
 
     #[test]
     fn test_type_info_with_required_attributes_round_trip() {
-        let info = TypeInfo::new("articles", &["title", "body"], &[])
-            .with_required_attributes(&["title"]);
+        let info =
+            TypeInfo::new("articles", &["title", "body"], &[]).with_required_attributes(&["title"]);
         assert_eq!(info.required_attribute_names, &["title"]);
         assert_eq!(info.type_name, "articles");
         assert_eq!(info.field_names, &["title", "body"]);
