@@ -53,6 +53,14 @@ pub struct Resource {
     pub meta: Option<Meta>,
 }
 
+impl Resource {
+    /// Derive a Resource from a typed ResourceObject.
+    pub fn from_typed<T: ResourceObject>(value: &T) -> crate::Result<Resource> {
+        let resource: Resource = serde_json::from_value(serde_json::to_value(value)?)?;
+        Ok(resource)
+    }
+}
+
 impl ResourceObject for Resource {
     fn resource_type(&self) -> &str {
         &self.type_
