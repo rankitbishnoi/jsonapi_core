@@ -87,8 +87,8 @@ fn test_spec_compound_document() {
             // Relationships
             assert!(article.relationships.contains_key("author"));
             assert!(article.relationships.contains_key("comments"));
-            match &article.relationships["comments"] {
-                RelationshipData::ToMany(rids) => assert_eq!(rids.len(), 2),
+            match &article.relationships["comments"].data {
+                Some(RelationshipData::ToMany(rids)) => assert_eq!(rids.len(), 2),
                 _ => panic!("expected to-many"),
             }
 

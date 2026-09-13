@@ -50,6 +50,35 @@ impl<'de> Deserialize<'de> for RelationshipData {
     }
 }
 
+/// Dynamic relationship object for the untyped [`Resource`](crate::Resource)
+/// fallback.
+///
+/// Unlike [`Relationship<T>`], it carries no phantom target type and its linkage
+/// `data` is optional: JSON:API permits a relationship object that has only
+/// `links` and/or `meta` and no `data` member.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ResourceRelationship {
+    /// Linkage data. `None` when the relationship object carries only `links`
+    /// and/or `meta`.
+    pub data: Option<RelationshipData>,
+    /// Relationship-level links.
+    pub links: Option<Links>,
+    /// Relationship-level meta information.
+    pub meta: Option<Meta>,
+}
+
+impl ResourceRelationship {
+    /// Construct from linkage data alone (no `links` or `meta`).
+    #[must_use]
+    pub fn new(data: RelationshipData) -> Self {
+        Self {
+            data: Some(data),
+            links: None,
+            meta: None,
+        }
+    }
+}
+
 /// Typed relationship reference. Carries the target type as a phantom
 /// for type-safe registry lookups.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
