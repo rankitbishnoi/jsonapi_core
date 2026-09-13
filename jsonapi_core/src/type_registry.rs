@@ -163,7 +163,7 @@ mod tests {
     use crate::model::{Resource, ResourceObject};
 
     #[test]
-    fn test_type_info_default() {
+    fn test_resource_type_info() {
         let info = Resource::type_info();
         assert_eq!(info.type_name, "");
         assert_eq!(info.field_names, &[] as &[&str]);

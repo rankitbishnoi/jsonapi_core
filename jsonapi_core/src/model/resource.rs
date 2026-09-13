@@ -24,14 +24,12 @@ pub trait ResourceObject: Serialize + for<'de> Deserialize<'de> {
 
     /// Static type metadata for registry and fieldset support.
     ///
-    /// The default implementation panics. Override this method (or use
-    /// `#[derive(JsonApi)]`) to enable [`TypeRegistry`](crate::TypeRegistry) support.
+    /// Implemented by `#[derive(JsonApi)]`. Manual implementors must provide this
+    /// so that [`TypeRegistry`](crate::TypeRegistry) registration is correct; a
+    /// missing implementation is a compile error rather than a runtime panic.
     fn type_info() -> crate::type_registry::TypeInfo
     where
-        Self: Sized,
-    {
-        unimplemented!("override type_info() for TypeRegistry support")
-    }
+        Self: Sized;
 }
 
 /// Dynamic fallback for resources whose type is not known at compile time.
