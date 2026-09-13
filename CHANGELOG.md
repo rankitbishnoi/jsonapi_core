@@ -13,6 +13,8 @@ refer to that shared workspace version.
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-09-13
+
 ### Added
 
 - `Resource::from_typed(T)` now facilitates deriving a `Resource` from a typed `ResourceObject`.
