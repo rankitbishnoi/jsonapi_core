@@ -68,7 +68,7 @@ mod tests {
     fn result_with_single_data() {
         let r = AtomicResult {
             data: Some(PrimaryData::Single(Box::new(Resource {
-                type_: "articles".into(),
+                r#type: "articles".into(),
                 id: Some("1".into()),
                 lid: None,
                 attributes: serde_json::json!({"title": "Hello"}),

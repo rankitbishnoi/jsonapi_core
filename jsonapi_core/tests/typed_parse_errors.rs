@@ -364,7 +364,7 @@ fn from_str_surfaces_included_ref_missing_on_primary_to_one() {
     assert!(
         matches!(
             &err,
-            Error::IncludedRefMissing { name, type_, id, location }
+            Error::IncludedRefMissing { name, r#type: type_, id, location }
                 if name == "author" && type_ == "people" && id == "9"
                 && location == "data.relationships.author"
         ),
@@ -397,7 +397,7 @@ fn from_str_surfaces_included_ref_missing_on_primary_to_many() {
     assert!(
         matches!(
             &err,
-            Error::IncludedRefMissing { name, type_, id, location }
+            Error::IncludedRefMissing { name, r#type: type_, id, location }
                 if name == "comments" && type_ == "comments" && id == "9"
                 && location == "data.relationships.comments"
         ),

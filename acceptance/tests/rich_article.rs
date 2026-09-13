@@ -185,7 +185,7 @@ struct ArticleFull {
     #[jsonapi(relationship)]
     field_teaser: Relationship<Teaser>,
     // Heterogeneous to-many: `Resource` is a phantom; dispatch happens at
-    // assertion time via `RelationshipData::ToMany(rids)` and per-rid type_.
+    // assertion time via `RelationshipData::ToMany(rids)` and per-rid r#type.
     #[jsonapi(relationship)]
     field_content: Relationship<Resource>,
 }
@@ -248,19 +248,19 @@ fn test_deep_typed_article_with_registry() {
 
     let text_rid: &ResourceIdentifier = rids
         .iter()
-        .find(|rid| rid.type_ == "paragraph--text")
+        .find(|rid| rid.r#type == "paragraph--text")
         .expect("text paragraph present");
     let text: TextPara = registry
-        .get_by_id(&text_rid.type_, id_of(&text_rid.identity))
+        .get_by_id(&text_rid.r#type, id_of(&text_rid.identity))
         .unwrap();
     assert!(text.field_body.value.contains("Opening paragraph"));
 
     let quote_rid: &ResourceIdentifier = rids
         .iter()
-        .find(|rid| rid.type_ == "paragraph--quote")
+        .find(|rid| rid.r#type == "paragraph--quote")
         .expect("quote paragraph present");
     let quote: QuotePara = registry
-        .get_by_id(&quote_rid.type_, id_of(&quote_rid.identity))
+        .get_by_id(&quote_rid.r#type, id_of(&quote_rid.identity))
         .unwrap();
     assert_eq!(quote.field_quote, "This is a pullquote for testing");
     assert_eq!(quote.field_source, "Quote Author");

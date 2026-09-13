@@ -212,7 +212,7 @@ fn test_null_data_document() {
 #[test]
 fn test_registry_get_via_relationship() {
     let included = vec![Resource {
-        type_: "people".into(),
+        r#type: "people".into(),
         id: Some("9".into()),
         lid: None,
         attributes: serde_json::json!({"name": "Dan"}),
@@ -224,7 +224,7 @@ fn test_registry_get_via_relationship() {
     let registry = Registry::from_included(&included).unwrap();
     let rel: Relationship<Resource> =
         Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier {
-            type_: "people".into(),
+            r#type: "people".into(),
             identity: Identity::Id("9".into()),
             meta: None,
         })));

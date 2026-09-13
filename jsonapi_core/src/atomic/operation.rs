@@ -94,7 +94,7 @@ impl OperationTarget {
 #[derive(Debug, Clone, PartialEq)]
 pub struct OperationRef {
     /// JSON:API type string.
-    pub type_: String,
+    pub r#type: String,
     /// Server-assigned id or client-local lid.
     pub identity: Identity,
     /// Relationship name, if this op targets a relationship rather than the resource itself.
@@ -132,7 +132,7 @@ impl Serialize for OperationRef {
             Identity::Lid(lid) => (None, Some(lid.as_str())),
         };
         OperationRefSerRepr {
-            type_: &self.type_,
+            type_: &self.r#type,
             id,
             lid,
             relationship: self.relationship.as_deref(),
@@ -155,7 +155,7 @@ impl<'de> Deserialize<'de> for OperationRef {
             (None, None) => return Err(de::Error::custom("operation ref must have `id` or `lid`")),
         };
         Ok(OperationRef {
-            type_: repr.type_,
+            r#type: repr.type_,
             identity,
             relationship: repr.relationship,
         })
@@ -242,7 +242,7 @@ mod operation_ref_tests {
     #[test]
     fn serializes_with_id() {
         let r = OperationRef {
-            type_: "articles".into(),
+            r#type: "articles".into(),
             identity: Identity::Id("1".into()),
             relationship: None,
         };
@@ -255,7 +255,7 @@ mod operation_ref_tests {
     #[test]
     fn serializes_with_lid() {
         let r = OperationRef {
-            type_: "articles".into(),
+            r#type: "articles".into(),
             identity: Identity::Lid("local-1".into()),
             relationship: None,
         };
@@ -268,7 +268,7 @@ mod operation_ref_tests {
     #[test]
     fn serializes_with_relationship() {
         let r = OperationRef {
-            type_: "articles".into(),
+            r#type: "articles".into(),
             identity: Identity::Id("1".into()),
             relationship: Some("comments".into()),
         };
@@ -281,7 +281,7 @@ mod operation_ref_tests {
     #[test]
     fn deserializes_with_id() {
         let r: OperationRef = serde_json::from_str(r#"{"type":"articles","id":"1"}"#).unwrap();
-        assert_eq!(r.type_, "articles");
+        assert_eq!(r.r#type, "articles");
         assert_eq!(r.identity, Identity::Id("1".into()));
         assert_eq!(r.relationship, None);
     }
@@ -324,7 +324,7 @@ mod operation_target_tests {
     fn ref_only() -> OperationTarget {
         OperationTarget {
             r#ref: Some(OperationRef {
-                type_: "articles".into(),
+                r#type: "articles".into(),
                 identity: Identity::Id("1".into()),
                 relationship: None,
             }),
@@ -349,7 +349,7 @@ mod operation_target_tests {
     fn both() -> OperationTarget {
         OperationTarget {
             r#ref: Some(OperationRef {
-                type_: "articles".into(),
+                r#type: "articles".into(),
                 identity: Identity::Id("1".into()),
                 relationship: None,
             }),
@@ -428,7 +428,7 @@ mod atomic_operation_tests {
 
     fn sample_ref() -> OperationRef {
         OperationRef {
-            type_: "articles".into(),
+            r#type: "articles".into(),
             identity: Identity::Id("1".into()),
             relationship: None,
         }
@@ -436,7 +436,7 @@ mod atomic_operation_tests {
 
     fn sample_resource() -> Resource {
         Resource {
-            type_: "articles".into(),
+            r#type: "articles".into(),
             id: None,
             lid: Some("local-1".into()),
             attributes: serde_json::json!({"title": "Hello"}),
@@ -503,7 +503,7 @@ mod atomic_operation_tests {
         let op: AtomicOperation = serde_json::from_str(json).unwrap();
         match op {
             AtomicOperation::Update { target, .. } => {
-                assert_eq!(target.r#ref.unwrap().type_, "articles");
+                assert_eq!(target.r#ref.unwrap().r#type, "articles");
             }
             _ => panic!("expected Update variant"),
         }
@@ -528,14 +528,14 @@ mod atomic_operation_tests {
         let op = AtomicOperation::Add {
             target: OperationTarget {
                 r#ref: Some(OperationRef {
-                    type_: "articles".into(),
+                    r#type: "articles".into(),
                     identity: Identity::Id("1".into()),
                     relationship: Some("tags".into()),
                 }),
                 href: None,
             },
             data: PrimaryData::Many(vec![Resource {
-                type_: "tags".into(),
+                r#type: "tags".into(),
                 id: Some("5".into()),
                 lid: None,
                 attributes: serde_json::json!({}),
@@ -575,7 +575,7 @@ mod atomic_request_tests {
                 AtomicOperation::Add {
                     target: OperationTarget::default(),
                     data: PrimaryData::Single(Box::new(Resource {
-                        type_: "people".into(),
+                        r#type: "people".into(),
                         id: None,
                         lid: Some("p1".into()),
                         attributes: serde_json::json!({"name": "Dan"}),
@@ -587,7 +587,7 @@ mod atomic_request_tests {
                 AtomicOperation::Remove {
                     target: OperationTarget {
                         r#ref: Some(OperationRef {
-                            type_: "articles".into(),
+                            r#type: "articles".into(),
                             identity: Identity::Id("9".into()),
                             relationship: None,
                         }),
@@ -622,7 +622,7 @@ mod validate_lid_refs_tests {
         AtomicOperation::Add {
             target: OperationTarget::default(),
             data: PrimaryData::Single(Box::new(Resource {
-                type_: "people".into(),
+                r#type: "people".into(),
                 id: None,
                 lid: Some(lid.into()),
                 attributes: serde_json::json!({}),
@@ -637,14 +637,14 @@ mod validate_lid_refs_tests {
         AtomicOperation::Update {
             target: OperationTarget {
                 r#ref: Some(OperationRef {
-                    type_: "people".into(),
+                    r#type: "people".into(),
                     identity: Identity::Lid(lid.into()),
                     relationship: None,
                 }),
                 href: None,
             },
             data: PrimaryData::Single(Box::new(Resource {
-                type_: "people".into(),
+                r#type: "people".into(),
                 id: None,
                 lid: Some(lid.into()),
                 attributes: serde_json::json!({"name": "X"}),
@@ -714,7 +714,7 @@ mod validate_lid_refs_tests {
             operations: vec![AtomicOperation::Remove {
                 target: OperationTarget {
                     r#ref: Some(OperationRef {
-                        type_: "articles".into(),
+                        r#type: "articles".into(),
                         identity: Identity::Id("1".into()),
                         relationship: None,
                     }),

@@ -61,7 +61,7 @@ fn test_article() -> TestArticle {
         title: "Hello".into(),
         body: "World".into(),
         author: Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier {
-            type_: "people".into(),
+            r#type: "people".into(),
             identity: Identity::Id("9".into()),
             meta: None,
         }))),
@@ -226,7 +226,7 @@ fn test_sparse_serializer_end_to_end() {
         title: "Hello".into(),
         body: "World".into(),
         author: Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier {
-            type_: "people".into(),
+            r#type: "people".into(),
             identity: Identity::Id("9".into()),
             meta: None,
         }))),
@@ -297,7 +297,7 @@ fn test_full_pipeline() {
         title: "Hello".into(),
         body: "World".into(),
         author: Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier {
-            type_: "people".into(),
+            r#type: "people".into(),
             identity: Identity::Id("9".into()),
             meta: None,
         }))),

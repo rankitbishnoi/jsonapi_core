@@ -240,7 +240,7 @@ fn serialize_with_relationships() {
         id: "1".into(),
         title: "Hello".into(),
         author: Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier {
-            type_: "people".into(),
+            r#type: "people".into(),
             identity: Identity::Id("9".into()),
             meta: None,
         }))),
@@ -1078,7 +1078,7 @@ fn spec_standard_to_many_parses_into_single_relationship() {
     match &post.comments.data {
         RelationshipData::ToMany(rids) => {
             assert_eq!(rids.len(), 2);
-            assert_eq!(rids[0].type_, "comments");
+            assert_eq!(rids[0].r#type, "comments");
         }
         other => panic!("expected ToMany, got {other:?}"),
     }
@@ -1131,7 +1131,7 @@ fn vec_relationship_parses_non_standard_array_of_wrappers() {
     // Each outer Relationship carries a single ToOne(Some(rid)) — they do
     // not collapse into one ToMany.
     match &post.comments[0].data {
-        RelationshipData::ToOne(Some(rid)) => assert_eq!(rid.type_, "comments"),
+        RelationshipData::ToOne(Some(rid)) => assert_eq!(rid.r#type, "comments"),
         other => panic!("expected ToOne(Some), got {other:?}"),
     }
 }

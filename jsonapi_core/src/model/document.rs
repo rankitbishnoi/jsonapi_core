@@ -636,7 +636,7 @@ fn check_included_ref(
     if !included_set.contains(&key) {
         return Err(crate::Error::IncludedRefMissing {
             name: name.to_string(),
-            type_: type_.to_string(),
+            r#type: type_.to_string(),
             id: id.to_string(),
             location: rel_location.to_string(),
         });
@@ -763,7 +763,7 @@ mod prepass_helpers {
         assert!(
             matches!(
                 &err,
-                crate::Error::IncludedRefMissing { name, type_, id, location }
+                crate::Error::IncludedRefMissing { name, r#type: type_, id, location }
                     if name == "author"
                     && type_ == "people"
                     && id == "9"
@@ -920,7 +920,7 @@ mod tests {
     fn test_document_data_round_trip() {
         let doc: Document<Resource> = Document::Data {
             data: PrimaryData::Single(Box::new(Resource {
-                type_: "articles".into(),
+                r#type: "articles".into(),
                 id: Some("1".into()),
                 lid: None,
                 attributes: serde_json::json!({"title": "Hello"}),
@@ -938,7 +938,7 @@ mod tests {
         match (&doc, &deserialized) {
             (Document::Data { data: d1, .. }, Document::Data { data: d2, .. }) => match (d1, d2) {
                 (PrimaryData::Single(a), PrimaryData::Single(b)) => {
-                    assert_eq!(a.type_, b.type_);
+                    assert_eq!(a.r#type, b.r#type);
                     assert_eq!(a.id, b.id);
                 }
                 _ => panic!("mismatch"),

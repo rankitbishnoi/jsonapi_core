@@ -31,7 +31,7 @@ pub struct LinkObject {
     pub title: Option<String>,
     /// Media type hint for the target resource.
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
-    pub type_: Option<String>,
+    pub r#type: Option<String>,
     /// Language tag(s) for the target resource (RFC 5646).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hreflang: Option<Hreflang>,

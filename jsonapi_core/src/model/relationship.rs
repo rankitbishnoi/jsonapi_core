@@ -152,7 +152,7 @@ mod tests {
         let data: RelationshipData = serde_json::from_str(json).unwrap();
         match &data {
             RelationshipData::ToOne(Some(rid)) => {
-                assert_eq!(rid.type_, "people");
+                assert_eq!(rid.r#type, "people");
                 assert_eq!(rid.identity, Identity::Id("9".into()));
             }
             _ => panic!("expected ToOne(Some(...))"),
@@ -190,7 +190,7 @@ mod tests {
 
     fn rid(type_: &str, id: &str) -> ResourceIdentifier {
         ResourceIdentifier {
-            type_: type_.into(),
+            r#type: type_.into(),
             identity: Identity::Id(id.into()),
             meta: None,
         }
@@ -198,7 +198,7 @@ mod tests {
 
     fn lid_rid(type_: &str, lid: &str) -> ResourceIdentifier {
         ResourceIdentifier {
-            type_: type_.into(),
+            r#type: type_.into(),
             identity: Identity::Lid(lid.into()),
             meta: None,
         }
@@ -292,7 +292,7 @@ mod tests {
             Relationship::new(RelationshipData::ToOne(Some(rid("people", "9"))));
         let slice = rel.identifiers();
         assert_eq!(slice.len(), 1);
-        assert_eq!(slice[0].type_, "people");
+        assert_eq!(slice[0].r#type, "people");
     }
 
     #[test]

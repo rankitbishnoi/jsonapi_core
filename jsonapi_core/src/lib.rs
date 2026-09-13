@@ -70,7 +70,7 @@
 //!     title: "JSON:API paints my bikeshed!".into(),
 //!     body: "The shortest article. Ever.".into(),
 //!     author: Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier {
-//!         type_: "people".into(),
+//!         r#type: "people".into(),
 //!         identity: Identity::Id("9".into()),
 //!         meta: None,
 //!     }))),
@@ -277,7 +277,7 @@
 //! # let article = Article {
 //! #     id: "1".into(), title: "Hello".into(), body: "World".into(),
 //! #     author: Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier {
-//! #         type_: "people".into(), identity: Identity::Id("9".into()), meta: None,
+//! #         r#type: "people".into(), identity: Identity::Id("9".into()), meta: None,
 //! #     }))),
 //! # };
 //! // Only include the "title" field for articles
@@ -399,7 +399,7 @@
 //!     operations: vec![AtomicOperation::Add {
 //!         target: OperationTarget::default(),
 //!         data: PrimaryData::Single(Box::new(Resource {
-//!             type_: "articles".into(),
+//!             r#type: "articles".into(),
 //!             id: None,
 //!             lid: Some("a1".into()),
 //!             attributes: serde_json::json!({"title": "Hello"}),

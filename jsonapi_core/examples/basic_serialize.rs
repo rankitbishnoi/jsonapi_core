@@ -47,7 +47,7 @@ fn main() {
         title: "JSON:API paints my bikeshed!".into(),
         body: "The shortest article. Ever.".into(),
         author: Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier {
-            type_: "people".into(),
+            r#type: "people".into(),
             identity: Identity::Id("9".into()),
             meta: None,
         }))),

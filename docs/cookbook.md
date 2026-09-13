@@ -29,7 +29,7 @@ let article = Article {
     id: "1".into(),
     title: "Hello".into(),
     author: Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier {
-        type_: "people".into(),
+        r#type: "people".into(),
         identity: Identity::Id("9".into()),
         meta: None,
     }))),

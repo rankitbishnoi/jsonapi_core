@@ -38,7 +38,7 @@ pub trait ResourceObject: Serialize + for<'de> Deserialize<'de> {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Resource {
     /// The JSON:API type string (e.g. "articles").
-    pub type_: String,
+    pub r#type: String,
     /// Server-assigned identifier. None for create payloads.
     pub id: Option<String>,
     /// Client-generated local identifier (JSON:API 1.1).
@@ -63,7 +63,7 @@ impl Resource {
 
 impl ResourceObject for Resource {
     fn resource_type(&self) -> &str {
-        &self.type_
+        &self.r#type
     }
 
     fn resource_id(&self) -> Option<&str> {
@@ -99,7 +99,7 @@ impl Serialize for Resource {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut map = serializer.serialize_map(None)?;
 
-        map.serialize_entry("type", &self.type_)?;
+        map.serialize_entry("type", &self.r#type)?;
         if let Some(ref id) = self.id {
             map.serialize_entry("id", id)?;
         }
@@ -186,7 +186,7 @@ impl<'de> Deserialize<'de> for Resource {
             .map_err(de::Error::custom)?;
 
         Ok(Resource {
-            type_,
+            r#type: type_,
             id,
             lid,
             attributes,
@@ -212,7 +212,7 @@ mod tests {
             }
         }"#;
         let resource: Resource = serde_json::from_str(json).unwrap();
-        assert_eq!(resource.type_, "articles");
+        assert_eq!(resource.r#type, "articles");
         assert_eq!(resource.id.as_deref(), Some("1"));
         assert_eq!(resource.attributes["title"], "Rails is Omakase");
     }
@@ -220,7 +220,7 @@ mod tests {
     #[test]
     fn test_resource_serialize_simple() {
         let resource = Resource {
-            type_: "articles".into(),
+            r#type: "articles".into(),
             id: Some("1".into()),
             lid: None,
             attributes: serde_json::json!({"title": "Hello"}),
@@ -251,7 +251,7 @@ mod tests {
         assert!(resource.relationships.contains_key("author"));
         match &resource.relationships["author"] {
             RelationshipData::ToOne(Some(rid)) => {
-                assert_eq!(rid.type_, "people");
+                assert_eq!(rid.r#type, "people");
                 assert_eq!(rid.identity, Identity::Id("9".into()));
             }
             _ => panic!("expected to-one relationship"),
@@ -261,7 +261,7 @@ mod tests {
     #[test]
     fn test_resource_round_trip() {
         let resource = Resource {
-            type_: "articles".into(),
+            r#type: "articles".into(),
             id: Some("1".into()),
             lid: None,
             attributes: serde_json::json!({"title": "Hello"}),
@@ -271,7 +271,7 @@ mod tests {
         };
         let json = serde_json::to_string(&resource).unwrap();
         let deserialized: Resource = serde_json::from_str(&json).unwrap();
-        assert_eq!(resource.type_, deserialized.type_);
+        assert_eq!(resource.r#type, deserialized.r#type);
         assert_eq!(resource.id, deserialized.id);
         assert_eq!(resource.attributes, deserialized.attributes);
     }
@@ -287,7 +287,7 @@ mod tests {
     #[test]
     fn test_resource_object_trait() {
         let resource = Resource {
-            type_: "articles".into(),
+            r#type: "articles".into(),
             id: Some("1".into()),
             lid: None,
             attributes: serde_json::json!({}),

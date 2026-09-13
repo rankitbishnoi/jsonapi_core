@@ -21,10 +21,10 @@ pub enum Error {
     },
 
     /// A resource was not found in the [`Registry`](crate::Registry).
-    #[error("resource not found in registry: type={type_}, id={id}")]
+    #[error("resource not found in registry: type={type}, id={id}")]
     RegistryLookup {
         /// The JSON:API type string that was queried.
-        type_: String,
+        r#type: String,
         /// The resource id that was not found.
         id: String,
     },
@@ -173,13 +173,13 @@ pub enum Error {
     /// those are atomic-operation client-local identifiers, resolved at
     /// request execution rather than at parse time.
     #[error(
-        "relationship `{name}` at {location} references {type_}:{id}, but no such resource is included"
+        "relationship `{name}` at {location} references {type}:{id}, but no such resource is included"
     )]
     IncludedRefMissing {
         /// Wire name of the offending relationship.
         name: String,
         /// Wire-side referenced resource type.
-        type_: String,
+        r#type: String,
         /// Wire-side referenced resource id.
         id: String,
         /// JSON pointer-style path to the offending relationship, e.g.
@@ -199,7 +199,7 @@ mod tests {
     #[test]
     fn test_error_display() {
         let err = Error::RegistryLookup {
-            type_: "people".into(),
+            r#type: "people".into(),
             id: "99".into(),
         };
         assert_eq!(
@@ -245,7 +245,7 @@ mod tests {
     fn test_included_ref_missing_display() {
         let err = Error::IncludedRefMissing {
             name: "author".into(),
-            type_: "people".into(),
+            r#type: "people".into(),
             id: "9".into(),
             location: "data.relationships.author".into(),
         };

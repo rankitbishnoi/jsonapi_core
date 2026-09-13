@@ -13,7 +13,7 @@ use jsonapi_core::{
 
 fn make_resource(type_: &str, id: Option<&str>, lid: Option<&str>) -> Resource {
     Resource {
-        type_: type_.into(),
+        r#type: type_.into(),
         id: id.map(str::to_owned),
         lid: lid.map(str::to_owned),
         attributes: serde_json::json!({}),
@@ -62,7 +62,7 @@ fn spec_update_resource_round_trip() {
     let req: AtomicRequest = serde_json::from_str(wire).unwrap();
     match &req.operations[0] {
         AtomicOperation::Update { target, data } => {
-            assert_eq!(target.r#ref.as_ref().unwrap().type_, "articles");
+            assert_eq!(target.r#ref.as_ref().unwrap().r#type, "articles");
             assert!(matches!(data, PrimaryData::Single(_)));
         }
         _ => panic!("expected Update"),
@@ -219,7 +219,7 @@ fn validate_lid_refs_catches_dangling_ref() {
         operations: vec![AtomicOperation::Update {
             target: OperationTarget {
                 r#ref: Some(OperationRef {
-                    type_: "people".into(),
+                    r#type: "people".into(),
                     identity: Identity::Lid("ghost".into()),
                     relationship: None,
                 }),

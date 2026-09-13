@@ -21,7 +21,7 @@ This chapter covers both.
 pub enum Error {
     Json(serde_json::Error),
     InvalidMemberName { name: String, reason: String },
-    RegistryLookup { type_: String, id: String },
+    RegistryLookup { r#type: String, id: String },
     NullRelationship,
     RelationshipCardinalityMismatch { expected: &'static str },
     LidNotIndexed,
@@ -37,7 +37,7 @@ pub enum Error {
     TypeMismatch { expected: &'static str, got: String, location: String },
     MalformedRelationship { name: String, location: String, reason: String },
     MissingAttribute { resource_type: &'static str, attribute: &'static str, location: String },
-    IncludedRefMissing { name: String, type_: String, id: String, location: String },
+    IncludedRefMissing { name: String, r#type: String, id: String, location: String },
 }
 ```
 

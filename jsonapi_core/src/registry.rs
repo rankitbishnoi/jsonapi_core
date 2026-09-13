@@ -82,7 +82,7 @@ impl Registry {
                     Identity::Id(id) => id,
                     Identity::Lid(_) => return Err(Error::LidNotIndexed),
                 };
-                self.get_by_id(&rid.type_, id)
+                self.get_by_id(&rid.r#type, id)
             }
             RelationshipData::ToOne(None) => Err(Error::NullRelationship),
             RelationshipData::ToMany(_) => {
@@ -103,7 +103,7 @@ impl Registry {
                         Identity::Id(id) => id,
                         Identity::Lid(_) => return Err(Error::LidNotIndexed),
                     };
-                    results.push(self.get_by_id(&rid.type_, id)?);
+                    results.push(self.get_by_id(&rid.r#type, id)?);
                 }
                 Ok(results)
             }
@@ -135,7 +135,7 @@ impl Registry {
         match self.lookup(type_, id) {
             Some(value) => serde_json::from_value(value.clone()).map_err(Error::Json),
             None => Err(Error::RegistryLookup {
-                type_: type_.to_string(),
+                r#type: type_.to_string(),
                 id: id.to_string(),
             }),
         }
@@ -286,7 +286,7 @@ mod tests {
 
     fn make_resource(type_: &str, id: &str, attrs: serde_json::Value) -> Resource {
         Resource {
-            type_: type_.into(),
+            r#type: type_.into(),
             id: Some(id.into()),
             lid: None,
             attributes: attrs,
@@ -303,7 +303,7 @@ mod tests {
         rels: BTreeMap<String, RelationshipData>,
     ) -> Resource {
         Resource {
-            type_: type_.into(),
+            r#type: type_.into(),
             id: Some(id.into()),
             lid: None,
             attributes: attrs,
@@ -332,7 +332,7 @@ mod tests {
         let result: std::result::Result<Resource, _> = registry.get_by_id("people", "99");
         assert!(result.is_err());
         match result.unwrap_err() {
-            crate::Error::RegistryLookup { type_, id } => {
+            crate::Error::RegistryLookup { r#type: type_, id } => {
                 assert_eq!(type_, "people");
                 assert_eq!(id, "99");
             }
@@ -351,7 +351,7 @@ mod tests {
 
         let rel: Relationship<Resource> =
             Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier {
-                type_: "people".into(),
+                r#type: "people".into(),
                 identity: Identity::Id("9".into()),
                 meta: None,
             })));
@@ -377,12 +377,12 @@ mod tests {
         let registry = Registry::from_included(&included).unwrap();
         let rel: Relationship<Resource> = Relationship::new(RelationshipData::ToMany(vec![
             ResourceIdentifier {
-                type_: "tags".into(),
+                r#type: "tags".into(),
                 identity: Identity::Id("1".into()),
                 meta: None,
             },
             ResourceIdentifier {
-                type_: "tags".into(),
+                r#type: "tags".into(),
                 identity: Identity::Id("2".into()),
                 meta: None,
             },
@@ -406,7 +406,7 @@ mod tests {
         let registry = Registry::from_included::<Resource>(&[]).unwrap();
         let rel: Relationship<Resource> =
             Relationship::new(RelationshipData::ToMany(vec![ResourceIdentifier {
-                type_: "tags".into(),
+                r#type: "tags".into(),
                 identity: Identity::Id("99".into()),
                 meta: None,
             }]));
@@ -520,7 +520,7 @@ mod tests {
             BTreeMap::from([(
                 "author".to_string(),
                 RelationshipData::ToOne(Some(ResourceIdentifier {
-                    type_: "people".into(),
+                    r#type: "people".into(),
                     identity: Identity::Id("9".into()),
                     meta: None,
                 })),
@@ -553,12 +553,12 @@ mod tests {
                 "tags".to_string(),
                 RelationshipData::ToMany(vec![
                     ResourceIdentifier {
-                        type_: "tags".into(),
+                        r#type: "tags".into(),
                         identity: Identity::Id("1".into()),
                         meta: None,
                     },
                     ResourceIdentifier {
-                        type_: "tags".into(),
+                        r#type: "tags".into(),
                         identity: Identity::Id("2".into()),
                         meta: None,
                     },
@@ -595,7 +595,7 @@ mod tests {
             BTreeMap::from([(
                 "org".to_string(),
                 RelationshipData::ToOne(Some(ResourceIdentifier {
-                    type_: "orgs".into(),
+                    r#type: "orgs".into(),
                     identity: Identity::Id("5".into()),
                     meta: None,
                 })),
@@ -608,7 +608,7 @@ mod tests {
             BTreeMap::from([(
                 "author".to_string(),
                 RelationshipData::ToOne(Some(ResourceIdentifier {
-                    type_: "people".into(),
+                    r#type: "people".into(),
                     identity: Identity::Id("9".into()),
                     meta: None,
                 })),
@@ -632,7 +632,7 @@ mod tests {
             BTreeMap::from([(
                 "author".to_string(),
                 RelationshipData::ToOne(Some(ResourceIdentifier {
-                    type_: "people".into(),
+                    r#type: "people".into(),
                     identity: Identity::Id("9".into()),
                     meta: None,
                 })),
@@ -645,7 +645,7 @@ mod tests {
             BTreeMap::from([(
                 "articles".to_string(),
                 RelationshipData::ToMany(vec![ResourceIdentifier {
-                    type_: "articles".into(),
+                    r#type: "articles".into(),
                     identity: Identity::Id("1".into()),
                     meta: None,
                 }]),
@@ -672,7 +672,7 @@ mod tests {
             BTreeMap::from([(
                 "author".to_string(),
                 RelationshipData::ToOne(Some(ResourceIdentifier {
-                    type_: "people".into(),
+                    r#type: "people".into(),
                     identity: Identity::Id("99".into()),
                     meta: None,
                 })),
@@ -728,7 +728,7 @@ mod tests {
             BTreeMap::from([(
                 "org".to_string(),
                 RelationshipData::ToOne(Some(ResourceIdentifier {
-                    type_: "orgs".into(),
+                    r#type: "orgs".into(),
                     identity: Identity::Id("5".into()),
                     meta: None,
                 })),
@@ -741,7 +741,7 @@ mod tests {
             BTreeMap::from([(
                 "author".to_string(),
                 RelationshipData::ToOne(Some(ResourceIdentifier {
-                    type_: "people".into(),
+                    r#type: "people".into(),
                     identity: Identity::Id("9".into()),
                     meta: None,
                 })),
@@ -785,7 +785,7 @@ mod tests {
             BTreeMap::from([(
                 "author".to_string(),
                 RelationshipData::ToOne(Some(ResourceIdentifier {
-                    type_: "people".into(),
+                    r#type: "people".into(),
                     identity: Identity::Id("9".into()),
                     meta: None,
                 })),
@@ -805,7 +805,7 @@ mod tests {
     #[test]
     fn test_from_included_skips_lid_only_resources() {
         let lid_only = Resource {
-            type_: "drafts".into(),
+            r#type: "drafts".into(),
             id: None,
             lid: Some("temp-1".into()),
             attributes: serde_json::json!({"title": "Draft"}),
@@ -835,7 +835,7 @@ mod tests {
             BTreeMap::from([(
                 "reviewer".to_string(),
                 RelationshipData::ToOne(Some(ResourceIdentifier {
-                    type_: "people".into(),
+                    r#type: "people".into(),
                     identity: Identity::Id("9".into()),
                     meta: None,
                 })),
@@ -848,7 +848,7 @@ mod tests {
             BTreeMap::from([(
                 "favorite".to_string(),
                 RelationshipData::ToOne(Some(ResourceIdentifier {
-                    type_: "articles".into(),
+                    r#type: "articles".into(),
                     identity: Identity::Id("1".into()),
                     meta: None,
                 })),

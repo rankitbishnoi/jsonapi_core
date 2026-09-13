@@ -92,7 +92,7 @@ use jsonapi_core::{
 
 // 1. Add a person with lid "p1".
 let person = Resource {
-    type_: "people".into(),
+    r#type: "people".into(),
     id: None,
     lid: Some("p1".into()),
     attributes: serde_json::json!({"name": "Dan Gebhardt"}),
@@ -106,13 +106,13 @@ let mut article_rels = BTreeMap::new();
 article_rels.insert(
     "author".into(),
     RelationshipData::ToOne(Some(ResourceIdentifier {
-        type_: "people".into(),
+        r#type: "people".into(),
         identity: Identity::Lid("p1".into()),
         meta: None,
     })),
 );
 let article = Resource {
-    type_: "articles".into(),
+    r#type: "articles".into(),
     id: None,
     lid: Some("a1".into()),
     attributes: serde_json::json!({"title": "Hello JSON:API"}),
@@ -135,14 +135,14 @@ let req = AtomicRequest {
         AtomicOperation::Update {
             target: OperationTarget {
                 r#ref: Some(OperationRef {
-                    type_: "articles".into(),
+                    r#type: "articles".into(),
                     identity: Identity::Lid("a1".into()),
                     relationship: Some("author".into()),
                 }),
                 href: None,
             },
             data: PrimaryData::Single(Box::new(Resource {
-                type_: "people".into(),
+                r#type: "people".into(),
                 id: None,
                 lid: Some("p1".into()),
                 attributes: serde_json::json!({}),

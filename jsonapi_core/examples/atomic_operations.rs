@@ -22,7 +22,7 @@ fn main() {
     // Build three ops: add person (lid "p1"), add article (lid "a1"), then
     // update the article's `author` relationship — demonstrating lid refs.
     let person = Resource {
-        type_: "people".into(),
+        r#type: "people".into(),
         id: None,
         lid: Some("p1".into()),
         attributes: serde_json::json!({"name": "Dan Gebhardt"}),
@@ -35,13 +35,13 @@ fn main() {
     article_rels.insert(
         "author".into(),
         jsonapi_core::RelationshipData::ToOne(Some(jsonapi_core::ResourceIdentifier {
-            type_: "people".into(),
+            r#type: "people".into(),
             identity: Identity::Lid("p1".into()),
             meta: None,
         })),
     );
     let article = Resource {
-        type_: "articles".into(),
+        r#type: "articles".into(),
         id: None,
         lid: Some("a1".into()),
         attributes: serde_json::json!({"title": "Hello JSON:API"}),
@@ -66,14 +66,14 @@ fn main() {
             AtomicOperation::Update {
                 target: OperationTarget {
                     r#ref: Some(OperationRef {
-                        type_: "articles".into(),
+                        r#type: "articles".into(),
                         identity: Identity::Lid("a1".into()),
                         relationship: Some("author".into()),
                     }),
                     href: None,
                 },
                 data: PrimaryData::Single(Box::new(Resource {
-                    type_: "people".into(),
+                    r#type: "people".into(),
                     id: None,
                     lid: Some("p1".into()),
                     attributes: serde_json::json!({}),

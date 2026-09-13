@@ -58,7 +58,7 @@ let comments: Vec<Comment> = registry.get_many(&article.comments_field)?;
 
 `get` and `get_many` both error with:
 
-- `Error::RegistryLookup { type_, id }` — no entry for that identifier
+- `Error::RegistryLookup { r#type, id }` — no entry for that identifier
 - `Error::NullRelationship` — relationship was `ToOne(None)`
 - `Error::RelationshipCardinalityMismatch { expected }` — `get` called on
   to-many or `get_many` called on to-one

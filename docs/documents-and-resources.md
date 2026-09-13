@@ -72,7 +72,7 @@ a `serde_json::Value` and relationships as a `BTreeMap`:
 
 ```rust
 pub struct Resource {
-    pub type_: String,
+    pub r#type: String,
     pub id: Option<String>,
     pub lid: Option<String>,
     pub attributes: serde_json::Value,

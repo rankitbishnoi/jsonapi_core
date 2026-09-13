@@ -34,14 +34,14 @@ create-time cross-references (see [Atomic Operations](./atomic-operations.md)).
 
 ```rust
 pub struct ResourceIdentifier {
-    pub type_: String,
+    pub r#type: String,
     pub identity: Identity,
     pub meta: Option<Meta>,
 }
 ```
 
-Field name `type_` (with trailing underscore) avoids the Rust keyword; on the wire
-this is `"type"`. The custom `Serialize` impl handles the rename.
+Field name `r#type` (a raw identifier) maps to the reserved `type` keyword; on the
+wire this is `"type"`. The custom `Serialize` impl handles the rename.
 
 ## `RelationshipData`
 
@@ -77,7 +77,7 @@ use jsonapi_core::{Identity, Relationship, RelationshipData, ResourceIdentifier}
 
 let author: Relationship<Person> = Relationship::new(
     RelationshipData::ToOne(Some(ResourceIdentifier {
-        type_: "people".into(),
+        r#type: "people".into(),
         identity: Identity::Id("9".into()),
         meta: None,
     }))
@@ -164,7 +164,7 @@ if let Document::Data { data: PrimaryData::Single(article), .. } = &doc {
         // `identity.as_id().or_else(|| identity.as_lid())` if you also
         // accept client-local ids.
         let id = rid.identity.as_id().expect("server id expected");
-        let author: Person = registry.get_by_id(&rid.type_, id)?;
+        let author: Person = registry.get_by_id(&rid.r#type, id)?;
     }
 }
 ```

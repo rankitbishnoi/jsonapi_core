@@ -24,7 +24,7 @@ pub struct ErrorLinks {
     pub about: Option<Link>,
     /// A link that identifies the type of error (RFC 7807).
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
-    pub type_: Option<Link>,
+    pub r#type: Option<Link>,
 }
 
 /// A JSON:API error object.
@@ -83,6 +83,6 @@ mod tests {
     fn test_api_error_with_type_link() {
         let json = r#"{"status":"422","links":{"type":"http://example.com/errors/invalid"}}"#;
         let err: ApiError = serde_json::from_str(json).unwrap();
-        assert!(err.links.as_ref().unwrap().type_.is_some());
+        assert!(err.links.as_ref().unwrap().r#type.is_some());
     }
 }

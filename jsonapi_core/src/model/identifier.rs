@@ -38,7 +38,7 @@ impl Identity {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ResourceIdentifier {
     /// The JSON:API type string.
-    pub type_: String,
+    pub r#type: String,
     /// Server-assigned id or client-local lid.
     pub identity: Identity,
     /// Optional meta information.
@@ -78,7 +78,7 @@ impl Serialize for ResourceIdentifier {
             Identity::Lid(lid) => (None, Some(lid.as_str())),
         };
         ResourceIdentifierSerRepr {
-            type_: &self.type_,
+            type_: &self.r#type,
             id,
             lid,
             meta: self.meta.as_ref(),
@@ -105,7 +105,7 @@ impl<'de> Deserialize<'de> for ResourceIdentifier {
             }
         };
         Ok(ResourceIdentifier {
-            type_: repr.type_,
+            r#type: repr.type_,
             identity,
             meta: repr.meta,
         })
@@ -134,7 +134,7 @@ mod tests {
     fn test_resource_identifier_with_id() {
         let json = r#"{"type":"people","id":"1"}"#;
         let rid: ResourceIdentifier = serde_json::from_str(json).unwrap();
-        assert_eq!(rid.type_, "people");
+        assert_eq!(rid.r#type, "people");
         assert_eq!(rid.identity, Identity::Id("1".into()));
         assert_eq!(rid.meta, None);
 
@@ -156,7 +156,7 @@ mod tests {
     fn test_resource_identifier_with_meta() {
         let json = r#"{"type":"articles","id":"5","meta":{"created":true}}"#;
         let rid: ResourceIdentifier = serde_json::from_str(json).unwrap();
-        assert_eq!(rid.type_, "articles");
+        assert_eq!(rid.r#type, "articles");
         assert!(rid.meta.is_some());
         assert_eq!(
             rid.meta.as_ref().unwrap()["created"],

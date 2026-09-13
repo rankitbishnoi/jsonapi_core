@@ -17,6 +17,15 @@ refer to that shared workspace version.
 
 - `Resource::from_typed(T)` now facilitates deriving a `Resource` from a typed `ResourceObject`.
 
+### Changed
+
+- **Breaking:** the JSON:API `type` member is now exposed as the raw-identifier
+  field `r#type` instead of `type_` on `Resource`, `ResourceIdentifier`,
+  `LinkObject`, `ErrorLinks`, and `OperationRef`, as well as on the
+  `Error::RegistryLookup` and `Error::IncludedRefMissing` variants. Update field
+  access and struct-literal construction from `type_` to `r#type`. The JSON wire
+  format is unchanged.
+
 ## [0.2.1] — 2026-04-25
 
 Additive consumer-DX release. All changes are source-compatible with 0.2.0;
