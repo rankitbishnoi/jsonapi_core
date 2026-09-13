@@ -372,7 +372,8 @@
 //! let mt = validate_content_type("application/vnd.api+json").unwrap();
 //! assert!(mt.ext.is_empty());
 //!
-//! // Negotiate an Accept header (returns server capabilities)
+//! // Negotiate an Accept header (returns the client's requested ext/profile
+//! // filtered by server capabilities)
 //! let response = negotiate_accept(
 //!     "application/vnd.api+json, application/json",
 //!     &[],  // server extensions
