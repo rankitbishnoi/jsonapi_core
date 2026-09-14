@@ -1,5 +1,6 @@
 #![deny(missing_docs)]
 #![deny(rustdoc::broken_intra_doc_links)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 //! # jsonapi_core
 //!
 //! A typed [JSON:API v1.1](https://jsonapi.org/format/) serialization library for Rust.
@@ -463,6 +464,7 @@ pub mod type_registry;
 pub mod validation;
 
 #[cfg(feature = "atomic-ops")]
+#[cfg_attr(docsrs, doc(cfg(feature = "atomic-ops")))]
 pub mod atomic;
 
 pub use builder::DocumentBuilder;
@@ -482,10 +484,12 @@ pub use type_registry::{TypeInfo, TypeRegistry};
 pub use validation::{MemberNameKind, validate_member_name};
 
 #[cfg(feature = "atomic-ops")]
+#[cfg_attr(docsrs, doc(cfg(feature = "atomic-ops")))]
 pub use atomic::{
     ATOMIC_EXT_URI, AtomicOperation, AtomicRequest, AtomicResponse, AtomicResult, OperationRef,
     OperationTarget,
 };
 
 #[cfg(feature = "derive")]
+#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 pub use jsonapi_core_derive::JsonApi;
