@@ -471,7 +471,7 @@ pub use model::{
     JsonApiObject, Link, LinkObject, Links, Meta, PrimaryData, Relationship, RelationshipData,
     Resource, ResourceIdentifier, ResourceObject, ResourceRelationship,
 };
-pub use query::QueryBuilder;
+pub use query::{Query, QueryBuilder, SortField};
 pub use registry::{Registry, ResolveConfig};
 pub use type_registry::{TypeInfo, TypeRegistry};
 pub use validation::{MemberNameKind, validate_member_name};
