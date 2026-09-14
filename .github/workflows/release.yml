@@ -45,6 +45,8 @@ jobs:
         env:
           RUSTDOCFLAGS: "-D warnings"
         run: cargo doc --workspace --no-deps --all-features
+      - name: Verify jsonapi_core_validation packages cleanly
+        run: cargo package -p jsonapi_core_validation
       - name: Verify jsonapi_core_derive packages cleanly
         run: cargo package -p jsonapi_core_derive
       - name: Verify jsonapi_core packaging file list
@@ -77,6 +79,32 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+
+      - name: Publish jsonapi_core_validation
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p jsonapi_core_validation
+
+      - name: Wait for jsonapi_core_validation to appear on the index
+        run: |
+          VERSION=$(cargo metadata --format-version 1 --no-deps \
+            | python3 -c "import json,sys; m=json.load(sys.stdin); \
+              v=next(p['version'] for p in m['packages'] if p['name']=='jsonapi_core_validation'); print(v)")
+          UA="jsonapi_core-release-workflow (https://github.com/rankitbishnoi/jsonapi_core)"
+          for i in $(seq 1 30); do
+            if curl -fsSL -H "User-Agent: $UA" \
+                "https://crates.io/api/v1/crates/jsonapi_core_validation" \
+                | jq -e --arg v "$VERSION" '.versions[] | select(.num == $v)' >/dev/null; then
+              echo "jsonapi_core_validation $VERSION is available"
+              break
+            fi
+            echo "waiting for jsonapi_core_validation $VERSION ($i/30)..."
+            sleep 10
+            if [ "$i" -eq 30 ]; then
+              echo "::error::Timed out waiting for jsonapi_core_validation on the registry"
+              exit 1
+            fi
+          done
 
       - name: Publish jsonapi_core_derive
         env:
