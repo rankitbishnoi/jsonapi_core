@@ -449,6 +449,7 @@
 //! | `derive` | yes | Re-exports `#[derive(JsonApi)]` from `jsonapi_core_derive` |
 //! | `atomic-ops` | no | Atomic Operations extension types (`atomic` module) |
 
+pub mod builder;
 pub mod case;
 pub mod error;
 pub mod fieldset;
@@ -463,6 +464,7 @@ pub mod validation;
 #[cfg(feature = "atomic-ops")]
 pub mod atomic;
 
+pub use builder::DocumentBuilder;
 pub use case::{CaseConfig, CaseConvention};
 pub use error::{Error, Result};
 pub use fieldset::{FieldsetConfig, SparseSerializer, sparse_filter};
