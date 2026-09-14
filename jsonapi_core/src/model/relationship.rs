@@ -57,6 +57,7 @@ impl<'de> Deserialize<'de> for RelationshipData {
 /// `data` is optional: JSON:API permits a relationship object that has only
 /// `links` and/or `meta` and no `data` member.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct ResourceRelationship {
     /// Linkage data. `None` when the relationship object carries only `links`
     /// and/or `meta`.
@@ -76,6 +77,51 @@ impl ResourceRelationship {
             links: None,
             meta: None,
         }
+    }
+
+    /// Construct from relationship-level links alone (no `data` or `meta`).
+    ///
+    /// JSON:API permits a relationship object with only `links` (e.g. a
+    /// `related` link and no linkage). Chain [`with_data`](Self::with_data) or
+    /// [`with_meta`](Self::with_meta) to add more.
+    #[must_use]
+    pub fn from_links(links: Links) -> Self {
+        Self {
+            data: None,
+            links: Some(links),
+            meta: None,
+        }
+    }
+
+    /// Construct from relationship-level meta alone (no `data` or `links`).
+    #[must_use]
+    pub fn from_meta(meta: Meta) -> Self {
+        Self {
+            data: None,
+            links: None,
+            meta: Some(meta),
+        }
+    }
+
+    /// Attach (or replace) linkage data, builder-style.
+    #[must_use]
+    pub fn with_data(mut self, data: RelationshipData) -> Self {
+        self.data = Some(data);
+        self
+    }
+
+    /// Attach (or replace) relationship-level links, builder-style.
+    #[must_use]
+    pub fn with_links(mut self, links: Links) -> Self {
+        self.links = Some(links);
+        self
+    }
+
+    /// Attach (or replace) relationship-level meta, builder-style.
+    #[must_use]
+    pub fn with_meta(mut self, meta: Meta) -> Self {
+        self.meta = Some(meta);
+        self
     }
 
     /// Parse a relationship object from an already-buffered JSON object.
@@ -290,6 +336,31 @@ mod tests {
         let out = serde_json::to_value(&rel).unwrap();
         assert!(out["data"].is_null());
         assert_eq!(out["meta"]["k"], "v");
+    }
+
+    #[test]
+    fn resource_relationship_from_links_is_links_only() {
+        let mut links = Links::new();
+        links
+            .0
+            .insert("related".into(), Some(crate::Link::String("/a/1".into())));
+        let rel = ResourceRelationship::from_links(links);
+        assert!(rel.data.is_none());
+        assert!(rel.meta.is_none());
+        let v = serde_json::to_value(&rel).unwrap();
+        assert!(v.get("data").is_none());
+        assert_eq!(v["links"]["related"], "/a/1");
+    }
+
+    #[test]
+    fn resource_relationship_builder_chaining_composes_members() {
+        let mut meta = serde_json::Map::new();
+        meta.insert("count".into(), serde_json::json!(2));
+        let rel = ResourceRelationship::new(RelationshipData::ToOne(Some(rid("people", "9"))))
+            .with_meta(meta);
+        assert!(matches!(rel.data, Some(RelationshipData::ToOne(Some(_)))));
+        assert!(rel.meta.is_some());
+        assert!(rel.links.is_none());
     }
 
     #[test]
