@@ -83,8 +83,7 @@ impl<P: ResourceObject, I: ResourceObject> DocumentBuilder<P, I> {
     pub fn link(mut self, rel: &str, link: Link) -> Self {
         self.links
             .get_or_insert_with(Links::new)
-            .0
-            .insert(rel.to_string(), Some(link));
+            .insert(rel, Some(link));
         self
     }
 

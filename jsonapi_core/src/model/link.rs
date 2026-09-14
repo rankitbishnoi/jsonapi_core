@@ -54,7 +54,7 @@ pub enum Link {
 /// Map of link names to link values. Null links are represented as `None`.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct Links(pub BTreeMap<String, Option<Link>>);
+pub struct Links(BTreeMap<String, Option<Link>>);
 
 impl Links {
     /// Construct an empty link map.

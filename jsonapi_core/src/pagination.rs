@@ -103,28 +103,17 @@ impl<'a> CursorLinks<'a> {
     ) -> Links {
         let mut links = Links::new();
         if first {
-            links
-                .0
-                .insert("first".to_string(), Some(Link::String(self.url(None))));
+            links.insert("first", Some(Link::String(self.url(None))));
         }
         if let Some(cur) = prev {
-            links.0.insert(
-                "prev".to_string(),
-                Some(Link::String(self.url(Some(("before", cur))))),
-            );
+            links.insert("prev", Some(Link::String(self.url(Some(("before", cur))))));
         }
         if let Some(cur) = next {
-            links.0.insert(
-                "next".to_string(),
-                Some(Link::String(self.url(Some(("after", cur))))),
-            );
+            links.insert("next", Some(Link::String(self.url(Some(("after", cur))))));
         }
         if let Some(cur) = last {
             // `last` uses page[before]: the cursor marking the end boundary.
-            links.0.insert(
-                "last".to_string(),
-                Some(Link::String(self.url(Some(("before", cur))))),
-            );
+            links.insert("last", Some(Link::String(self.url(Some(("before", cur))))));
         }
         links
     }

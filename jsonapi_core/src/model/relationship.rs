@@ -341,9 +341,7 @@ mod tests {
     #[test]
     fn resource_relationship_from_links_is_links_only() {
         let mut links = Links::new();
-        links
-            .0
-            .insert("related".into(), Some(crate::Link::String("/a/1".into())));
+        links.insert("related", Some(crate::Link::String("/a/1".into())));
         let rel = ResourceRelationship::from_links(links);
         assert!(rel.data.is_none());
         assert!(rel.meta.is_none());
