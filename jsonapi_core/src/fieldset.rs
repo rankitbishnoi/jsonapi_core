@@ -14,7 +14,7 @@ use crate::model::ResourceObject;
 
 /// Configuration for sparse fieldset filtering.
 #[must_use]
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FieldsetConfig {
     fields: HashMap<String, HashSet<String>>,
 }

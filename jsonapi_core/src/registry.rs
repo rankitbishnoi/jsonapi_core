@@ -17,7 +17,7 @@ use crate::model::{Identity, Relationship, RelationshipData, ResourceObject};
 
 /// Lookup table populated from the `included` array.
 /// Keyed by type then id for O(1) lookups without per-call allocation.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Registry {
     resources: HashMap<String, BTreeMap<String, serde_json::Value>>,
 }

@@ -91,7 +91,7 @@ impl OperationTarget {
 /// [`ResourceIdentifier`](crate::ResourceIdentifier). An optional
 /// `relationship` name narrows the operation to a specific relationship
 /// of the referenced resource.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct OperationRef {
     /// JSON:API type string.
     pub r#type: String,
@@ -224,13 +224,12 @@ impl AtomicOperation {
 }
 
 /// Iterate over the resources inside a `PrimaryData<Resource>`, skipping `Null`.
-fn primary_data_resources(
-    data: &PrimaryData<Resource>,
-) -> Box<dyn Iterator<Item = &Resource> + '_> {
+/// All three shapes unify to a slice iterator, so no boxing is needed.
+fn primary_data_resources(data: &PrimaryData<Resource>) -> std::slice::Iter<'_, Resource> {
     match data {
-        PrimaryData::Null => Box::new(std::iter::empty()),
-        PrimaryData::Single(boxed) => Box::new(std::iter::once(boxed.as_ref())),
-        PrimaryData::Many(vec) => Box::new(vec.iter()),
+        PrimaryData::Null => [].iter(),
+        PrimaryData::Single(boxed) => std::slice::from_ref(boxed.as_ref()).iter(),
+        PrimaryData::Many(vec) => vec.iter(),
     }
 }
 

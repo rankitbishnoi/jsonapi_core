@@ -53,6 +53,10 @@ pub struct Resource {
 
 impl Resource {
     /// Derive a Resource from a typed ResourceObject.
+    ///
+    /// Not exposed as `TryFrom<&T>`: a blanket `impl<T> TryFrom<&T> for Resource`
+    /// collides with the standard library's `impl<T, U: Into<T>> TryFrom<U> for T`,
+    /// so an inherent constructor is the correct shape here.
     pub fn from_typed<T: ResourceObject>(value: &T) -> crate::Result<Resource> {
         let resource: Resource = serde_json::from_value(serde_json::to_value(value)?)?;
         Ok(resource)

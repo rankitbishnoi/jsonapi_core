@@ -34,8 +34,15 @@ impl Identity {
     }
 }
 
+impl Default for Identity {
+    /// An empty server-assigned id — a scaffold for builder-style construction.
+    fn default() -> Self {
+        Identity::Id(String::new())
+    }
+}
+
 /// JSON:API resource identifier object.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct ResourceIdentifier {
     /// The JSON:API type string.
     pub r#type: String,

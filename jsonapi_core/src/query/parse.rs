@@ -7,7 +7,7 @@ use percent_encoding::percent_decode_str;
 use crate::FieldsetConfig;
 
 /// A single `sort` field with its direction.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SortField {
     /// The field name (without the leading `-`).
     pub field: String,
