@@ -251,7 +251,7 @@ declarations continue to compile without changes.
 - Crate-level rustdoc tutorial with doctests in `lib.rs`.
 - Field-level and item-level rustdoc on every public type and method
   (`#![warn(missing_docs)]`).
-- Five runnable examples under `jsonapi_core/examples/`: `basic_serialize`,
+- Six runnable examples under `jsonapi_core/examples/`: `basic_serialize`,
   `basic_deserialize`, `dynamic_resource`, `query_builder`,
   `content_negotiation`, `atomic_operations`.
 
