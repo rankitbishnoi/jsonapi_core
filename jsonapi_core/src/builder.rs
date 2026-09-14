@@ -291,6 +291,35 @@ mod tests {
     }
 
     #[test]
+    fn include_many_adds_all_resources() {
+        let doc = DocumentBuilder::single(res("articles", "1"))
+            .include_many(vec![res("people", "9"), res("tags", "1")])
+            .build();
+        match doc {
+            Document::Data { included, .. } => assert_eq!(included.len(), 2),
+            _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn links_bulk_replaces_previously_added_links() {
+        let replacement: crate::Links =
+            serde_json::from_value(serde_json::json!({"next": "/articles?page=2"})).unwrap();
+        let doc = DocumentBuilder::single(res("articles", "1"))
+            .link("self", Link::String("/articles/1".into()))
+            .links(replacement) // discards the "self" link added above
+            .build();
+        match doc {
+            Document::Data { links, .. } => {
+                let links = links.unwrap();
+                assert!(links.contains("next"));
+                assert!(!links.contains("self"));
+            }
+            _ => panic!(),
+        }
+    }
+
+    #[test]
     fn accumulates_links_meta_jsonapi_profile_ext() {
         let doc = DocumentBuilder::single(res("articles", "1"))
             .link("self", Link::String("/articles/1".into()))

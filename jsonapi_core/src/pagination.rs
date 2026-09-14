@@ -222,4 +222,24 @@ mod tests {
         assert!(!first.contains("page[before]"));
         assert!(first.contains("page[size]=5"));
     }
+
+    #[test]
+    fn cursor_links_build_emits_last_link_with_before_cursor() {
+        let links = CursorLinks::new("/articles")
+            .size(10)
+            .build(false, None, None, Some("endcur"));
+
+        assert!(links.contains("last"));
+        assert!(!links.contains("first"));
+        assert!(!links.contains("prev"));
+        assert!(!links.contains("next"));
+
+        let last = match links.get("last").unwrap() {
+            crate::Link::String(s) => s.clone(),
+            _ => panic!("expected a string link"),
+        };
+        assert!(last.contains("page[before]=endcur"));
+        assert!(!last.contains("page[after]"));
+        assert!(last.contains("page[size]=10"));
+    }
 }
