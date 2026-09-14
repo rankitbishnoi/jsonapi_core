@@ -107,6 +107,11 @@ jobs:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: cargo publish -p jsonapi_core
 
+      - name: Package crates for provenance attestation
+        run: |
+          cargo package --no-verify -p jsonapi_core_derive
+          cargo package --no-verify -p jsonapi_core
+
       - name: Attest crate provenance
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:
