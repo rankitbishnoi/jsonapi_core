@@ -152,7 +152,7 @@ The following are **public API** and changes to them are governed by SemVer:
   `QueryBuilder`, `Query`, `SortField`, `FieldsetConfig`, `SparseSerializer`,
   `sparse_filter`, `DocumentBuilder`, `CursorPage`, `CursorLinks`,
   `CURSOR_PAGINATION_PROFILE`,
-  `CaseConfig`, `CaseConvention`, `Error`, `Result`, `JsonApiMediaType`,
+  `CaseConfig`, `CaseConvention`, `Error`, `Result`, `Cardinality`, `JsonApiMediaType`,
   `validate_content_type`, `negotiate_accept`, `validate_member_name`,
   `MemberNameKind`).
 - All items re-exported under the `atomic-ops` feature (`AtomicRequest`,

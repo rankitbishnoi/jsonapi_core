@@ -3,6 +3,26 @@
 //! [`Error`] is the unified error type for all `jsonapi_core` operations.
 //! [`Result<T>`](Result) is a convenience alias for `std::result::Result<T, Error>`.
 
+/// Whether a relationship is expected to be to-one or to-many. Carried by
+/// [`Error::RelationshipCardinalityMismatch`].
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Cardinality {
+    /// A to-one relationship (single or null linkage).
+    ToOne,
+    /// A to-many relationship (a list of linkage).
+    ToMany,
+}
+
+impl std::fmt::Display for Cardinality {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Cardinality::ToOne => "to-one",
+            Cardinality::ToMany => "to-many",
+        })
+    }
+}
+
 /// Crate-level error type.
 #[non_exhaustive]
 #[derive(Debug, thiserror::Error)]
@@ -36,8 +56,8 @@ pub enum Error {
     /// Caller used `get()` on a to-many relationship or `get_many()` on a to-one.
     #[error("relationship cardinality mismatch: expected {expected}")]
     RelationshipCardinalityMismatch {
-        /// The expected cardinality (`"to-one"` or `"to-many"`).
-        expected: &'static str,
+        /// The expected cardinality.
+        expected: Cardinality,
     },
 
     /// Registry does not support lookup by local identifier (lid).

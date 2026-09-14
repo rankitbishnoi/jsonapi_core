@@ -85,9 +85,9 @@ impl Registry {
                 self.get_by_id(&rid.r#type, id)
             }
             RelationshipData::ToOne(None) => Err(Error::NullRelationship),
-            RelationshipData::ToMany(_) => {
-                Err(Error::RelationshipCardinalityMismatch { expected: "to-one" })
-            }
+            RelationshipData::ToMany(_) => Err(Error::RelationshipCardinalityMismatch {
+                expected: crate::Cardinality::ToOne,
+            }),
         }
     }
 
@@ -108,7 +108,7 @@ impl Registry {
                 Ok(results)
             }
             RelationshipData::ToOne(_) => Err(Error::RelationshipCardinalityMismatch {
-                expected: "to-many",
+                expected: crate::Cardinality::ToMany,
             }),
         }
     }

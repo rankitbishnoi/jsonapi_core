@@ -467,7 +467,7 @@ pub mod atomic;
 
 pub use builder::DocumentBuilder;
 pub use case::{CaseConfig, CaseConvention};
-pub use error::{Error, Result};
+pub use error::{Cardinality, Error, Result};
 pub use fieldset::{FieldsetConfig, SparseSerializer, sparse_filter};
 pub use media_type::{JsonApiMediaType, negotiate_accept, validate_content_type};
 pub use model::{
