@@ -162,12 +162,20 @@ where
 {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let value = serde_json::Value::deserialize(deserializer)?;
-        let obj = value
-            .as_object()
-            .ok_or_else(|| de::Error::custom("document must be a JSON object"))?;
+        let mut obj = match value {
+            serde_json::Value::Object(map) => map,
+            _ => return Err(de::Error::custom("document must be a JSON object")),
+        };
 
-        let has_data = obj.contains_key("data");
-        let has_errors = obj.contains_key("errors");
+        // Take ownership of the mutually-exclusive primary members up front so
+        // their values can be moved into `from_value` without cloning. Presence
+        // is decided here; parsing is deferred to the matching branch below so
+        // error precedence (both-present > meta/jsonapi/links > data > included)
+        // is preserved.
+        let data_value = obj.remove("data");
+        let errors_value = obj.remove("errors");
+        let has_data = data_value.is_some();
+        let has_errors = errors_value.is_some();
 
         if has_data && has_errors {
             return Err(de::Error::custom(
@@ -176,38 +184,38 @@ where
         }
 
         let meta: Option<Meta> = obj
-            .get("meta")
-            .map(|v| serde_json::from_value(v.clone()))
+            .remove("meta")
+            .map(serde_json::from_value)
             .transpose()
             .map_err(de::Error::custom)?;
         let jsonapi: Option<JsonApiObject> = obj
-            .get("jsonapi")
-            .map(|v| serde_json::from_value(v.clone()))
+            .remove("jsonapi")
+            .map(serde_json::from_value)
             .transpose()
             .map_err(de::Error::custom)?;
         let links: Option<Links> = obj
-            .get("links")
-            .map(|v| serde_json::from_value(v.clone()))
+            .remove("links")
+            .map(serde_json::from_value)
             .transpose()
             .map_err(de::Error::custom)?;
 
-        if has_data {
-            let data: PrimaryData<P> = serde_json::from_value(obj["data"].clone())
+        if let Some(data_value) = data_value {
+            let data: PrimaryData<P> = serde_json::from_value(data_value)
                 .map_err(|e| de::Error::custom(format!("in primary data: {e}")))?;
             // Deserialize each included entry individually so errors can name
             // the offending index.
-            let included: Vec<I> = match obj.get("included") {
-                Some(v) => {
-                    let arr = v
-                        .as_array()
-                        .ok_or_else(|| de::Error::custom("`included` must be a JSON array"))?;
+            let included: Vec<I> = match obj.remove("included") {
+                Some(serde_json::Value::Array(arr)) => {
                     let mut out = Vec::with_capacity(arr.len());
-                    for (idx, entry) in arr.iter().enumerate() {
-                        let parsed: I = serde_json::from_value(entry.clone())
+                    for (idx, entry) in arr.into_iter().enumerate() {
+                        let parsed: I = serde_json::from_value(entry)
                             .map_err(|e| de::Error::custom(format!("in included[{idx}]: {e}")))?;
                         out.push(parsed);
                     }
                     out
+                }
+                Some(_) => {
+                    return Err(de::Error::custom("`included` must be a JSON array"));
                 }
                 None => Vec::new(),
             };
@@ -218,9 +226,9 @@ where
                 jsonapi,
                 links,
             })
-        } else if has_errors {
+        } else if let Some(errors_value) = errors_value {
             let errors: Vec<ApiError> =
-                serde_json::from_value(obj["errors"].clone()).map_err(de::Error::custom)?;
+                serde_json::from_value(errors_value).map_err(de::Error::custom)?;
             Ok(Document::Errors {
                 errors,
                 meta,
