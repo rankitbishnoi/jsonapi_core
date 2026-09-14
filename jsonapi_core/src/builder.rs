@@ -19,6 +19,9 @@ use crate::model::{
 ///     .include(r("people", "9"))
 ///     .build();
 /// ```
+///
+/// Every constructor and mutator returns `Self` and is `#[must_use]`, so a
+/// builder can never be silently dropped without calling [`build`](Self::build).
 pub struct DocumentBuilder<P, I = Resource> {
     data: PrimaryData<P>,
     included: Vec<I>,

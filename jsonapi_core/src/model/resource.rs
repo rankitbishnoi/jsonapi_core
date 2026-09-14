@@ -33,7 +33,7 @@ pub trait ResourceObject: Serialize + for<'de> Deserialize<'de> {
 }
 
 /// Dynamic fallback for resources whose type is not known at compile time.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Resource {
     /// The JSON:API type string (e.g. "articles").
     pub r#type: String,

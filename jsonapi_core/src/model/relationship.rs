@@ -56,7 +56,7 @@ impl<'de> Deserialize<'de> for RelationshipData {
 /// Unlike [`Relationship<T>`], it carries no phantom target type and its linkage
 /// `data` is optional: JSON:API permits a relationship object that has only
 /// `links` and/or `meta` and no `data` member.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 #[non_exhaustive]
 pub struct ResourceRelationship {
     /// Linkage data. `None` when the relationship object carries only `links`
