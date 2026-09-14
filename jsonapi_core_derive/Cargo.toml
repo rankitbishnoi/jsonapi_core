@@ -19,6 +19,7 @@ syn = { version = "2", features = ["full"] }
 quote = "1"
 proc-macro2 = "1"
 heck = "0.5"
+jsonapi_core_validation = { path = "../jsonapi_core_validation", version = "0.4.0" }
 
 [lints]
 workspace = true
