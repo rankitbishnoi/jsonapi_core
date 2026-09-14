@@ -9,7 +9,7 @@ supports it behind the `atomic-ops` feature.
 
 ```toml
 [dependencies]
-jsonapi_core = { version = "0.1", features = ["atomic-ops"] }
+jsonapi_core = { version = "0.4", features = ["atomic-ops"] }
 ```
 
 This unlocks the `jsonapi_core::atomic` module.
@@ -86,7 +86,7 @@ it along with `lid` errors.
 ```rust
 use std::collections::BTreeMap;
 use jsonapi_core::{
-    Identity, PrimaryData, RelationshipData, Resource, ResourceIdentifier,
+    Identity, PrimaryData, RelationshipData, Resource, ResourceIdentifier, ResourceRelationship,
     atomic::{AtomicOperation, AtomicRequest, OperationRef, OperationTarget},
 };
 
@@ -102,14 +102,14 @@ let person = Resource {
 };
 
 // 2. Add an article with lid "a1", whose author is the lid-referenced person.
-let mut article_rels = BTreeMap::new();
+let mut article_rels: BTreeMap<String, ResourceRelationship> = BTreeMap::new();
 article_rels.insert(
     "author".into(),
-    RelationshipData::ToOne(Some(ResourceIdentifier {
+    ResourceRelationship::new(RelationshipData::ToOne(Some(ResourceIdentifier {
         r#type: "people".into(),
         identity: Identity::Lid("p1".into()),
         meta: None,
-    })),
+    }))),
 );
 let article = Resource {
     r#type: "articles".into(),

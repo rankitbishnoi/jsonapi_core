@@ -79,7 +79,9 @@ Each of these has a `tests/compile_fail/` companion test in the crate.
 ## Hand-rolling `ResourceObject`
 
 When you need behaviour the macro can't express, implement `ResourceObject`
-yourself:
+yourself. All methods except `resource_lid` are required — `resource_lid`
+defaults to `None`. `type_info()` has no default; omitting it is a compile
+error.
 
 ```rust
 use jsonapi_core::model::ResourceObject;

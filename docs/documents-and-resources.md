@@ -76,7 +76,7 @@ pub struct Resource {
     pub id: Option<String>,
     pub lid: Option<String>,
     pub attributes: serde_json::Value,
-    pub relationships: BTreeMap<String, RelationshipData>,
+    pub relationships: BTreeMap<String, ResourceRelationship>,
     pub links: Option<Links>,
     pub meta: Option<Meta>,
 }
@@ -107,12 +107,13 @@ pub trait ResourceObject: Serialize + for<'de> Deserialize<'de> {
     fn resource_id(&self) -> Option<&str>;
     fn resource_lid(&self) -> Option<&str> { None }
     fn field_names() -> &'static [&'static str];
-    fn type_info() -> TypeInfo where Self: Sized { /* default panics */ }
+    fn type_info() -> TypeInfo where Self: Sized;
 }
 ```
 
-The derive macro generates this impl for you. A hand-written impl is supported and
-described in the [Derive Macro Reference](./derive-macro-reference.md).
+`type_info()` is a **required** method — omitting it from a manual impl is a
+compile error. `#[derive(JsonApi)]` generates it automatically. A hand-written
+impl is supported and described in the [Derive Macro Reference](./derive-macro-reference.md).
 
 ## Building a successful document
 

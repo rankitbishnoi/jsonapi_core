@@ -49,8 +49,14 @@ match validate_content_type(headers.get("content-type").unwrap_or("")) {
 ## Negotiating `Accept`
 
 `negotiate_accept` chooses the response media type. Pass it the client's
-`Accept` header and the **server's** declared extension and profile URIs.
-The return value is the media type the server should send back:
+`Accept` header and the server's declared extension and profile URIs.
+
+The function parses each JSON:API entry in the `Accept` header, respects `q`
+weights (see [Quality weights](#quality-weights-q) below), selects the
+highest-weighted acceptable entry, and returns **that entry's** `ext`/`profile`
+intersected with the server's capabilities. A bare `application/vnd.api+json`
+or a wildcard entry requests a plain response — the server's capabilities are
+NOT injected into the result.
 
 ```rust
 use jsonapi_core::negotiate_accept;
@@ -65,15 +71,59 @@ println!("Content-Type: {}", response.to_header_value());
 // → application/vnd.api+json
 ```
 
-Wildcards work too:
+A client that explicitly requests an extension gets it back (when the server
+supports it), but a bare request yields a plain response:
+
+```rust
+// Client requests ext1 explicitly → server returns it (server supports it):
+let mt = negotiate_accept(
+    r#"application/vnd.api+json; ext="https://example.com/ext1""#,
+    &["https://example.com/ext1"],
+    &[],
+)?;
+assert_eq!(mt.ext, vec!["https://example.com/ext1".to_string()]);
+
+// Bare accept → plain response regardless of server capabilities:
+let mt = negotiate_accept("application/vnd.api+json", &["https://example.com/ext1"], &[])?;
+assert!(mt.ext.is_empty());
+```
+
+Wildcards also yield a plain response, even when the server has capabilities:
 
 ```rust
 let response = negotiate_accept("*/*", &[], &[])?;
 assert_eq!(response.to_header_value(), "application/vnd.api+json");
+
+let mt = negotiate_accept("*/*", &["https://example.com/ext1"], &[])?;
+assert!(mt.ext.is_empty());
 ```
 
 If every JSON:API instance in `Accept` carries unknown parameters, you get
 `Error::AllMediaTypesUnsupportedParams` — translate to **406 Not Acceptable**.
+
+## Quality weights (`q`)
+
+`negotiate_accept` honours RFC 7231 §5.3.1 quality weights:
+
+- A missing or malformed `q` defaults to **1.0**.
+- `q=0` (or lower) marks a media type as **not acceptable** — it is excluded
+  from selection.
+- Among candidates with equal weight, a specific `application/vnd.api+json`
+  entry wins over a wildcard, then document order is used as a tiebreaker.
+
+```rust
+// Higher q wins — ext1 entry at q=0.9 beats plain at q=0.5:
+let mt = negotiate_accept(
+    r#"application/vnd.api+json; ext="https://example.com/ext1"; q=0.9, application/vnd.api+json; q=0.5"#,
+    &["https://example.com/ext1"],
+    &[],
+)?;
+assert_eq!(mt.ext, vec!["https://example.com/ext1".to_string()]);
+
+// q=0 means not acceptable — returns an error:
+let err = negotiate_accept("application/vnd.api+json; q=0", &[], &[]);
+assert!(err.is_err());
+```
 
 ## Constructing media types
 

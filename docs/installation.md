@@ -10,14 +10,14 @@ Or edit `Cargo.toml` directly:
 
 ```toml
 [dependencies]
-jsonapi_core = "0.1"
+jsonapi_core = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
 
 ## Minimum Supported Rust Version
 
-`jsonapi_core` requires Rust **1.88** or later and is built on the **2024 edition**.
+`jsonapi_core` requires Rust **1.94.1** or later and is built on the **2024 edition**.
 
 ## Feature flags
 
@@ -30,14 +30,14 @@ To opt out of the derive macro (e.g. when implementing `ResourceObject` by hand)
 
 ```toml
 [dependencies]
-jsonapi_core = { version = "0.1", default-features = false }
+jsonapi_core = { version = "0.4", default-features = false }
 ```
 
 To turn on Atomic Operations:
 
 ```toml
 [dependencies]
-jsonapi_core = { version = "0.1", features = ["atomic-ops"] }
+jsonapi_core = { version = "0.4", features = ["atomic-ops"] }
 ```
 
 See the [Feature Flags](./feature-flags.md) reference chapter for details on what

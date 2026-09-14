@@ -200,7 +200,7 @@
 //!
 //! When you don't know the schema at compile time, use [`Resource`] as an open-set
 //! fallback. It stores attributes as `serde_json::Value` and relationships as a
-//! `HashMap`.
+//! `BTreeMap<String, ResourceRelationship>` (preserving relationship-level links and meta).
 //!
 //! ```
 //! use jsonapi_core::{Document, PrimaryData, Resource, ResourceObject};
