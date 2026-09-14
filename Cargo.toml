@@ -2,6 +2,7 @@
 members = [
     "jsonapi_core",
     "jsonapi_core_derive",
+    "jsonapi_core_validation",
     "acceptance",
 ]
 resolver = "2"
