@@ -8,6 +8,8 @@ repository.workspace = true
 description = "Derive macro for jsonapi_core"
 documentation = "https://docs.rs/jsonapi_core_derive"
 readme = "README.md"
+keywords = ["jsonapi", "json-api", "derive", "proc-macro", "serde"]
+categories = ["encoding"]
 
 [lib]
 proc-macro = true
