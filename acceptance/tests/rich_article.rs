@@ -317,8 +317,8 @@ fn test_dynamic_lossless_round_trip() {
         .relationships
         .get("field_media_override")
         .expect("field_media_override present");
-    let media_rid = match media_data {
-        RelationshipData::ToOne(Some(rid)) => rid,
+    let media_rid = match media_data.data.as_ref() {
+        Some(RelationshipData::ToOne(Some(rid))) => rid,
         _ => panic!("expected to-one present"),
     };
     let media_meta = media_rid
@@ -341,7 +341,7 @@ fn test_dynamic_lossless_round_trip() {
         .get("field_logo")
         .expect("field_logo present");
     assert!(
-        matches!(logo_data, RelationshipData::ToOne(None)),
+        matches!(logo_data.data, Some(RelationshipData::ToOne(None))),
         "expected null to-one, got {logo_data:?}"
     );
 

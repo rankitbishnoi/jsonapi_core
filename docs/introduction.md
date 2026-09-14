@@ -44,7 +44,7 @@ The chapters build on each other in order, but each one is self-contained:
 
 ## A note on stability
 
-`jsonapi_core` is at version **0.1.1** and the public API is intentionally
+`jsonapi_core` is pre-1.0 and the public API is intentionally
 small but evolving. All public enums and structs that may grow new variants
 or fields are marked `#[non_exhaustive]`, so additions won't be breaking
 changes — but minor signatures may still shift before 1.0.

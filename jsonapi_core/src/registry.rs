@@ -281,7 +281,10 @@ impl Registry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::{Identity, Relationship, RelationshipData, Resource, ResourceIdentifier};
+    use crate::model::{
+        Identity, Relationship, RelationshipData, Resource, ResourceIdentifier,
+        ResourceRelationship,
+    };
     use std::collections::BTreeMap;
 
     fn make_resource(type_: &str, id: &str, attrs: serde_json::Value) -> Resource {
@@ -307,7 +310,10 @@ mod tests {
             id: Some(id.into()),
             lid: None,
             attributes: attrs,
-            relationships: rels,
+            relationships: rels
+                .into_iter()
+                .map(|(k, v)| (k, ResourceRelationship::new(v)))
+                .collect(),
             links: None,
             meta: None,
         }

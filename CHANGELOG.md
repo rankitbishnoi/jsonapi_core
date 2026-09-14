@@ -13,6 +13,41 @@ refer to that shared workspace version.
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-09-14
+
+### Added
+
+- Dynamic `Resource` round-trips are now lossless for relationships:
+  relationship-level `links` and `meta` are preserved (previously dropped), and
+  relationships carrying only `links`/`meta` with no `data` are retained. A new
+  public `ResourceRelationship` type (`data: Option<RelationshipData>`, `links`,
+  `meta`, plus `ResourceRelationship::new(data)`) models the untyped relationship
+  object.
+- `negotiate_accept` now honours HTTP `Accept` quality weights (`q`): the
+  highest-weighted acceptable media type wins (ties: an explicit
+  `application/vnd.api+json` beats a wildcard, then document order), and `q=0`
+  marks a media type as not acceptable.
+
+### Changed
+
+- **Breaking:** `ResourceObject::type_info()` is now a required trait method. It
+  previously had a default body that panicked at runtime; a missing
+  implementation is now a compile error. Code using `#[derive(JsonApi)]` is
+  unaffected — the macro generates it. Manual `ResourceObject` implementations
+  must add `type_info()`.
+- **Breaking:** `Resource.relationships` is now
+  `BTreeMap<String, ResourceRelationship>` instead of
+  `BTreeMap<String, RelationshipData>`. Access linkage via the `.data` field
+  (e.g. `resource.relationships["author"].data`). An empty `{}` relationship
+  object is now rejected on deserialize (JSON:API requires at least one of
+  `data`, `links`, or `meta`).
+- **Breaking:** `negotiate_accept` now returns the *chosen* `Accept` entry's
+  requested `ext`/`profile` intersected with the server's capabilities, rather
+  than the server's full capabilities on any match. A bare
+  `application/vnd.api+json` request or a wildcard yields a plain response
+  (empty `ext`/`profile`). Servers that relied on the old behaviour to advertise
+  extensions must request them explicitly.
+
 ## [0.3.0] — 2026-09-13
 
 ### Added
@@ -267,7 +302,9 @@ Initial release.
 - `Error` enum with structured variants for registry, member-name, media-type,
   document-structure, and include-path failures.
 
-[Unreleased]: https://github.com/rankitbishnoi/jsonapi_core/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/rankitbishnoi/jsonapi_core/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/rankitbishnoi/jsonapi_core/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/rankitbishnoi/jsonapi_core/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/rankitbishnoi/jsonapi_core/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/rankitbishnoi/jsonapi_core/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/rankitbishnoi/jsonapi_core/compare/v0.1.1...v0.1.2

@@ -137,7 +137,7 @@ The following are **public API** and changes to them are governed by SemVer:
 
 - All items re-exported at the `jsonapi_core` crate root (`Document`,
   `PrimaryData`, `Resource`, `ResourceObject`, `ResourceIdentifier`,
-  `Identity`, `Relationship`, `RelationshipData`, `Links`, `Link`,
+  `ResourceRelationship`, `Identity`, `Relationship`, `RelationshipData`, `Links`, `Link`,
   `LinkObject`, `Hreflang`, `Meta`, `JsonApiObject`, `ApiError`, `ErrorLinks`,
   `ErrorSource`, `Registry`, `ResolveConfig`, `TypeRegistry`, `TypeInfo`,
   `QueryBuilder`, `FieldsetConfig`, `SparseSerializer`, `sparse_filter`,

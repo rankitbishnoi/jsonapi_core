@@ -4,7 +4,7 @@ use serde::de;
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use super::{HasLinks, HasMeta, Links, Meta, RelationshipData};
+use super::{HasLinks, HasMeta, Links, Meta, RelationshipData, ResourceRelationship};
 
 /// Unifying trait for typed resources and the dynamic `Resource` fallback.
 pub trait ResourceObject: Serialize + for<'de> Deserialize<'de> {
@@ -24,14 +24,12 @@ pub trait ResourceObject: Serialize + for<'de> Deserialize<'de> {
 
     /// Static type metadata for registry and fieldset support.
     ///
-    /// The default implementation panics. Override this method (or use
-    /// `#[derive(JsonApi)]`) to enable [`TypeRegistry`](crate::TypeRegistry) support.
+    /// Implemented by `#[derive(JsonApi)]`. Manual implementors must provide this
+    /// so that [`TypeRegistry`](crate::TypeRegistry) registration is correct; a
+    /// missing implementation is a compile error rather than a runtime panic.
     fn type_info() -> crate::type_registry::TypeInfo
     where
-        Self: Sized,
-    {
-        unimplemented!("override type_info() for TypeRegistry support")
-    }
+        Self: Sized;
 }
 
 /// Dynamic fallback for resources whose type is not known at compile time.
@@ -46,7 +44,7 @@ pub struct Resource {
     /// Resource attributes as a raw JSON value.
     pub attributes: serde_json::Value,
     /// Relationship linkage data, keyed by relationship name.
-    pub relationships: BTreeMap<String, RelationshipData>,
+    pub relationships: BTreeMap<String, ResourceRelationship>,
     /// Resource-level links.
     pub links: Option<Links>,
     /// Resource-level meta information.
@@ -111,12 +109,26 @@ impl Serialize for Resource {
         }
         if !self.relationships.is_empty() {
             let mut rels = serde_json::Map::new();
-            for (name, data) in &self.relationships {
+            for (name, rel) in &self.relationships {
                 let mut rel_obj = serde_json::Map::new();
-                rel_obj.insert(
-                    "data".to_string(),
-                    serde_json::to_value(data).map_err(serde::ser::Error::custom)?,
-                );
+                if let Some(ref data) = rel.data {
+                    rel_obj.insert(
+                        "data".to_string(),
+                        serde_json::to_value(data).map_err(serde::ser::Error::custom)?,
+                    );
+                }
+                if let Some(ref links) = rel.links {
+                    rel_obj.insert(
+                        "links".to_string(),
+                        serde_json::to_value(links).map_err(serde::ser::Error::custom)?,
+                    );
+                }
+                if let Some(ref meta) = rel.meta {
+                    rel_obj.insert(
+                        "meta".to_string(),
+                        serde_json::to_value(meta).map_err(serde::ser::Error::custom)?,
+                    );
+                }
                 rels.insert(name.clone(), serde_json::Value::Object(rel_obj));
             }
             map.serialize_entry("relationships", &rels)?;
@@ -162,11 +174,27 @@ impl<'de> Deserialize<'de> for Resource {
                 let rel_obj = rel_value
                     .as_object()
                     .ok_or_else(|| de::Error::custom("each relationship must be an object"))?;
-                if let Some(data_value) = rel_obj.get("data") {
-                    let data: RelationshipData =
-                        serde_json::from_value(data_value.clone()).map_err(de::Error::custom)?;
-                    map.insert(name.clone(), data);
+                let data = rel_obj
+                    .get("data")
+                    .map(|d| serde_json::from_value::<RelationshipData>(d.clone()))
+                    .transpose()
+                    .map_err(de::Error::custom)?;
+                let links = rel_obj
+                    .get("links")
+                    .map(|v| serde_json::from_value(v.clone()))
+                    .transpose()
+                    .map_err(de::Error::custom)?;
+                let meta = rel_obj
+                    .get("meta")
+                    .map(|v| serde_json::from_value(v.clone()))
+                    .transpose()
+                    .map_err(de::Error::custom)?;
+                if data.is_none() && links.is_none() && meta.is_none() {
+                    return Err(de::Error::custom(
+                        "relationship object must contain at least one of `data`, `links`, or `meta`",
+                    ));
                 }
+                map.insert(name.clone(), ResourceRelationship { data, links, meta });
             }
             map
         } else {
@@ -249,8 +277,8 @@ mod tests {
         }"#;
         let resource: Resource = serde_json::from_str(json).unwrap();
         assert!(resource.relationships.contains_key("author"));
-        match &resource.relationships["author"] {
-            RelationshipData::ToOne(Some(rid)) => {
+        match &resource.relationships["author"].data {
+            Some(RelationshipData::ToOne(Some(rid))) => {
                 assert_eq!(rid.r#type, "people");
                 assert_eq!(rid.identity, Identity::Id("9".into()));
             }
@@ -274,6 +302,54 @@ mod tests {
         assert_eq!(resource.r#type, deserialized.r#type);
         assert_eq!(resource.id, deserialized.id);
         assert_eq!(resource.attributes, deserialized.attributes);
+    }
+
+    #[test]
+    fn test_resource_round_trip_preserves_relationship_links_and_meta() {
+        let json = r#"{
+            "type": "articles",
+            "id": "1",
+            "attributes": {"title": "Hello"},
+            "relationships": {
+                "author": {
+                    "data": {"type": "people", "id": "9"},
+                    "links": {"related": "/articles/1/author"},
+                    "meta": {"count": 1}
+                }
+            }
+        }"#;
+        let resource: Resource = serde_json::from_str(json).unwrap();
+        let rel = &resource.relationships["author"];
+        assert!(
+            rel.links.is_some(),
+            "relationship links must survive deserialize"
+        );
+        assert!(
+            rel.meta.is_some(),
+            "relationship meta must survive deserialize"
+        );
+
+        // Re-serialize and confirm the members are present.
+        let out = serde_json::to_value(&resource).unwrap();
+        let author = &out["relationships"]["author"];
+        assert_eq!(author["links"]["related"], "/articles/1/author");
+        assert_eq!(author["meta"]["count"], 1);
+        assert_eq!(author["data"]["id"], "9");
+    }
+
+    #[test]
+    fn test_resource_rejects_empty_relationship_object() {
+        let json = r#"{
+            "type": "articles",
+            "id": "1",
+            "attributes": {},
+            "relationships": { "author": {} }
+        }"#;
+        let err = serde_json::from_str::<Resource>(json).unwrap_err();
+        assert!(
+            err.to_string().contains("at least one of"),
+            "unexpected error: {err}"
+        );
     }
 
     #[test]

@@ -12,6 +12,7 @@ to be.
 | [`Identity`] | The id half of an identifier — either a server-assigned `Id(String)` or a JSON:API 1.1 client-local `Lid(String)`. |
 | [`ResourceIdentifier`] | A `{type, id}` (or `{type, lid}`) object with optional `meta`. |
 | [`RelationshipData`] | The wire shape of a relationship's `data` member: `null`, a single identifier, or an array. |
+| [`ResourceRelationship`] | The untyped relationship object used in `Resource.relationships`; holds optional `data`, `links`, and `meta`. Preserves relationship-level links/meta. Construct with `ResourceRelationship::new(data)`. A links/meta-only relationship has `rel.data == None`. |
 | [`Relationship<T>`] | The typed wrapper used in derived structs — carries `data`, optional `links`/`meta`, and a phantom target type for type-safe registry lookups. |
 
 ## `Identity`
@@ -149,16 +150,16 @@ Once you have a deserialized document, the [`Registry`] resolves identifiers
 into typed values:
 
 ```rust
-use jsonapi_core::{Document, PrimaryData, Resource};
+use jsonapi_core::{Document, PrimaryData, RelationshipData, Resource};
 
 let doc: Document<Resource> = serde_json::from_str(json)?;
 let registry = doc.registry()?;
 
 // Get the article (dynamic)
 if let Document::Data { data: PrimaryData::Single(article), .. } = &doc {
-    // The article's relationships are a BTreeMap<String, RelationshipData>
-    let author_data = &article.relationships["author"];
-    if let RelationshipData::ToOne(Some(rid)) = author_data {
+    // The article's relationships are a BTreeMap<String, ResourceRelationship>
+    let author_rel = &article.relationships["author"];
+    if let Some(RelationshipData::ToOne(Some(rid))) = &author_rel.data {
         // `as_id()` returns `Option<&str>` — `None` for a client-local `lid`
         // or any future `#[non_exhaustive]` variant. Use `as_lid()` or
         // `identity.as_id().or_else(|| identity.as_lid())` if you also

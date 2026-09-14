@@ -200,7 +200,7 @@
 //!
 //! When you don't know the schema at compile time, use [`Resource`] as an open-set
 //! fallback. It stores attributes as `serde_json::Value` and relationships as a
-//! `HashMap`.
+//! `BTreeMap<String, ResourceRelationship>` (preserving relationship-level links and meta).
 //!
 //! ```
 //! use jsonapi_core::{Document, PrimaryData, Resource, ResourceObject};
@@ -372,7 +372,8 @@
 //! let mt = validate_content_type("application/vnd.api+json").unwrap();
 //! assert!(mt.ext.is_empty());
 //!
-//! // Negotiate an Accept header (returns server capabilities)
+//! // Negotiate an Accept header (returns the client's requested ext/profile
+//! // filtered by server capabilities)
 //! let response = negotiate_accept(
 //!     "application/vnd.api+json, application/json",
 //!     &[],  // server extensions
@@ -468,7 +469,7 @@ pub use media_type::{JsonApiMediaType, negotiate_accept, validate_content_type};
 pub use model::{
     ApiError, Document, ErrorLinks, ErrorSource, HasLinks, HasMeta, Hreflang, Identity,
     JsonApiObject, Link, LinkObject, Links, Meta, PrimaryData, Relationship, RelationshipData,
-    Resource, ResourceIdentifier, ResourceObject,
+    Resource, ResourceIdentifier, ResourceObject, ResourceRelationship,
 };
 pub use query::QueryBuilder;
 pub use registry::{Registry, ResolveConfig};

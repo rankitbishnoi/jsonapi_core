@@ -56,13 +56,16 @@ fn negotiate_typical_browser_accept() {
 
 #[test]
 fn negotiate_client_with_extensions() {
+    // New contract: only the requested ext URIs are returned (intersected with
+    // server capabilities). The client asked for ext1 only, so only ext1 comes back.
     let mt = negotiate_accept(
         "application/vnd.api+json; ext=\"https://example.com/ext1\"",
         &["https://example.com/ext1", "https://example.com/ext2"],
         &[],
     )
     .unwrap();
-    assert_eq!(mt.ext.len(), 2);
+    assert_eq!(mt.ext.len(), 1);
+    assert_eq!(mt.ext[0], "https://example.com/ext1");
 }
 
 #[test]

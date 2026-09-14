@@ -10,14 +10,14 @@ must implement [`ResourceObject`] by hand.
 
 ```toml
 [dependencies]
-jsonapi_core = "0.1"   # derive is on
+jsonapi_core = "0.4"   # derive is on
 ```
 
 To opt out:
 
 ```toml
 [dependencies]
-jsonapi_core = { version = "0.1", default-features = false }
+jsonapi_core = { version = "0.4", default-features = false }
 ```
 
 When opting out, you keep all the runtime types — `Document`, `Resource`,
@@ -34,7 +34,7 @@ Enables the `jsonapi_core::atomic` module — types for the
 
 ```toml
 [dependencies]
-jsonapi_core = { version = "0.1", features = ["atomic-ops"] }
+jsonapi_core = { version = "0.4", features = ["atomic-ops"] }
 ```
 
 This is off by default because most JSON:API consumers don't need batching.
