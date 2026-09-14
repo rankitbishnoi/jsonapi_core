@@ -280,6 +280,22 @@ impl<P, I: ResourceObject> Document<P, I> {
     /// `I = Resource` always satisfies that; if you override `I` with a custom
     /// type that doesn't implement `ResourceObject`, `.registry()` becomes
     /// unavailable and you'll need to build the registry manually.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use jsonapi_core::{Document, Resource, ResourceObject};
+    /// let json = r#"{
+    ///     "data": {"type": "articles", "id": "1", "attributes": {"title": "Hi"},
+    ///         "relationships": {"author": {"data": {"type": "people", "id": "9"}}}},
+    ///     "included": [{"type": "people", "id": "9", "attributes": {"name": "Dan"}}]
+    /// }"#;
+    /// let doc: Document<Resource> = serde_json::from_str(json).unwrap();
+    /// let registry = doc.registry().unwrap();
+    ///
+    /// let author: Resource = registry.get_by_id("people", "9").unwrap();
+    /// assert_eq!(author.resource_id(), Some("9"));
+    /// ```
     pub fn registry(&self) -> crate::Result<crate::registry::Registry> {
         match self {
             Document::Data { included, .. } => crate::registry::Registry::from_included(included),
@@ -297,6 +313,17 @@ impl<P, I> Document<P, I> {
     /// This is the typed-primary fast path: write
     /// `let article = doc.into_single()?;` instead of pattern-matching on
     /// [`Document`] and [`PrimaryData`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use jsonapi_core::{Document, Resource, ResourceObject};
+    /// let json = r#"{"data":{"type":"articles","id":"1","attributes":{"title":"Hi"}}}"#;
+    /// let doc: Document<Resource> = serde_json::from_str(json).unwrap();
+    ///
+    /// let article = doc.into_single().unwrap();
+    /// assert_eq!(article.resource_id(), Some("1"));
+    /// ```
     pub fn into_single(self) -> crate::Result<P> {
         match self {
             Document::Data {
@@ -320,6 +347,20 @@ impl<P, I> Document<P, I> {
     ///
     /// Returns [`Error::UnexpectedDocumentShape`](crate::Error::UnexpectedDocumentShape)
     /// if the document is a single resource, null, errors, or meta-only.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use jsonapi_core::{Document, Resource};
+    /// let json = r#"{"data":[
+    ///     {"type":"articles","id":"1","attributes":{"title":"A"}},
+    ///     {"type":"articles","id":"2","attributes":{"title":"B"}}
+    /// ]}"#;
+    /// let doc: Document<Resource> = serde_json::from_str(json).unwrap();
+    ///
+    /// let articles = doc.into_many().unwrap();
+    /// assert_eq!(articles.len(), 2);
+    /// ```
     pub fn into_many(self) -> crate::Result<Vec<P>> {
         match self {
             Document::Data {
@@ -495,6 +536,32 @@ where
     /// empty, since there is no compound resolution to validate against.
     /// References that use only `lid` (no `id`) are skipped because atomic
     /// operations resolve those at request execution rather than at parse time.
+    ///
+    /// # Examples
+    ///
+    /// Happy path — parse, then take the typed primary:
+    ///
+    /// ```
+    /// # use jsonapi_core::{Document, Resource, ResourceObject};
+    /// let json = r#"{"data":{"type":"articles","id":"1","attributes":{"title":"Hi"}}}"#;
+    /// let doc = Document::<Resource>::parse(json).unwrap();
+    /// assert_eq!(doc.into_single().unwrap().resource_id(), Some("1"));
+    /// ```
+    ///
+    /// Unlike `serde_json::from_str`, a structural defect surfaces as a typed
+    /// [`Error`](crate::Error). Here a relationship references `people:9`, but
+    /// the (non-empty) `included` array doesn't contain it:
+    ///
+    /// ```
+    /// # use jsonapi_core::{Document, Error, Resource};
+    /// let json = r#"{
+    ///     "data": {"type": "articles", "id": "1", "attributes": {"title": "Hi"},
+    ///         "relationships": {"author": {"data": {"type": "people", "id": "9"}}}},
+    ///     "included": [{"type": "people", "id": "1", "attributes": {"name": "Other"}}]
+    /// }"#;
+    /// let err = Document::<Resource>::parse(json).unwrap_err();
+    /// assert!(matches!(err, Error::IncludedRefMissing { .. }));
+    /// ```
     pub fn parse(s: &str) -> crate::Result<Self> {
         let value: serde_json::Value = serde_json::from_str(s)?;
         Self::from_value(value)
