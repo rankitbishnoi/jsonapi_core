@@ -75,7 +75,7 @@ fn gen_resource_object(
     let id_field = fields
         .iter()
         .find(|f| matches!(f.kind, FieldKind::Id))
-        .unwrap();
+        .expect("codegen invariant: validate_fields guarantees exactly one #[jsonapi(id)] field");
     let id_ident = &id_field.ident;
     let id_expr = if id_field.is_option {
         quote! { self.#id_ident.as_deref() }
@@ -162,7 +162,7 @@ fn gen_serialize(
     let id_field = fields
         .iter()
         .find(|f| matches!(f.kind, FieldKind::Id))
-        .unwrap();
+        .expect("codegen invariant: validate_fields guarantees exactly one #[jsonapi(id)] field");
     let id_ident = &id_field.ident;
     let id_entry = if id_field.is_option {
         quote! {
@@ -343,7 +343,7 @@ fn gen_deserialize(
     let id_field = fields
         .iter()
         .find(|f| matches!(f.kind, FieldKind::Id))
-        .unwrap();
+        .expect("codegen invariant: validate_fields guarantees exactly one #[jsonapi(id)] field");
     let id_ident = &id_field.ident;
     let id_extract = if id_field.is_option {
         quote! {
