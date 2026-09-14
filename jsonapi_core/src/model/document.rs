@@ -241,6 +241,29 @@ where
     }
 }
 
+impl<P, I> Document<P, I> {
+    /// Build an error document from one or more [`ApiError`]s.
+    #[must_use]
+    pub fn errors(errors: impl IntoIterator<Item = ApiError>) -> Document<P, I> {
+        Document::Errors {
+            errors: errors.into_iter().collect(),
+            meta: None,
+            jsonapi: None,
+            links: None,
+        }
+    }
+
+    /// Build a meta-only document.
+    #[must_use]
+    pub fn meta_only(meta: Meta) -> Document<P, I> {
+        Document::Meta {
+            meta,
+            jsonapi: None,
+            links: None,
+        }
+    }
+}
+
 impl<P, I: ResourceObject> Document<P, I> {
     /// Build a [`Registry`](crate::registry::Registry) from this document's `included` resources.
     /// Returns an empty registry for `Errors` and `Meta` variants.
@@ -1190,5 +1213,25 @@ mod tests {
 
         let meta: Document<Resource> = serde_json::from_str(meta_doc_json()).unwrap();
         assert!(meta.included().is_empty());
+    }
+
+    // ----- Document constructors -----
+
+    #[test]
+    fn document_errors_constructor_builds_errors_variant() {
+        let doc = Document::<Resource>::errors([ApiError {
+            status: Some("404".into()),
+            title: Some("Not Found".into()),
+            ..Default::default()
+        }]);
+        assert!(matches!(doc, Document::Errors { .. }));
+    }
+
+    #[test]
+    fn document_meta_only_constructor_builds_meta_variant() {
+        let mut m = serde_json::Map::new();
+        m.insert("total".into(), serde_json::json!(3));
+        let doc = Document::<Resource>::meta_only(m);
+        assert!(matches!(doc, Document::Meta { .. }));
     }
 }

@@ -10,6 +10,9 @@ A typed [JSON:API v1.1](https://jsonapi.org/format/) serialization library for R
 - **Registry** — typed lookups from `included` arrays via `Relationship<T>` references
 - **Recursive resolver** — kitsu-core-style flattened output with cycle detection
 - **Query builder** — JSON:API-aware query strings with bracket encoding and RFC 3986 percent-encoding
+- **Query parsing** — server-side parsing of `sort`/`include`/`fields`/`page`/`filter` into a typed `Query`
+- **Cursor pagination** — the JSON:API cursor-pagination profile (`CursorPage`, `CursorLinks`)
+- **Response builder** — fluent `DocumentBuilder` for assembling compound documents, plus error/meta-only constructors
 - **Content negotiation** — `ext`/`profile` media-type parsing, `Content-Type` validation, `Accept` negotiation
 - **Sparse fieldsets** — typed and dynamic filtering paths
 - **Include path validation** — relationship graph walking with static type metadata
@@ -21,7 +24,7 @@ A typed [JSON:API v1.1](https://jsonapi.org/format/) serialization library for R
 cargo add jsonapi_core
 ```
 
-Requires Rust **1.88+** and the **2024 edition**.
+Requires Rust **1.94.1+** and the **2024 edition**.
 
 ## Quick Example
 
@@ -96,8 +99,8 @@ cargo run --example atomic_operations     -p jsonapi_core --features atomic-ops
 
 - **[The jsonapi_core Guide](docs/SUMMARY.md)** — chapter-by-chapter walkthrough
   covering documents, resources, relationships, the registry, the query builder,
-  sparse fieldsets, content negotiation, atomic operations, and a cookbook of
-  common recipes.
+  query parsing, sparse fieldsets, cursor pagination, building responses,
+  content negotiation, atomic operations, and a cookbook of common recipes.
 - **[API docs on docs.rs](https://docs.rs/jsonapi_core)** — type-level reference
   for every public item.
 
@@ -140,7 +143,9 @@ The following are **public API** and changes to them are governed by SemVer:
   `ResourceRelationship`, `Identity`, `Relationship`, `RelationshipData`, `Links`, `Link`,
   `LinkObject`, `Hreflang`, `Meta`, `JsonApiObject`, `ApiError`, `ErrorLinks`,
   `ErrorSource`, `Registry`, `ResolveConfig`, `TypeRegistry`, `TypeInfo`,
-  `QueryBuilder`, `FieldsetConfig`, `SparseSerializer`, `sparse_filter`,
+  `QueryBuilder`, `Query`, `SortField`, `FieldsetConfig`, `SparseSerializer`,
+  `sparse_filter`, `DocumentBuilder`, `CursorPage`, `CursorLinks`,
+  `CURSOR_PAGINATION_PROFILE`,
   `CaseConfig`, `CaseConvention`, `Error`, `Result`, `JsonApiMediaType`,
   `validate_content_type`, `negotiate_accept`, `validate_member_name`,
   `MemberNameKind`).

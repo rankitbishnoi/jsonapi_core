@@ -449,11 +449,13 @@
 //! | `derive` | yes | Re-exports `#[derive(JsonApi)]` from `jsonapi_core_derive` |
 //! | `atomic-ops` | no | Atomic Operations extension types (`atomic` module) |
 
+pub mod builder;
 pub mod case;
 pub mod error;
 pub mod fieldset;
 pub mod media_type;
 pub mod model;
+pub mod pagination;
 pub mod query;
 pub mod registry;
 pub mod type_registry;
@@ -462,6 +464,7 @@ pub mod validation;
 #[cfg(feature = "atomic-ops")]
 pub mod atomic;
 
+pub use builder::DocumentBuilder;
 pub use case::{CaseConfig, CaseConvention};
 pub use error::{Error, Result};
 pub use fieldset::{FieldsetConfig, SparseSerializer, sparse_filter};
@@ -471,7 +474,8 @@ pub use model::{
     JsonApiObject, Link, LinkObject, Links, Meta, PrimaryData, Relationship, RelationshipData,
     Resource, ResourceIdentifier, ResourceObject, ResourceRelationship,
 };
-pub use query::QueryBuilder;
+pub use pagination::{CURSOR_PAGINATION_PROFILE, CursorLinks, CursorPage};
+pub use query::{Query, QueryBuilder, SortField};
 pub use registry::{Registry, ResolveConfig};
 pub use type_registry::{TypeInfo, TypeRegistry};
 pub use validation::{MemberNameKind, validate_member_name};

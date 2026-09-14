@@ -4,7 +4,7 @@ use serde::de;
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use super::{HasLinks, HasMeta, Links, Meta, RelationshipData, ResourceRelationship};
+use super::{HasLinks, HasMeta, Links, Meta, ResourceRelationship};
 
 /// Unifying trait for typed resources and the dynamic `Resource` fallback.
 pub trait ResourceObject: Serialize + for<'de> Deserialize<'de> {
@@ -110,25 +110,7 @@ impl Serialize for Resource {
         if !self.relationships.is_empty() {
             let mut rels = serde_json::Map::new();
             for (name, rel) in &self.relationships {
-                let mut rel_obj = serde_json::Map::new();
-                if let Some(ref data) = rel.data {
-                    rel_obj.insert(
-                        "data".to_string(),
-                        serde_json::to_value(data).map_err(serde::ser::Error::custom)?,
-                    );
-                }
-                if let Some(ref links) = rel.links {
-                    rel_obj.insert(
-                        "links".to_string(),
-                        serde_json::to_value(links).map_err(serde::ser::Error::custom)?,
-                    );
-                }
-                if let Some(ref meta) = rel.meta {
-                    rel_obj.insert(
-                        "meta".to_string(),
-                        serde_json::to_value(meta).map_err(serde::ser::Error::custom)?,
-                    );
-                }
+                let rel_obj = rel.to_json_object().map_err(serde::ser::Error::custom)?;
                 rels.insert(name.clone(), serde_json::Value::Object(rel_obj));
             }
             map.serialize_entry("relationships", &rels)?;
@@ -174,27 +156,9 @@ impl<'de> Deserialize<'de> for Resource {
                 let rel_obj = rel_value
                     .as_object()
                     .ok_or_else(|| de::Error::custom("each relationship must be an object"))?;
-                let data = rel_obj
-                    .get("data")
-                    .map(|d| serde_json::from_value::<RelationshipData>(d.clone()))
-                    .transpose()
-                    .map_err(de::Error::custom)?;
-                let links = rel_obj
-                    .get("links")
-                    .map(|v| serde_json::from_value(v.clone()))
-                    .transpose()
-                    .map_err(de::Error::custom)?;
-                let meta = rel_obj
-                    .get("meta")
-                    .map(|v| serde_json::from_value(v.clone()))
-                    .transpose()
-                    .map_err(de::Error::custom)?;
-                if data.is_none() && links.is_none() && meta.is_none() {
-                    return Err(de::Error::custom(
-                        "relationship object must contain at least one of `data`, `links`, or `meta`",
-                    ));
-                }
-                map.insert(name.clone(), ResourceRelationship { data, links, meta });
+                let rel =
+                    ResourceRelationship::from_json_object(rel_obj).map_err(de::Error::custom)?;
+                map.insert(name.clone(), rel);
             }
             map
         } else {

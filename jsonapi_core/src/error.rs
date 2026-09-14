@@ -72,6 +72,15 @@ pub enum Error {
     #[error("all JSON:API media type instances in Accept have unsupported parameters")]
     AllMediaTypesUnsupportedParams,
 
+    /// A request query parameter could not be parsed.
+    #[error("invalid query parameter `{param}`: {reason}")]
+    QueryParse {
+        /// The offending parameter name (e.g. `sort`, `page[size]`).
+        param: String,
+        /// Why it failed.
+        reason: String,
+    },
+
     /// A document violates structural rules (e.g. `data` + `errors` both present).
     #[error("document structure error: {0}")]
     Structure(String),
@@ -238,6 +247,18 @@ mod tests {
         assert_eq!(
             err.to_string(),
             "missing required attribute `title` on `articles` at data"
+        );
+    }
+
+    #[test]
+    fn query_parse_display() {
+        let err = Error::QueryParse {
+            param: "page[size]".into(),
+            reason: "expected an integer".into(),
+        };
+        assert_eq!(
+            err.to_string(),
+            "invalid query parameter `page[size]`: expected an integer"
         );
     }
 
