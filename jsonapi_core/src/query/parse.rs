@@ -276,4 +276,11 @@ mod tests {
             &vec!["a".to_string(), "b".to_string()]
         );
     }
+
+    #[test]
+    fn from_query_string_rejects_invalid_percent_encoding() {
+        // %FF decodes to a lone 0xFF byte, which is not valid UTF-8.
+        let err = Query::from_query_string("?sort=%FF").unwrap_err();
+        assert!(matches!(err, crate::Error::QueryParse { .. }));
+    }
 }

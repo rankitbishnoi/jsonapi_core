@@ -484,6 +484,30 @@ mod atomic_operation_tests {
     }
 
     #[test]
+    fn remove_op_with_href_target_round_trips() {
+        let op = AtomicOperation::Remove {
+            target: OperationTarget {
+                r#ref: None,
+                href: Some("/articles/1".into()),
+            },
+        };
+        let json = serde_json::to_value(&op).unwrap();
+        assert_eq!(json["op"], "remove");
+        assert_eq!(json["href"], "/articles/1");
+        assert!(json.get("ref").is_none());
+
+        let back: AtomicOperation = serde_json::from_value(json).unwrap();
+        match back {
+            AtomicOperation::Remove { target } => {
+                assert_eq!(target.href.as_deref(), Some("/articles/1"));
+                assert!(target.r#ref.is_none());
+                assert!(target.is_valid());
+            }
+            _ => panic!("expected Remove variant"),
+        }
+    }
+
+    #[test]
     fn deserializes_add() {
         let json = r#"{"op":"add","data":{"type":"articles","lid":"l1","attributes":{}}}"#;
         let op: AtomicOperation = serde_json::from_str(json).unwrap();

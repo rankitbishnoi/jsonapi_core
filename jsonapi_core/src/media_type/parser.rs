@@ -172,4 +172,12 @@ mod tests {
         let result = parse_media_type_params("application/json; =value");
         assert!(result.is_err());
     }
+
+    #[test]
+    fn unterminated_escape_in_quoted_string_is_error() {
+        // A quoted value whose final char is a lone backslash escape with
+        // nothing to escape — distinct from a missing closing quote.
+        let err = parse_media_type_params("application/json; ext=\"\\").unwrap_err();
+        assert!(matches!(err, crate::Error::MediaTypeParse(msg) if msg.contains("escape")));
+    }
 }
