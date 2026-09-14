@@ -454,6 +454,7 @@ pub mod error;
 pub mod fieldset;
 pub mod media_type;
 pub mod model;
+pub mod pagination;
 pub mod query;
 pub mod registry;
 pub mod type_registry;
@@ -471,6 +472,7 @@ pub use model::{
     JsonApiObject, Link, LinkObject, Links, Meta, PrimaryData, Relationship, RelationshipData,
     Resource, ResourceIdentifier, ResourceObject, ResourceRelationship,
 };
+pub use pagination::{CURSOR_PAGINATION_PROFILE, CursorLinks, CursorPage};
 pub use query::{Query, QueryBuilder, SortField};
 pub use registry::{Registry, ResolveConfig};
 pub use type_registry::{TypeInfo, TypeRegistry};
