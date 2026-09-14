@@ -23,6 +23,7 @@ pub struct Registry {
 }
 
 /// Configuration for recursive resolution.
+#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct ResolveConfig {
     /// Maximum recursion depth. Default: 10.

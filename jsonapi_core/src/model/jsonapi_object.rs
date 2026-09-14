@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use super::Meta;
 
 /// The `jsonapi` top-level member describing the server's implementation.
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct JsonApiObject {
     /// The JSON:API version (e.g. `"1.1"`).
