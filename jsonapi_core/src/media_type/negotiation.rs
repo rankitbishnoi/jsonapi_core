@@ -4,6 +4,7 @@ const JSONAPI_MEDIA_TYPE: &str = "application/vnd.api+json";
 
 /// Parsed JSON:API media type with extension and profile parameters.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct JsonApiMediaType {
     /// Extension URIs.
     pub ext: Vec<String>,
