@@ -21,8 +21,21 @@ refer to that shared workspace version.
   relationship-level `links` and `meta` are preserved (previously dropped), and
   relationships carrying only `links`/`meta` with no `data` are retained. A new
   public `ResourceRelationship` type (`data: Option<RelationshipData>`, `links`,
-  `meta`, plus `ResourceRelationship::new(data)`) models the untyped relationship
-  object.
+  `meta`, `ResourceRelationship::new(data)`, and its own `Serialize`/`Deserialize`)
+  models the untyped relationship object.
+- Server-side query parsing: `Query` (`from_pairs` / `from_query_string`) parses
+  `sort`, `include`, `fields[type]`, `page[...]`, and `filter[...]`, with
+  `SortField` for sort direction. Filter and page stay generic (server-defined
+  semantics); repeated `filter[...]` keys accumulate, repeated `page[...]` keys are
+  last-wins; unknown parameters are ignored.
+- Cursor-pagination profile: `CURSOR_PAGINATION_PROFILE`, `CursorPage` (a typed
+  view over the `page` map), and `CursorLinks` (a first/prev/next/last pagination
+  link builder that preserves request parameters).
+- `DocumentBuilder` — a fluent builder for response documents (`data`/`many`/
+  `no_data`, `include`/`include_many` with `(type, id)` de-duplication and
+  primary-skip, `link`/`links`/`meta`/`jsonapi`/`profile`/`ext`), plus
+  `Document::errors` and `Document::meta_only` constructors.
+- New `Error::QueryParse` variant for malformed query parameters.
 - `negotiate_accept` now honours HTTP `Accept` quality weights (`q`): the
   highest-weighted acceptable media type wins (ties: an explicit
   `application/vnd.api+json` beats a wildcard, then document order), and `q=0`
