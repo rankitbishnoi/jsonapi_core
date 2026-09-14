@@ -1,3 +1,5 @@
+use std::fmt;
+
 use super::parser::parse_media_type_params;
 
 const JSONAPI_MEDIA_TYPE: &str = "application/vnd.api+json";
@@ -96,37 +98,45 @@ impl JsonApiMediaType {
     }
 
     /// Format as a header value string (usable for both Content-Type and Accept).
+    ///
+    /// Equivalent to the [`Display`](std::fmt::Display) impl; kept as a named,
+    /// discoverable method for header-building call sites.
     #[must_use]
     pub fn to_header_value(&self) -> String {
-        let mut result = String::with_capacity(JSONAPI_MEDIA_TYPE.len() + 16);
-        result.push_str(JSONAPI_MEDIA_TYPE);
-        push_param(&mut result, "ext", &self.ext);
-        push_param(&mut result, "profile", &self.profile);
-        result
+        self.to_string()
+    }
+}
+
+impl fmt::Display for JsonApiMediaType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(JSONAPI_MEDIA_TYPE)?;
+        write_param(f, "ext", &self.ext)?;
+        write_param(f, "profile", &self.profile)
     }
 }
 
 /// Append `; key="v1 v2"` to `out`, escaping any `"` in values. No-op if `values`
-/// is empty. Writes directly into `out` — no intermediate allocations.
-fn push_param(out: &mut String, key: &str, values: &[String]) {
+/// is empty. Writes directly into `out` — no intermediate allocations. Generic
+/// over `fmt::Write` so it serves both `Display` and `to_header_value`.
+fn write_param<W: fmt::Write>(out: &mut W, key: &str, values: &[String]) -> fmt::Result {
     if values.is_empty() {
-        return;
+        return Ok(());
     }
-    out.push_str("; ");
-    out.push_str(key);
-    out.push_str("=\"");
+    out.write_str("; ")?;
+    out.write_str(key)?;
+    out.write_str("=\"")?;
     for (i, v) in values.iter().enumerate() {
         if i > 0 {
-            out.push(' ');
+            out.write_char(' ')?;
         }
         for c in v.chars() {
             if c == '"' {
-                out.push('\\');
+                out.write_char('\\')?;
             }
-            out.push(c);
+            out.write_char(c)?;
         }
     }
-    out.push('"');
+    out.write_char('"')
 }
 
 /// Validate a Content-Type header per JSON:API 1.1 rules.

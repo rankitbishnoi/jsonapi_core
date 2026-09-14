@@ -68,6 +68,20 @@ pub struct ResourceRelationship {
     pub meta: Option<Meta>,
 }
 
+impl From<Links> for ResourceRelationship {
+    /// A relationship object carrying only `links` (no `data` or `meta`).
+    fn from(links: Links) -> Self {
+        Self::from_links(links)
+    }
+}
+
+impl From<Meta> for ResourceRelationship {
+    /// A relationship object carrying only `meta` (no `data` or `links`).
+    fn from(meta: Meta) -> Self {
+        Self::from_meta(meta)
+    }
+}
+
 impl ResourceRelationship {
     /// Construct from linkage data alone (no `links` or `meta`).
     #[must_use]
@@ -210,6 +224,7 @@ pub struct Relationship<T> {
 
 impl<T> Relationship<T> {
     /// Create a new relationship with the given linkage data.
+    #[must_use]
     pub fn new(data: RelationshipData) -> Self {
         Self {
             data,
@@ -276,9 +291,9 @@ impl<T> Relationship<T> {
                 rid.identity.as_id().ok_or(crate::Error::LidNotIndexed)
             }
             RelationshipData::ToOne(None) => Err(crate::Error::NullRelationship),
-            RelationshipData::ToMany(_) => {
-                Err(crate::Error::RelationshipCardinalityMismatch { expected: "to-one" })
-            }
+            RelationshipData::ToMany(_) => Err(crate::Error::RelationshipCardinalityMismatch {
+                expected: crate::Cardinality::ToOne,
+            }),
         }
     }
 }
@@ -575,7 +590,9 @@ mod tests {
         let err = rel.single_id().unwrap_err();
         assert!(matches!(
             err,
-            crate::Error::RelationshipCardinalityMismatch { expected: "to-one" }
+            crate::Error::RelationshipCardinalityMismatch {
+                expected: crate::Cardinality::ToOne
+            }
         ));
     }
 
@@ -585,7 +602,9 @@ mod tests {
         let err = rel.single_id().unwrap_err();
         assert!(matches!(
             err,
-            crate::Error::RelationshipCardinalityMismatch { expected: "to-one" }
+            crate::Error::RelationshipCardinalityMismatch {
+                expected: crate::Cardinality::ToOne
+            }
         ));
     }
 }
