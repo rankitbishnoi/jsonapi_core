@@ -49,6 +49,13 @@ refer to that shared workspace version.
   without touching the inner map.
 - `Document::parse` now surfaces a document carrying both `data` and `errors`
   as the typed `Error::Structure` variant instead of an opaque `Error::Json`.
+- More common trait impls: `Default` for `Identity`, `ResourceIdentifier`,
+  `OperationRef`, and `SortField`; `Clone` for `Registry`; `Eq` for
+  `FieldsetConfig`.
+- `impl Display for JsonApiMediaType` (the canonical string form;
+  `to_header_value` delegates to it).
+- `impl From<Links>` and `From<Meta>` for `ResourceRelationship`.
+- `Cardinality` enum (`ToOne` / `ToMany`), exported at the crate root.
 
 ### Changed
 
@@ -81,6 +88,9 @@ refer to that shared workspace version.
   `Links::from(map)` instead of `links.0`.
 - **Breaking:** `JsonApiMediaType` is now `#[non_exhaustive]`. Construct it via
   `validate_content_type` / `negotiate_accept` rather than a struct literal.
+- **Breaking:** `Error::RelationshipCardinalityMismatch`'s `expected` field is
+  now a typed `Cardinality` enum instead of `&'static str`. Match on
+  `Cardinality::ToOne` / `Cardinality::ToMany` instead of the string literals.
 
 ## [0.3.0] — 2026-09-13
 
