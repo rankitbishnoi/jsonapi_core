@@ -77,6 +77,73 @@ impl ResourceRelationship {
             meta: None,
         }
     }
+
+    /// Parse a relationship object from an already-buffered JSON object.
+    /// Enforces the JSON:API rule that a relationship object contains at least
+    /// one of `data`, `links`, or `meta`. Shared by the `Deserialize` impl and
+    /// by `Resource`'s deserializer so the invariant lives in one place and the
+    /// dynamic hot path avoids a second round-trip through `serde_json::Value`.
+    pub(crate) fn from_json_object(
+        obj: &serde_json::Map<String, serde_json::Value>,
+    ) -> Result<Self, String> {
+        let data: Option<RelationshipData> = obj
+            .get("data")
+            .map(Deserialize::deserialize)
+            .transpose()
+            .map_err(|e: serde_json::Error| e.to_string())?;
+        let links: Option<Links> = obj
+            .get("links")
+            .map(Deserialize::deserialize)
+            .transpose()
+            .map_err(|e: serde_json::Error| e.to_string())?;
+        let meta: Option<Meta> = obj
+            .get("meta")
+            .map(Deserialize::deserialize)
+            .transpose()
+            .map_err(|e: serde_json::Error| e.to_string())?;
+        if data.is_none() && links.is_none() && meta.is_none() {
+            return Err(
+                "relationship object must contain at least one of `data`, `links`, or `meta`"
+                    .to_string(),
+            );
+        }
+        Ok(ResourceRelationship { data, links, meta })
+    }
+
+    /// Emit the relationship object's wire shape into a JSON object map.
+    /// Shared by the `Serialize` impl and by `Resource`'s serializer.
+    pub(crate) fn to_json_object(
+        &self,
+    ) -> Result<serde_json::Map<String, serde_json::Value>, serde_json::Error> {
+        let mut obj = serde_json::Map::new();
+        if let Some(ref data) = self.data {
+            obj.insert("data".to_string(), serde_json::to_value(data)?);
+        }
+        if let Some(ref links) = self.links {
+            obj.insert("links".to_string(), serde_json::to_value(links)?);
+        }
+        if let Some(ref meta) = self.meta {
+            obj.insert("meta".to_string(), serde_json::to_value(meta)?);
+        }
+        Ok(obj)
+    }
+}
+
+impl Serialize for ResourceRelationship {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let obj = self.to_json_object().map_err(serde::ser::Error::custom)?;
+        serde_json::Value::Object(obj).serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for ResourceRelationship {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = serde_json::Value::deserialize(deserializer)?;
+        let obj = value
+            .as_object()
+            .ok_or_else(|| de::Error::custom("relationship object must be a JSON object"))?;
+        ResourceRelationship::from_json_object(obj).map_err(de::Error::custom)
+    }
 }
 
 /// Typed relationship reference. Carries the target type as a phantom
@@ -174,6 +241,56 @@ impl<T> Relationship<T> {
 mod tests {
     use super::*;
     use crate::model::Identity;
+
+    #[test]
+    fn resource_relationship_serialize_omits_none_fields() {
+        let rel = ResourceRelationship::new(RelationshipData::ToOne(Some(rid("people", "9"))));
+        let v = serde_json::to_value(&rel).unwrap();
+        assert_eq!(v["data"]["id"], "9");
+        assert!(v.get("links").is_none());
+        assert!(v.get("meta").is_none());
+    }
+
+    #[test]
+    fn resource_relationship_serialize_null_to_one_emits_data_null() {
+        let rel = ResourceRelationship::new(RelationshipData::ToOne(None));
+        let v = serde_json::to_value(&rel).unwrap();
+        assert!(v.get("data").is_some());
+        assert!(v["data"].is_null());
+    }
+
+    #[test]
+    fn resource_relationship_deserialize_preserves_links_and_meta() {
+        let json =
+            r#"{"data":{"type":"people","id":"9"},"links":{"related":"/a/1"},"meta":{"c":1}}"#;
+        let rel: ResourceRelationship = serde_json::from_str(json).unwrap();
+        assert!(matches!(rel.data, Some(RelationshipData::ToOne(Some(_)))));
+        assert!(rel.links.is_some());
+        assert!(rel.meta.is_some());
+    }
+
+    #[test]
+    fn resource_relationship_deserialize_links_only_has_no_data() {
+        let json = r#"{"links":{"related":"/a/1"}}"#;
+        let rel: ResourceRelationship = serde_json::from_str(json).unwrap();
+        assert!(rel.data.is_none());
+        assert!(rel.links.is_some());
+    }
+
+    #[test]
+    fn resource_relationship_deserialize_rejects_empty_object() {
+        let err = serde_json::from_str::<ResourceRelationship>("{}").unwrap_err();
+        assert!(err.to_string().contains("at least one of"), "got: {err}");
+    }
+
+    #[test]
+    fn resource_relationship_round_trip_is_stable() {
+        let json = r#"{"data":null,"meta":{"k":"v"}}"#;
+        let rel: ResourceRelationship = serde_json::from_str(json).unwrap();
+        let out = serde_json::to_value(&rel).unwrap();
+        assert!(out["data"].is_null());
+        assert_eq!(out["meta"]["k"], "v");
+    }
 
     #[test]
     fn test_relationship_data_to_one() {
