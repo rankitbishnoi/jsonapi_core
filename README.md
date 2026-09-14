@@ -1,5 +1,11 @@
 # jsonapi_core
 
+[![Crates.io](https://img.shields.io/crates/v/jsonapi_core.svg)](https://crates.io/crates/jsonapi_core)
+[![Documentation](https://docs.rs/jsonapi_core/badge.svg)](https://docs.rs/jsonapi_core)
+[![CI](https://github.com/rankitbishnoi/jsonapi_core/actions/workflows/ci.yml/badge.svg)](https://github.com/rankitbishnoi/jsonapi_core/actions/workflows/ci.yml)
+[![MSRV](https://img.shields.io/badge/MSRV-1.94.1-blue.svg)](https://github.com/rankitbishnoi/jsonapi_core)
+[![License](https://img.shields.io/crates/l/jsonapi_core.svg)](#license)
+
 A typed [JSON:API v1.1](https://jsonapi.org/format/) serialization library for Rust.
 
 ## Features
@@ -80,7 +86,7 @@ assert_eq!(author.name, "Dan Gebhardt");
 | `derive` | yes | Re-exports `#[derive(JsonApi)]` from `jsonapi_core_derive` |
 | `atomic-ops` | off | Atomic Operations extension types (`atomic` module) |
 
-See [`docs/feature-flags.md`](docs/feature-flags.md) for details.
+See [`docs/feature-flags.md`](https://github.com/rankitbishnoi/jsonapi_core/blob/main/docs/feature-flags.md) for details.
 
 ## Examples
 
@@ -97,7 +103,7 @@ cargo run --example atomic_operations     -p jsonapi_core --features atomic-ops
 
 ## Documentation
 
-- **[The jsonapi_core Guide](docs/SUMMARY.md)** — chapter-by-chapter walkthrough
+- **[The jsonapi_core Guide](https://github.com/rankitbishnoi/jsonapi_core/blob/main/docs/SUMMARY.md)** — chapter-by-chapter walkthrough
   covering documents, resources, relationships, the registry, the query builder,
   query parsing, sparse fieldsets, cursor pagination, building responses,
   content negotiation, atomic operations, and a cookbook of common recipes.
@@ -112,7 +118,7 @@ cargo install mdbook
 mdbook serve docs
 ```
 
-Or browse the markdown directly starting at [`docs/introduction.md`](docs/introduction.md).
+Or browse the markdown directly starting at [`docs/introduction.md`](https://github.com/rankitbishnoi/jsonapi_core/blob/main/docs/introduction.md).
 
 ## Repository layout
 
@@ -156,7 +162,7 @@ The following are **public API** and changes to them are governed by SemVer:
   `id`, `lid`, `relationship`, `meta`, `links`, `rename`, `skip`, and
   relationship `type` on fields.
 - Default behaviours documented in the crate-level rustdoc and the
-  [guide](docs/SUMMARY.md): the fuzzy-deserialization alias set, the
+  [guide](https://github.com/rankitbishnoi/jsonapi_core/blob/main/docs/SUMMARY.md): the fuzzy-deserialization alias set, the
   `Option::None` → omitted-on-serialize rule, the `null` → `None` deserialize
   fall-through, the registry's silent skip on shape mismatch, the resolver's
   cycle detection.
@@ -188,7 +194,7 @@ arms in consumer code must include a `_ =>` fall-through.
 
 The minimum supported Rust version is currently **1.94.1**. MSRV bumps require
 a minor-version release (≥ `0.x.0` while pre-1.0; ≥ `x.0.0` post-1.0) and
-will be called out in the [changelog](./CHANGELOG.md).
+will be called out in the [changelog](https://github.com/rankitbishnoi/jsonapi_core/blob/main/CHANGELOG.md).
 
 ### Pre-1.0 caveat
 
@@ -205,7 +211,7 @@ breaking changes land for two consecutive minor releases after this work,
 
 ### Changelog
 
-See [`CHANGELOG.md`](./CHANGELOG.md) for a release-by-release record.
+See [`CHANGELOG.md`](https://github.com/rankitbishnoi/jsonapi_core/blob/main/CHANGELOG.md) for a release-by-release record.
 
 ## License
 
