@@ -17,6 +17,9 @@ format so you work with plain Rust structs.
 | Static type metadata for include-path validation | `jsonapi_core::TypeRegistry` |
 | Sparse fieldset filtering — typed and dynamic | `jsonapi_core::FieldsetConfig` |
 | JSON:API-aware query string builder with RFC 3986 percent-encoding | `jsonapi_core::QueryBuilder` |
+| Server-side query parsing (`sort`/`include`/`fields`/`page`/`filter`) into a typed `Query` | `jsonapi_core::Query` |
+| Cursor-pagination profile — typed page params and first/prev/next/last link builder | `jsonapi_core::{CursorPage, CursorLinks}` |
+| Fluent response builder for compound/error/meta documents | `jsonapi_core::DocumentBuilder` |
 | Media-type parsing and content negotiation (`ext`, `profile`) | `jsonapi_core::media_type` |
 | Member name validation per JSON:API 1.1 rules | `jsonapi_core::validation` |
 | Atomic Operations extension (feature-gated) | `jsonapi_core::atomic` |
@@ -36,7 +39,8 @@ The chapters build on each other in order, but each one is self-contained:
 2. **Core Concepts** covers the fundamental types: `Document`, `Resource`, the derive
    macro, relationships, and the `Registry`.
 3. **Working with Requests and Responses** covers the request/response toolkit:
-   the query builder, sparse fieldsets, include validation, content negotiation,
+   the query builder, server-side query parsing, sparse fieldsets, include
+   validation, cursor pagination, building responses, content negotiation,
    and error handling.
 4. **Extensions** covers the optional Atomic Operations extension.
 5. **Reference** is a flat lookup for the derive macro's full attribute syntax,
