@@ -40,6 +40,15 @@ refer to that shared workspace version.
   highest-weighted acceptable media type wins (ties: an explicit
   `application/vnd.api+json` beats a wildcard, then document order), and `q=0`
   marks a media type as not acceptable.
+- `Resource` and `ResourceRelationship` now implement `Default`, so you can
+  build them with struct-update syntax (`Resource { r#type: "articles".into(),
+  ..Default::default() }`). `ResourceRelationship` is `#[non_exhaustive]`, so
+  `Default` is the only way for downstream crates to construct its empty state.
+- `Links::insert`, `Links::get_raw` (distinguishes absent / null / present
+  entries), and `From<BTreeMap<String, Option<Link>>>` for populating a `Links`
+  without touching the inner map.
+- `Document::parse` now surfaces a document carrying both `data` and `errors`
+  as the typed `Error::Structure` variant instead of an opaque `Error::Json`.
 
 ### Changed
 
@@ -60,6 +69,18 @@ refer to that shared workspace version.
   `application/vnd.api+json` request or a wildcard yields a plain response
   (empty `ext`/`profile`). Servers that relied on the old behaviour to advertise
   extensions must request them explicitly.
+- **Breaking:** `Document::from_str` is renamed to `Document::parse`. The old
+  name shadowed `std::str::FromStr::from_str`; `parse` is unambiguous. Update
+  `Document::<T>::from_str(s)` call sites to `Document::<T>::parse(s)`.
+- **Breaking:** `Document::as_single` / `as_many` are renamed to `try_as_single`
+  / `try_as_many`. They return `Result`, so the `as_` prefix violated the Rust
+  API guideline that `as_` accessors are infallible. The consuming
+  `into_single` / `into_many` accessors are unchanged.
+- **Breaking:** the inner `BTreeMap` of `Links` is now private. Use
+  `Links::insert`, `Links::get_raw`, the other inherent accessors, or
+  `Links::from(map)` instead of `links.0`.
+- **Breaking:** `JsonApiMediaType` is now `#[non_exhaustive]`. Construct it via
+  `validate_content_type` / `negotiate_accept` rather than a struct literal.
 
 ## [0.3.0] — 2026-09-13
 
