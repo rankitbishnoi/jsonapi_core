@@ -113,7 +113,7 @@ pub fn validate_member_name(name: &str) -> crate::Result<MemberNameKind> {
 
     // Extension-namespaced member: exactly one `:` splits namespace from member.
     if let Some((namespace, member)) = name.split_once(':') {
-        if name.matches(':').count() != 1 {
+        if member.contains(':') {
             return Err(crate::Error::InvalidMemberName {
                 name: name.to_string(),
                 reason: "extension member name must contain exactly one ':' separator".into(),

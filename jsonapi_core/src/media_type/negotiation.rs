@@ -98,17 +98,35 @@ impl JsonApiMediaType {
     /// Format as a header value string (usable for both Content-Type and Accept).
     #[must_use]
     pub fn to_header_value(&self) -> String {
-        let mut result = JSONAPI_MEDIA_TYPE.to_string();
-        if !self.ext.is_empty() {
-            let escaped = self.ext.join(" ").replace('"', "\\\"");
-            result.push_str(&format!("; ext=\"{escaped}\""));
-        }
-        if !self.profile.is_empty() {
-            let escaped = self.profile.join(" ").replace('"', "\\\"");
-            result.push_str(&format!("; profile=\"{escaped}\""));
-        }
+        let mut result = String::with_capacity(JSONAPI_MEDIA_TYPE.len() + 16);
+        result.push_str(JSONAPI_MEDIA_TYPE);
+        push_param(&mut result, "ext", &self.ext);
+        push_param(&mut result, "profile", &self.profile);
         result
     }
+}
+
+/// Append `; key="v1 v2"` to `out`, escaping any `"` in values. No-op if `values`
+/// is empty. Writes directly into `out` — no intermediate allocations.
+fn push_param(out: &mut String, key: &str, values: &[String]) {
+    if values.is_empty() {
+        return;
+    }
+    out.push_str("; ");
+    out.push_str(key);
+    out.push_str("=\"");
+    for (i, v) in values.iter().enumerate() {
+        if i > 0 {
+            out.push(' ');
+        }
+        for c in v.chars() {
+            if c == '"' {
+                out.push('\\');
+            }
+            out.push(c);
+        }
+    }
+    out.push('"');
 }
 
 /// Validate a Content-Type header per JSON:API 1.1 rules.

@@ -507,7 +507,7 @@ where
     }
 }
 
-fn build_included_set(value: &serde_json::Value) -> std::collections::HashSet<(String, String)> {
+fn build_included_set(value: &serde_json::Value) -> std::collections::HashSet<(&str, &str)> {
     let mut set = std::collections::HashSet::new();
     let Some(arr) = value.get("included").and_then(|v| v.as_array()) else {
         return set;
@@ -522,7 +522,7 @@ fn build_included_set(value: &serde_json::Value) -> std::collections::HashSet<(S
         ) else {
             continue;
         };
-        set.insert((type_.to_string(), id.to_string()));
+        set.insert((type_, id));
     }
     set
 }
@@ -554,12 +554,11 @@ fn prevalidate<P: ResourceObject>(value: &serde_json::Value) -> crate::Result<()
 
     match data {
         serde_json::Value::Object(_) => {
-            check_resource_full(data, "data", &info, &included_set)?;
+            check_resource_full(data, &|| "data".to_string(), &info, &included_set)?;
         }
         serde_json::Value::Array(arr) => {
             for (idx, item) in arr.iter().enumerate() {
-                let location = format!("data[{idx}]");
-                check_resource_full(item, &location, &info, &included_set)?;
+                check_resource_full(item, &|| format!("data[{idx}]"), &info, &included_set)?;
             }
         }
         // Null primary data is always valid structurally.
@@ -577,11 +576,11 @@ fn prevalidate<P: ResourceObject>(value: &serde_json::Value) -> crate::Result<()
     Ok(())
 }
 
-fn check_resource_full(
-    item: &serde_json::Value,
-    location: &str,
+fn check_resource_full<'a>(
+    item: &'a serde_json::Value,
+    location: &dyn Fn() -> String,
     info: &crate::TypeInfo,
-    included_set: &std::collections::HashSet<(String, String)>,
+    included_set: &std::collections::HashSet<(&'a str, &'a str)>,
 ) -> crate::Result<()> {
     let obj = match item.as_object() {
         Some(o) => o,
@@ -598,7 +597,7 @@ fn check_resource_full(
         return Err(crate::Error::TypeMismatch {
             expected: info.type_name,
             got: got.clone(),
-            location: location.to_string(),
+            location: location(),
         });
     }
 
@@ -611,7 +610,7 @@ fn check_resource_full(
                         return Err(crate::Error::MissingAttribute {
                             resource_type: info.type_name,
                             attribute: required,
-                            location: location.to_string(),
+                            location: location(),
                         });
                     }
                 }
@@ -620,7 +619,7 @@ fn check_resource_full(
                 return Err(crate::Error::MissingAttribute {
                     resource_type: info.type_name,
                     attribute: info.required_attribute_names[0],
-                    location: location.to_string(),
+                    location: location(),
                 });
             }
             Some(_) => {
@@ -639,11 +638,11 @@ fn check_resource_full(
     Ok(())
 }
 
-fn check_included_ref(
+fn check_included_ref<'a>(
     name: &str,
-    rel_location: &str,
-    identity: &serde_json::Value,
-    included_set: &std::collections::HashSet<(String, String)>,
+    rel_location: &dyn Fn() -> String,
+    identity: &'a serde_json::Value,
+    included_set: &std::collections::HashSet<(&'a str, &'a str)>,
 ) -> crate::Result<()> {
     // Skip the check when the wire payload has no `included` array (or all
     // entries were malformed). The empty set is the canonical "consumer didn't
@@ -661,33 +660,32 @@ fn check_included_ref(
         // lid-only — atomic-ops resolves these.
         return Ok(());
     };
-    let key = (type_.to_string(), id.to_string());
-    if !included_set.contains(&key) {
+    if !included_set.contains(&(type_, id)) {
         return Err(crate::Error::IncludedRefMissing {
             name: name.to_string(),
             r#type: type_.to_string(),
             id: id.to_string(),
-            location: rel_location.to_string(),
+            location: rel_location(),
         });
     }
     Ok(())
 }
 
-fn check_relationship(
+fn check_relationship<'a>(
     name: &str,
-    rel_value: &serde_json::Value,
-    location: &str,
-    included_set: &std::collections::HashSet<(String, String)>,
+    rel_value: &'a serde_json::Value,
+    location: &dyn Fn() -> String,
+    included_set: &std::collections::HashSet<(&'a str, &'a str)>,
 ) -> crate::Result<()> {
     let rel_obj = rel_value
         .as_object()
         .ok_or_else(|| crate::Error::MalformedRelationship {
             name: name.to_string(),
-            location: location.to_string(),
+            location: location(),
             reason: "relationship value must be an object".into(),
         })?;
 
-    let rel_location = format!("{location}.relationships.{name}");
+    let rel_location = || format!("{}.relationships.{}", location(), name);
 
     // A relationship may omit `data` (links/meta only), but if `data` is
     // present it must be null, an object, or an array. For object/array
@@ -712,7 +710,7 @@ fn check_relationship(
                 };
                 return Err(crate::Error::MalformedRelationship {
                     name: name.to_string(),
-                    location: location.to_string(),
+                    location: location(),
                     reason: format!("`data` must be null, an object, or an array; got {kind}"),
                 });
             }
@@ -739,12 +737,8 @@ mod prepass_helpers {
         )
         .unwrap();
         let set = build_included_set(&v);
-        let expected: HashSet<(String, String)> = [
-            ("people".to_string(), "1".to_string()),
-            ("tags".to_string(), "5".to_string()),
-        ]
-        .into_iter()
-        .collect();
+        let expected: HashSet<(&str, &str)> =
+            [("people", "1"), ("tags", "5")].into_iter().collect();
         assert_eq!(set, expected);
     }
 
@@ -770,25 +764,38 @@ mod prepass_helpers {
         .unwrap();
         let set = build_included_set(&v);
         assert_eq!(set.len(), 2);
-        assert!(set.contains(&("people".to_string(), "1".to_string())));
-        assert!(set.contains(&("tags".to_string(), "5".to_string())));
+        assert!(set.contains(&("people", "1")));
+        assert!(set.contains(&("tags", "5")));
     }
 
     #[test]
     fn check_included_ref_passes_for_present_id() {
         let identity = serde_json::json!({ "type": "people", "id": "1" });
         let mut set = HashSet::new();
-        set.insert(("people".to_string(), "1".to_string()));
-        assert!(check_included_ref("author", "data.relationships.author", &identity, &set).is_ok());
+        set.insert(("people", "1"));
+        assert!(
+            check_included_ref(
+                "author",
+                &|| "data.relationships.author".to_string(),
+                &identity,
+                &set
+            )
+            .is_ok()
+        );
     }
 
     #[test]
     fn check_included_ref_fails_for_absent_id() {
         let identity = serde_json::json!({ "type": "people", "id": "9" });
-        let mut set: HashSet<(String, String)> = HashSet::new();
-        set.insert(("people".to_string(), "1".to_string()));
-        let err =
-            check_included_ref("author", "data.relationships.author", &identity, &set).unwrap_err();
+        let mut set: HashSet<(&str, &str)> = HashSet::new();
+        set.insert(("people", "1"));
+        let err = check_included_ref(
+            "author",
+            &|| "data.relationships.author".to_string(),
+            &identity,
+            &set,
+        )
+        .unwrap_err();
         assert!(
             matches!(
                 &err,
@@ -806,24 +813,48 @@ mod prepass_helpers {
     fn check_included_ref_skips_when_set_is_empty() {
         // Empty set means "no included on the wire" — refs are unverified.
         let identity = serde_json::json!({ "type": "people", "id": "9" });
-        let set: HashSet<(String, String)> = HashSet::new();
-        assert!(check_included_ref("author", "data.relationships.author", &identity, &set).is_ok());
+        let set: HashSet<(&str, &str)> = HashSet::new();
+        assert!(
+            check_included_ref(
+                "author",
+                &|| "data.relationships.author".to_string(),
+                &identity,
+                &set
+            )
+            .is_ok()
+        );
     }
 
     #[test]
     fn check_included_ref_skips_lid_only_identifier() {
         let identity = serde_json::json!({ "type": "people", "lid": "tmp-1" });
-        let mut set: HashSet<(String, String)> = HashSet::new();
-        set.insert(("other".to_string(), "x".to_string()));
-        assert!(check_included_ref("author", "data.relationships.author", &identity, &set).is_ok());
+        let mut set: HashSet<(&str, &str)> = HashSet::new();
+        set.insert(("other", "x"));
+        assert!(
+            check_included_ref(
+                "author",
+                &|| "data.relationships.author".to_string(),
+                &identity,
+                &set
+            )
+            .is_ok()
+        );
     }
 
     #[test]
     fn check_included_ref_skips_non_object_identity() {
         let identity = serde_json::Value::Null;
-        let mut set: HashSet<(String, String)> = HashSet::new();
-        set.insert(("other".to_string(), "x".to_string()));
-        assert!(check_included_ref("author", "data.relationships.author", &identity, &set).is_ok());
+        let mut set: HashSet<(&str, &str)> = HashSet::new();
+        set.insert(("other", "x"));
+        assert!(
+            check_included_ref(
+                "author",
+                &|| "data.relationships.author".to_string(),
+                &identity,
+                &set
+            )
+            .is_ok()
+        );
     }
 }
 
