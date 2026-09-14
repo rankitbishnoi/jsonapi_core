@@ -233,13 +233,13 @@ fn test_registry_get_via_relationship() {
     assert_eq!(person.attributes["name"], "Dan");
 }
 
-/// `Document::from_str` surfaces the `data` + `errors` violation as the typed
+/// `Document::parse` surfaces the `data` + `errors` violation as the typed
 /// `Error::Structure` variant (the plain serde path only yields an opaque
 /// `Error::Json`).
 #[test]
 fn from_str_rejects_data_and_errors_as_structure() {
     let json = r#"{"data":null,"errors":[]}"#;
-    let err = Document::<Resource>::from_str(json).unwrap_err();
+    let err = Document::<Resource>::parse(json).unwrap_err();
     assert!(matches!(err, jsonapi_core::Error::Structure(_)));
     assert!(err.to_string().contains("must not contain both"));
 }

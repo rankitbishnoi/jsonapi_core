@@ -1,6 +1,6 @@
 //! Integration tests for typed parse errors (improvement #7).
 //!
-//! Verifies that `Document::from_str` / `from_slice` / `from_value`
+//! Verifies that `Document::parse` / `from_slice` / `from_value`
 //! surface `Error::TypeMismatch` and `Error::MalformedRelationship` as
 //! structured variants instead of opaque `serde_json::Error` strings,
 //! so consumers can map upstream-format failures to the right HTTP status.
@@ -42,7 +42,7 @@ fn from_str_parses_matching_type() {
             }
         }
     }"#;
-    let doc: Document<Article> = Document::from_str(json).unwrap();
+    let doc: Document<Article> = Document::parse(json).unwrap();
     let article = doc.into_single().unwrap();
     assert_eq!(article.id, "1");
     assert_eq!(article.title, "Hello");
@@ -80,7 +80,7 @@ fn type_mismatch_at_data_root() {
             "attributes": {"title": "Hi"}
         }
     }"#;
-    let err = Document::<Article>::from_str(json).unwrap_err();
+    let err = Document::<Article>::parse(json).unwrap_err();
     match err {
         Error::TypeMismatch {
             expected,
@@ -103,7 +103,7 @@ fn type_mismatch_inside_collection() {
             {"type": "stories",  "id": "2", "attributes": {"title": "B"}, "relationships": {"author": {"data": {"type": "people", "id": "9"}}}}
         ]
     }"#;
-    let err = Document::<Article>::from_str(json).unwrap_err();
+    let err = Document::<Article>::parse(json).unwrap_err();
     match err {
         Error::TypeMismatch {
             expected,
@@ -125,7 +125,7 @@ fn dynamic_resource_skips_type_check() {
     let json = r#"{
         "data": {"type": "anything", "id": "1", "attributes": {}}
     }"#;
-    let doc: Document<Resource> = Document::from_str(json).unwrap();
+    let doc: Document<Resource> = Document::parse(json).unwrap();
     assert_eq!(doc.into_single().unwrap().resource_type(), "anything");
 }
 
@@ -143,7 +143,7 @@ fn malformed_relationship_data_is_string() {
             }
         }
     }"#;
-    let err = Document::<Article>::from_str(json).unwrap_err();
+    let err = Document::<Article>::parse(json).unwrap_err();
     match err {
         Error::MalformedRelationship {
             name,
@@ -168,7 +168,7 @@ fn malformed_relationship_value_is_not_an_object() {
             "relationships": {"author": "not-an-object"}
         }
     }"#;
-    let err = Document::<Article>::from_str(json).unwrap_err();
+    let err = Document::<Article>::parse(json).unwrap_err();
     match err {
         Error::MalformedRelationship { name, reason, .. } => {
             assert_eq!(name, "author");
@@ -191,7 +191,7 @@ fn relationship_without_data_member_is_allowed() {
             }
         }
     }"#;
-    let doc: Document<Article> = Document::from_str(json).unwrap();
+    let doc: Document<Article> = Document::parse(json).unwrap();
     assert_eq!(doc.into_single().unwrap().id, "1");
 }
 
@@ -200,14 +200,14 @@ fn relationship_without_data_member_is_allowed() {
 #[test]
 fn errors_document_still_parses() {
     let json = r#"{"errors": [{"status": "404", "title": "Not Found"}]}"#;
-    let doc: Document<Article> = Document::from_str(json).unwrap();
+    let doc: Document<Article> = Document::parse(json).unwrap();
     assert!(matches!(doc, Document::Errors { .. }));
 }
 
 #[test]
 fn meta_document_still_parses() {
     let json = r#"{"meta": {"total": 0}}"#;
-    let doc: Document<Article> = Document::from_str(json).unwrap();
+    let doc: Document<Article> = Document::parse(json).unwrap();
     assert!(matches!(doc, Document::Meta { .. }));
 }
 
@@ -215,7 +215,7 @@ fn meta_document_still_parses() {
 fn invalid_json_surfaces_as_json_error() {
     // Unstructured serde_json failures still come through — pre-pass only
     // adds typed errors for things it can detect structurally.
-    let err = Document::<Article>::from_str("not json").unwrap_err();
+    let err = Document::<Article>::parse("not json").unwrap_err();
     assert!(matches!(err, Error::Json(_)));
 }
 
@@ -241,7 +241,7 @@ fn from_str_surfaces_missing_required_attribute_on_primary_single() {
             "attributes": { "subtitle": "tagline only" }
         }
     }"#;
-    let err = Document::<Book>::from_str(json).unwrap_err();
+    let err = Document::<Book>::parse(json).unwrap_err();
     assert!(
         matches!(
             &err,
@@ -263,7 +263,7 @@ fn from_str_surfaces_missing_required_attribute_on_primary_collection() {
             { "type": "books", "id": "2", "attributes": { "subtitle": "no title" } }
         ]
     }"#;
-    let err = Document::<Book>::from_str(json).unwrap_err();
+    let err = Document::<Book>::parse(json).unwrap_err();
     assert!(
         matches!(
             &err,
@@ -286,7 +286,7 @@ fn from_str_optional_attribute_omission_is_not_an_error() {
             "attributes": { "title": "Hello" }
         }
     }"#;
-    let doc = Document::<Book>::from_str(json).expect("parse");
+    let doc = Document::<Book>::parse(json).expect("parse");
     let book = doc.into_single().expect("single");
     assert_eq!(book.title, "Hello");
     assert_eq!(book.subtitle, None);
@@ -301,7 +301,7 @@ fn from_str_optional_attribute_explicit_null_is_not_an_error() {
             "attributes": { "title": "Hello", "subtitle": null }
         }
     }"#;
-    let doc = Document::<Book>::from_str(json).expect("parse");
+    let doc = Document::<Book>::parse(json).expect("parse");
     let book = doc.into_single().expect("single");
     assert_eq!(book.subtitle, None);
 }
@@ -315,7 +315,7 @@ fn from_str_required_attribute_check_skipped_for_dynamic_resource() {
             "attributes": { "subtitle": "no title" }
         }
     }"#;
-    let doc = Document::<Resource>::from_str(json).expect("dynamic Resource accepts any shape");
+    let doc = Document::<Resource>::parse(json).expect("dynamic Resource accepts any shape");
     let res = doc.into_single().expect("single");
     assert_eq!(res.resource_type(), "books");
 }
@@ -360,7 +360,7 @@ fn from_str_surfaces_included_ref_missing_on_primary_to_one() {
             { "type": "people", "id": "1", "attributes": { "name": "Other" } }
         ]
     }"#;
-    let err = Document::<ArticleWithRels>::from_str(json).unwrap_err();
+    let err = Document::<ArticleWithRels>::parse(json).unwrap_err();
     assert!(
         matches!(
             &err,
@@ -393,7 +393,7 @@ fn from_str_surfaces_included_ref_missing_on_primary_to_many() {
             { "type": "comments", "id": "2", "attributes": { "body": "c" } }
         ]
     }"#;
-    let err = Document::<ArticleWithRels>::from_str(json).unwrap_err();
+    let err = Document::<ArticleWithRels>::parse(json).unwrap_err();
     assert!(
         matches!(
             &err,
@@ -433,7 +433,7 @@ fn from_str_does_not_fire_included_ref_missing_for_transitive_references() {
             }
         ]
     }"#;
-    Document::<ArticleWithRels>::from_str(json)
+    Document::<ArticleWithRels>::parse(json)
         .expect("transitive included references must not fire IncludedRefMissing");
 }
 
@@ -454,7 +454,7 @@ fn from_str_lid_only_relationship_skipped() {
         ]
     }"#;
     // Pre-pass must not fire IncludedRefMissing for lid-only references.
-    let result = Document::<ArticleWithRels>::from_str(json);
+    let result = Document::<ArticleWithRels>::parse(json);
     if let Err(err) = &result {
         assert!(
             !matches!(err, Error::IncludedRefMissing { .. }),
@@ -476,7 +476,7 @@ fn from_str_relationship_with_null_data_is_not_an_error() {
             }
         }
     }"#;
-    Document::<ArticleWithRels>::from_str(json).expect("parse");
+    Document::<ArticleWithRels>::parse(json).expect("parse");
 }
 
 #[test]
@@ -497,7 +497,7 @@ fn from_str_error_precedence_order_type_mismatch_first() {
             { "type": "people", "id": "1", "attributes": { "name": "x" } }
         ]
     }"#;
-    let err = Document::<ArticleWithRels>::from_str(json).unwrap_err();
+    let err = Document::<ArticleWithRels>::parse(json).unwrap_err();
     assert!(
         matches!(&err, Error::TypeMismatch { .. }),
         "expected TypeMismatch first, got: {err:?}",
@@ -522,7 +522,7 @@ fn from_str_error_precedence_order_missing_attribute_before_included_ref() {
             { "type": "people", "id": "1", "attributes": { "name": "x" } }
         ]
     }"#;
-    let err = Document::<ArticleWithRels>::from_str(json).unwrap_err();
+    let err = Document::<ArticleWithRels>::parse(json).unwrap_err();
     assert!(
         matches!(&err, Error::MissingAttribute { .. }),
         "expected MissingAttribute before IncludedRefMissing, got: {err:?}",
@@ -548,7 +548,7 @@ fn from_str_present_reference_is_not_an_error() {
             { "type": "comments", "id": "10", "attributes": { "body": "hi" } }
         ]
     }"#;
-    Document::<ArticleWithRels>::from_str(json).expect("parse");
+    Document::<ArticleWithRels>::parse(json).expect("parse");
 }
 
 #[test]
@@ -578,7 +578,7 @@ fn from_str_surfaces_included_ref_missing_on_primary_collection() {
             { "type": "people", "id": "1", "attributes": { "name": "Dan" } }
         ]
     }"#;
-    let err = Document::<ArticleWithRels>::from_str(json).unwrap_err();
+    let err = Document::<ArticleWithRels>::parse(json).unwrap_err();
     assert!(
         matches!(
             &err,

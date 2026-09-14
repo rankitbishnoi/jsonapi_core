@@ -140,8 +140,8 @@
 //! [`Error::UnexpectedDocumentShape`] when the shape is wrong:
 //!
 //! - [`Document::into_single`] / [`Document::into_many`] / [`Document::into_meta`] — consuming.
-//! - [`Document::as_single`] / [`Document::as_many`] / [`Document::primary`] / [`Document::included`] — borrowing.
-//! - [`Document::from_str`] / [`Document::from_slice`] / [`Document::from_value`] —
+//! - [`Document::try_as_single`] / [`Document::try_as_many`] / [`Document::primary`] / [`Document::included`] — borrowing.
+//! - [`Document::parse`] / [`Document::from_slice`] / [`Document::from_value`] —
 //!   parse with a structural pre-pass that surfaces
 //!   [`Error::TypeMismatch`], [`Error::MalformedRelationship`],
 //!   [`Error::MissingAttribute`], and [`Error::IncludedRefMissing`]

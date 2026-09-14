@@ -366,7 +366,7 @@ impl<P, I> Document<P, I> {
     /// Borrow the single primary resource without consuming the document.
     ///
     /// See [`into_single`](Self::into_single) for the consuming version.
-    pub fn as_single(&self) -> crate::Result<&P> {
+    pub fn try_as_single(&self) -> crate::Result<&P> {
         match self {
             Document::Data {
                 data: PrimaryData::Single(boxed),
@@ -388,7 +388,7 @@ impl<P, I> Document<P, I> {
     /// Borrow the primary resource collection as a slice without consuming the document.
     ///
     /// See [`into_many`](Self::into_many) for the consuming version.
-    pub fn as_many(&self) -> crate::Result<&[P]> {
+    pub fn try_as_many(&self) -> crate::Result<&[P]> {
         match self {
             Document::Data {
                 data: PrimaryData::Many(items),
@@ -474,7 +474,7 @@ where
     /// When the primary type `P` is the dynamic [`Resource`](crate::Resource),
     /// the type check and required-attribute check are skipped (open-set
     /// primary type). The relationship walk and `IncludedRefMissing` check
-    /// still run, so `Document::<Resource>::from_str` is useful for
+    /// still run, so `Document::<Resource>::parse` is useful for
     /// validating compound documents with arbitrary primary shapes.
     ///
     /// # `IncludedRefMissing` scope
@@ -487,13 +487,12 @@ where
     /// empty, since there is no compound resolution to validate against.
     /// References that use only `lid` (no `id`) are skipped because atomic
     /// operations resolve those at request execution rather than at parse time.
-    #[allow(clippy::should_implement_trait)]
-    pub fn from_str(s: &str) -> crate::Result<Self> {
+    pub fn parse(s: &str) -> crate::Result<Self> {
         let value: serde_json::Value = serde_json::from_str(s)?;
         Self::from_value(value)
     }
 
-    /// Parse a JSON:API document from a byte slice. See [`Document::from_str`]
+    /// Parse a JSON:API document from a byte slice. See [`Document::parse`]
     /// for semantics.
     pub fn from_slice(bytes: &[u8]) -> crate::Result<Self> {
         let value: serde_json::Value = serde_json::from_slice(bytes)?;
@@ -501,7 +500,7 @@ where
     }
 
     /// Parse a JSON:API document from a `serde_json::Value` with structural
-    /// pre-validation. See [`Document::from_str`] for semantics.
+    /// pre-validation. See [`Document::parse`] for semantics.
     pub fn from_value(value: serde_json::Value) -> crate::Result<Self> {
         prevalidate::<P>(&value)?;
         serde_json::from_value(value).map_err(crate::Error::Json)
@@ -1164,20 +1163,20 @@ mod tests {
     #[test]
     fn as_single_borrows_without_consuming() {
         let doc: Document<Resource> = serde_json::from_str(single_doc_json()).unwrap();
-        let r1 = doc.as_single().unwrap();
+        let r1 = doc.try_as_single().unwrap();
         assert_eq!(r1.resource_id(), Some("1"));
         // Doc is still usable.
-        let r2 = doc.as_single().unwrap();
+        let r2 = doc.try_as_single().unwrap();
         assert_eq!(r2.resource_id(), Some("1"));
     }
 
     #[test]
     fn as_many_borrows_slice() {
         let doc: Document<Resource> = serde_json::from_str(many_doc_json()).unwrap();
-        let slice = doc.as_many().unwrap();
+        let slice = doc.try_as_many().unwrap();
         assert_eq!(slice.len(), 2);
         // Doc is still usable for further borrows.
-        let _ = doc.as_many().unwrap();
+        let _ = doc.try_as_many().unwrap();
     }
 
     #[test]

@@ -124,7 +124,7 @@ pub enum Error {
 
     /// The wire-side resource `type` does not match the type declared by the
     /// Rust type the document is being deserialized into. Surfaced by
-    /// [`Document::from_str`](crate::Document::from_str),
+    /// [`Document::parse`](crate::Document::parse),
     /// [`Document::from_slice`](crate::Document::from_slice), and
     /// [`Document::from_value`](crate::Document::from_value).
     #[error("type mismatch at {location}: expected `{expected}`, got `{got}`")]
@@ -152,7 +152,7 @@ pub enum Error {
     },
 
     /// A required attribute is absent from the wire `attributes` block.
-    /// Surfaced by [`Document::from_str`](crate::Document::from_str),
+    /// Surfaced by [`Document::parse`](crate::Document::parse),
     /// [`Document::from_slice`](crate::Document::from_slice), and
     /// [`Document::from_value`](crate::Document::from_value).
     ///
@@ -174,7 +174,7 @@ pub enum Error {
 
     /// A relationship references a `(type, id)` pair that is not present in
     /// the wire `included` array. Surfaced by
-    /// [`Document::from_str`](crate::Document::from_str),
+    /// [`Document::parse`](crate::Document::parse),
     /// [`Document::from_slice`](crate::Document::from_slice), and
     /// [`Document::from_value`](crate::Document::from_value).
     ///

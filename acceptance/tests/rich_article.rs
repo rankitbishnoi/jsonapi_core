@@ -367,10 +367,10 @@ fn test_document_from_str_happy_path_against_drupal_fixture() {
     // Run the rich Drupal fixture through the typed-parse-error pre-pass
     // entrypoint. Catches regressions to the pre-pass-then-deserialize
     // handoff against a real-shape payload.
-    let doc: Document<ArticleFull> = jsonapi_core::Document::from_str(RICH_ARTICLE_JSON)
-        .expect("rich Drupal fixture parses cleanly through Document::from_str");
+    let doc: Document<ArticleFull> = jsonapi_core::Document::parse(RICH_ARTICLE_JSON)
+        .expect("rich Drupal fixture parses cleanly through Document::parse");
 
-    let article = doc.as_single().expect("single article");
+    let article = doc.try_as_single().expect("single article");
     assert!(!article.id.is_empty(), "article id present");
 
     // Sanity: the fixture has a non-empty included array, registry builds.

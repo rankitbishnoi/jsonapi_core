@@ -22,7 +22,7 @@ pub struct TypeInfo {
     pub relationships: &'static [(&'static str, &'static str)],
     /// Wire names of attributes the consumer's struct declared as required
     /// (non-`Option`, non-`Vec`). Used by
-    /// [`Document::from_str`](crate::Document::from_str) and friends to
+    /// [`Document::parse`](crate::Document::parse) and friends to
     /// surface [`Error::MissingAttribute`](crate::Error::MissingAttribute).
     /// Empty for the dynamic [`Resource`](crate::Resource) and for any
     /// manual `TypeInfo::new(...)` caller that does not opt in via
