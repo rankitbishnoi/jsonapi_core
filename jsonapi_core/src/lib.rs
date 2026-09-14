@@ -1,4 +1,5 @@
-#![warn(missing_docs)]
+#![deny(missing_docs)]
+#![deny(rustdoc::broken_intra_doc_links)]
 //! # jsonapi_core
 //!
 //! A typed [JSON:API v1.1](https://jsonapi.org/format/) serialization library for Rust.
