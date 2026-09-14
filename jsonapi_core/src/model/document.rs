@@ -539,6 +539,13 @@ fn prevalidate<P: ResourceObject>(value: &serde_json::Value) -> crate::Result<()
         None => return Ok(()),
     };
 
+    // A document must not carry both `data` and `errors` (JSON:API 1.1 §7.1).
+    if obj.contains_key("data") && obj.contains_key("errors") {
+        return Err(crate::Error::Structure(
+            "document must not contain both `data` and `errors`".into(),
+        ));
+    }
+
     let Some(data) = obj.get("data") else {
         // Errors / meta documents do not carry primary data; nothing to validate.
         return Ok(());
