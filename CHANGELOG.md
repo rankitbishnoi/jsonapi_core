@@ -7,11 +7,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 within the bounds described in the [versioning policy](./README.md#versioning-policy).
 
-The two crates in this workspace (`jsonapi_core`, `jsonapi_core_derive`) are
-versioned in lockstep via `workspace.package.version`. Versions in this file
-refer to that shared workspace version.
+The three crates in this workspace (`jsonapi_core`, `jsonapi_core_derive`,
+`jsonapi_core_validation`) are versioned in lockstep via
+`workspace.package.version`. Versions in this file refer to that shared
+workspace version.
 
 ## [Unreleased]
+
+### Changed
+
+- Member-name validation is now shared between `jsonapi_core` and
+  `jsonapi_core_derive` through a new internal `jsonapi_core_validation` crate,
+  so compile-time (derive) and runtime validation can no longer drift. This is
+  an internal restructure with no behavior change for consumers.
 
 ## [0.4.0] — 2026-09-14
 
