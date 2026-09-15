@@ -56,6 +56,10 @@ sqlx = ["dep:sqlx"]
 debug-errors = []
 # Let `RequestIdLayer::generate` mint a UUID when no upstream request id exists (G13).
 uuid = ["dep:uuid"]
+# In-process test utilities (`jsonapi_axum::testing`, G17). Off by default so the
+# default build stays lean; enable in your `[dev-dependencies]`. Pulls in tower's
+# `util` (for `oneshot`) on top of the always-present `serde_json`.
+testing = ["tower/util"]
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }

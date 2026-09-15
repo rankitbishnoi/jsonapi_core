@@ -17,7 +17,8 @@ serde_json = "1"
 # downstream consumer's seat. Dev-only, and the crate is publish = false, so axum
 # never ships anywhere.
 [dev-dependencies]
-jsonapi_axum = { path = "../jsonapi_axum" }
+# `testing` pulls in the in-process test utilities (G17) we dogfood below.
+jsonapi_axum = { path = "../jsonapi_axum", features = ["testing"] }
 axum = { version = "0.8", default-features = false }
 tower = { version = "0.5", features = ["util"] }
 pollster = "0.4"

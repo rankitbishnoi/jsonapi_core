@@ -20,6 +20,7 @@
 
 pub mod error;
 pub mod id;
+pub mod include;
 pub mod layer;
 pub mod request;
 pub mod response;
@@ -30,6 +31,7 @@ pub use error::{
     with_status,
 };
 pub use id::{ClientIdPolicy, check_client_id, check_id_matches, id_conflict};
+pub use include::{IncludeResolver, resolve_includes};
 pub use layer::{AcceptLayer, ContentTypeLayer, GuardService, JsonApiLayer};
 pub use request::{check_content_type, deserialize_body, negotiate, parse_query};
 pub use response::{

@@ -105,6 +105,51 @@ async fn list(query: JsonApiQueryValidated<Article>) -> JsonApiResponse<Article>
 
 Apps that don't need include validation use `JsonApiQuery`, which requires no state.
 
+## Compound documents / includes
+
+`resolve_includes` assembles the deduped `included` array of a compound document from the
+requested `include` paths. You implement `IncludeResolver` — a **batch loader keyed by
+identity** — and the library walks the linkage (including transitive paths like
+`comments.author`), dedups by `(type, id)`, and calls your loader **once per type per level**
+(no N+1). It never touches a datastore and never applies sort/filter/page — fetching and
+those concerns stay yours.
+
+```rust,ignore
+use std::future::Future;
+use jsonapi_axum::{resolve_includes, IncludeResolver, DocumentBuilder, JsonApiResponse};
+use jsonapi_core::Resource;
+
+struct Store { /* your data */ }
+
+impl IncludeResolver for Store {
+    type Error = MyError; // mapped to JsonApiError at the edge (see below)
+
+    fn load(&self, type_name: &str, ids: &[String])
+        -> impl Future<Output = Result<Vec<Resource>, Self::Error>> + Send
+    {
+        // Fetch the resources of `type_name` with these ids and return them as
+        // dynamic `Resource`s (e.g. via `Resource::from_typed`).
+        # unimplemented!()
+    }
+}
+
+async fn list(State(store): State<Store>, JsonApiQuery(query): JsonApiQuery)
+    -> Result<impl IntoResponse, JsonApiError>
+{
+    let primary: Vec<Resource> = /* your primaries as dynamic resources */;
+    let paths: Vec<&str> = query.include.iter().map(String::as_str).collect();
+    let included = resolve_includes(&primary, &paths, &store).await.or_json_api()?;
+    let doc = DocumentBuilder::collection(primary).include_many(included).build();
+    Ok(JsonApiResponse::new(doc))
+}
+```
+
+`IncludeResolver::Error` is your own type, not `JsonApiError` (the resolver lives in the
+framework-agnostic `jsonapi_http`); map it at the handler edge with `.or_json_api()` (see
+[Mapping domain errors](#mapping-domain-errors-with-)). `fields[type]` filtering of included
+resources happens later at serialization (`JsonApiResponse::fields`), so the two compose.
+See `examples/compound_document.rs` for a runnable server.
+
 ## Errors
 
 Every error a handler returns is a `JsonApiError`, which renders as a JSON:API error
@@ -203,10 +248,39 @@ A handler can read the resolved id with the `RequestId` extractor.
 | `sqlx` | `From<sqlx::Error> for JsonApiError`: `RowNotFound` -> `404`, else `500`. |
 | `debug-errors` | Include the raw `detail` in an `internal` `500` (for local debugging only). |
 | `uuid` | Enable `RequestIdLayer::generate()` to mint a UUID when no upstream request id is present. |
+| `testing` | In-process test utilities (`jsonapi_axum::testing`) — request builder, `Router::send`, fluent response assertions. |
 
 ```toml
 jsonapi_axum = { version = "0.2", features = ["validator", "anyhow", "sqlx", "uuid"] }
 ```
+
+## Testing
+
+Enable the `testing` feature in your `[dev-dependencies]` for in-process helpers that cut the
+`oneshot` + build-request + collect-body + parse-JSON boilerplate:
+
+```toml
+[dev-dependencies]
+jsonapi_axum = { version = "0.2", features = ["testing"] }
+```
+
+```rust,ignore
+use jsonapi_axum::testing::{RouterTestExt, TestRequest};
+use http::StatusCode;
+
+#[tokio::test]
+async fn create_rejects_blank_title() {
+    let request = TestRequest::post("/articles").body_json(&body).build(); // JSON:API Content-Type defaulted
+    app().send(request).await
+        .assert_status(StatusCode::UNPROCESSABLE_ENTITY)
+        .assert_error(422)
+        .assert_error_pointer("/data/attributes/title");
+}
+```
+
+Helpers are async (bring your own runtime); drop to `.json()` / `.data()` / `.errors()` for
+anything the `assert_*` set doesn't cover. `raw_body(..)` plus an explicit `Content-Type`
+header lets you construct deliberately-malformed requests.
 
 ## Scope
 

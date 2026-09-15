@@ -4,16 +4,12 @@
 //! and the `ApiErrors` accumulator, driven through a `jsonapi_axum` router.
 
 use axum::Router;
-use axum::body::{Body, to_bytes};
 use axum::response::IntoResponse;
 use axum::routing::post;
-use axum::http::{Request, StatusCode, header};
-use tower::ServiceExt;
+use axum::http::StatusCode;
 
+use jsonapi_axum::testing::{RouterTestExt, TestRequest};
 use jsonapi_axum::{ApiErrorExt, ApiErrors, JsonApi, JsonApiError, JsonApiLayer, with_status};
-use serde_json::Value;
-
-const JSON_API: &str = "application/vnd.api+json";
 
 #[derive(Debug, Clone, jsonapi_core::JsonApi)]
 #[jsonapi(type = "articles")]
@@ -58,33 +54,29 @@ fn app() -> Router {
         .layer(JsonApiLayer::new())
 }
 
-async fn read_json(response: axum::response::Response) -> (StatusCode, Value) {
-    let status = response.status();
-    let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    (status, serde_json::from_slice(&bytes).unwrap())
-}
-
 #[test]
 fn create_with_two_invalid_attributes_returns_one_422_with_two_members() {
     pollster::block_on(async {
         let body = serde_json::json!({
             "data": { "type": "articles", "attributes": { "title": "", "body": "" } }
         });
-        let request = Request::builder()
-            .method("POST")
-            .uri("/articles")
-            .header(header::CONTENT_TYPE, JSON_API)
-            .header(header::ACCEPT, JSON_API)
-            .body(Body::from(body.to_string()))
-            .unwrap();
+        let response = app()
+            .send(
+                TestRequest::post("/articles")
+                    .accept_json_api()
+                    .body_json(&body)
+                    .build(),
+            )
+            .await
+            .assert_status(StatusCode::UNPROCESSABLE_ENTITY)
+            .assert_error_count(2)
+            .assert_error(422)
+            .assert_error_pointer("/data/attributes/title");
 
-        let (status, json) = read_json(app().oneshot(request).await.unwrap()).await;
-
-        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-        let members = json["errors"].as_array().unwrap();
-        assert_eq!(members.len(), 2);
-        assert_eq!(members[0]["status"], "422");
-        assert_eq!(members[0]["source"]["pointer"], "/data/attributes/title");
-        assert_eq!(members[1]["source"]["pointer"], "/data/attributes/body");
+        // The second member is bespoke — drop to the raw document for it.
+        assert_eq!(
+            response.errors()[1]["source"]["pointer"],
+            "/data/attributes/body"
+        );
     });
 }

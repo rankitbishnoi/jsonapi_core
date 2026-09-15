@@ -30,6 +30,9 @@ pub mod pagination;
 pub mod relationship;
 pub mod request_id;
 pub mod response;
+#[cfg(any(test, feature = "testing"))]
+#[cfg_attr(docsrs, doc(cfg(feature = "testing")))]
+pub mod testing;
 #[cfg(feature = "validator")]
 #[cfg_attr(docsrs, doc(cfg(feature = "validator")))]
 pub mod validation;
@@ -56,6 +59,11 @@ pub use jsonapi_http::{ApiErrorExt, ApiErrors, with_status};
 /// Re-export the client-id policy so handlers can configure
 /// [`JsonApi::check_client_id`](crate::JsonApi::check_client_id) from one place.
 pub use jsonapi_http::ClientIdPolicy;
+
+/// Re-export the compound-document `include` resolver (G16) so a handler can
+/// assemble a deduped `included` array from the requested include paths and a
+/// consumer-supplied batch loader.
+pub use jsonapi_http::{IncludeResolver, resolve_includes};
 
 /// Re-exports of the [`jsonapi_core`] types most commonly needed to build
 /// handlers, so handler bodies can import from `jsonapi_axum` alone.

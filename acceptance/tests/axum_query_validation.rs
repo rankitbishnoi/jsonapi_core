@@ -6,14 +6,12 @@
 use std::sync::Arc;
 
 use axum::Router;
-use axum::body::{Body, to_bytes};
 use axum::routing::get;
-use axum::http::{Request, StatusCode};
-use tower::ServiceExt;
+use axum::http::StatusCode;
 
+use jsonapi_axum::testing::{RouterTestExt, TestRequest};
 use jsonapi_axum::{JsonApiQueryValidated, JsonApiResponse};
 use jsonapi_core::{DocumentBuilder, Relationship, TypeRegistry};
-use serde_json::Value;
 
 #[derive(Debug, Clone, jsonapi_core::JsonApi)]
 #[jsonapi(type = "people")]
@@ -48,42 +46,27 @@ fn app() -> Router {
         .with_state(Arc::new(registry))
 }
 
-async fn read_json(response: axum::response::Response) -> (StatusCode, Value) {
-    let status = response.status();
-    let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    let value = if bytes.is_empty() {
-        Value::Null
-    } else {
-        serde_json::from_slice(&bytes).unwrap()
-    };
-    (status, value)
-}
-
 #[test]
 fn known_include_path_is_accepted() {
     pollster::block_on(async {
-        let request = Request::builder()
-            .uri("/articles?include=author")
-            .body(Body::empty())
-            .unwrap();
-        let (status, json) = read_json(app().oneshot(request).await.unwrap()).await;
-        assert_eq!(status, StatusCode::OK);
-        assert!(json["data"].is_array());
+        let response = app()
+            .send(TestRequest::get("/articles?include=author").build())
+            .await
+            .assert_status(StatusCode::OK);
+        assert!(response.data().is_array());
     });
 }
 
 #[test]
 fn unknown_include_path_is_rejected_with_400_naming_the_segment() {
     pollster::block_on(async {
-        let request = Request::builder()
-            .uri("/articles?include=bogus")
-            .body(Body::empty())
-            .unwrap();
-        let (status, json) = read_json(app().oneshot(request).await.unwrap()).await;
-        assert_eq!(status, StatusCode::BAD_REQUEST);
-        assert_eq!(json["errors"][0]["status"], "400");
+        let response = app()
+            .send(TestRequest::get("/articles?include=bogus").build())
+            .await
+            .assert_status(StatusCode::BAD_REQUEST)
+            .assert_error(400);
         assert!(
-            json["errors"][0]["detail"]
+            response.errors()[0]["detail"]
                 .as_str()
                 .unwrap()
                 .contains("bogus"),
