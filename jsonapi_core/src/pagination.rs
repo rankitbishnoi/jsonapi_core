@@ -10,11 +10,14 @@ pub const CURSOR_PAGINATION_PROFILE: &str =
 /// A typed view over the generic `page` map for the cursor-pagination profile.
 ///
 /// ```
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use jsonapi_core::{Query, CursorPage};
-/// let q = Query::from_query_string("?page[size]=20&page[after]=abc").unwrap();
-/// let cp = CursorPage::from_query(&q).unwrap();
+/// let q = Query::from_query_string("?page[size]=20&page[after]=abc")?;
+/// let cp = CursorPage::from_query(&q)?;
 /// assert_eq!(cp.size, Some(20));
 /// assert_eq!(cp.after.as_deref(), Some("abc"));
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CursorPage {

@@ -21,10 +21,13 @@ pub struct SortField {
 /// semantics to the server. Unknown top-level parameters are ignored.
 ///
 /// ```
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use jsonapi_core::Query;
-/// let q = Query::from_query_string("?sort=-created&page[size]=25").unwrap();
+/// let q = Query::from_query_string("?sort=-created&page[size]=25")?;
 /// assert!(q.sort[0].descending);
 /// assert_eq!(q.page.get("size").map(String::as_str), Some("25"));
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Query {
