@@ -26,7 +26,8 @@ pub mod response;
 
 pub use error::{
     ApiErrorExt, ApiErrors, api_error_for_status, error_response, error_response_for,
-    error_response_for_status, status_for, to_api_error, with_status,
+    error_response_for_status, stamp_error_ids, stamp_error_ids_in_bytes, status_for, to_api_error,
+    with_status,
 };
 pub use id::{ClientIdPolicy, check_client_id, check_id_matches, id_conflict};
 pub use layer::{AcceptLayer, ContentTypeLayer, GuardService, JsonApiLayer};

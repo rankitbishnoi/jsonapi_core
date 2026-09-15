@@ -14,6 +14,9 @@
 //!   extractors.
 //! - [`normalize`] — [`not_found`] fallback and [`NormalizeErrorsLayer`] to
 //!   JSON:API-shape framework-generated error responses.
+//! - [`request_id`] — [`RequestIdLayer`] + [`RequestId`] extractor for
+//!   correlation ids on error documents (`errors[].id`) and the `x-request-id`
+//!   response header.
 //!
 //! The framework-agnostic tower layers from [`jsonapi_http`] and the most-used
 //! [`jsonapi_core`] types are re-exported so handler code can import from
@@ -25,6 +28,7 @@ pub mod extract;
 pub mod normalize;
 pub mod pagination;
 pub mod relationship;
+pub mod request_id;
 pub mod response;
 #[cfg(feature = "validator")]
 #[cfg_attr(docsrs, doc(cfg(feature = "validator")))]
@@ -33,6 +37,7 @@ pub mod validation;
 pub use error::{IntoJsonApiError, JsonApiError, ResultExt};
 pub use extract::{BaseUrl, JsonApi, JsonApiQuery, JsonApiQueryValidated, NegotiatedMediaType};
 pub use normalize::{NormalizeErrorsLayer, NormalizeErrorsService, not_found};
+pub use request_id::{RequestId, RequestIdLayer, RequestIdService};
 pub use pagination::pagination_links;
 pub use relationship::{JsonApiToMany, JsonApiToOne, RelationshipResponse};
 pub use response::JsonApiResponse;

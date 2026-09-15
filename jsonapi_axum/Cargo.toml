@@ -41,6 +41,8 @@ anyhow = { version = "1", optional = true }
 # G12: only the `sqlx::Error` type is needed; default-features = false avoids
 # pulling in a runtime or driver.
 sqlx = { version = "0.8", optional = true, default-features = false }
+# G13: fallback correlation-id generation when no upstream id is present.
+uuid = { version = "1", optional = true, default-features = false, features = ["v4"] }
 
 [features]
 # Map `validator::ValidationErrors` into aggregated JSON:API 422 errors (G11).
@@ -52,6 +54,8 @@ sqlx = ["dep:sqlx"]
 # Include the raw error text in an `internal` 500's `detail`. Off by default so
 # internal messages never leak to clients; enable only for local debugging.
 debug-errors = []
+# Let `RequestIdLayer::generate` mint a UUID when no upstream request id exists (G13).
+uuid = ["dep:uuid"]
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
@@ -60,6 +64,9 @@ pollster = "0.4"
 # default-features=false axum for example/test builds; never affects consumers).
 axum = { version = "0.8", features = ["tokio", "http1"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
+# Example composes `RequestIdLayer` with tower-http's `SetRequestIdLayer` to mint
+# and propagate an `x-request-id` (the recommended pairing).
+tower-http = { version = "0.6", features = ["request-id"] }
 
 [lints]
 workspace = true

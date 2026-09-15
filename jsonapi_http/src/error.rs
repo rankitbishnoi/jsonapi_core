@@ -390,6 +390,62 @@ fn top_level_status(errors: &[ApiError]) -> StatusCode {
     }
 }
 
+/// Stamp a correlation `id` onto every member of a JSON:API `errors` array that
+/// does not already carry an `id`, in place.
+///
+/// This is the reusable half of request-id correlation (G13): an adapter buffers
+/// an error response body, runs this, and rebuilds it. It is deliberately
+/// conservative:
+///
+/// - only documents with an `errors` array are touched — a `data`/`meta`
+///   document is left exactly as it was;
+/// - an error member that already has an `id` (e.g. one a handler set) is never
+///   overwritten.
+///
+/// Returns `true` when at least one `id` was added (so a caller can skip
+/// re-serializing an unchanged document).
+pub fn stamp_error_ids(document: &mut serde_json::Value, id: &str) -> bool {
+    let Some(errors) = document.get_mut("errors").and_then(|e| e.as_array_mut()) else {
+        return false;
+    };
+
+    let mut changed = false;
+    for error in errors {
+        if let Some(object) = error.as_object_mut()
+            && !object.contains_key("id")
+        {
+            object.insert("id".to_string(), serde_json::Value::String(id.to_string()));
+            changed = true;
+        }
+    }
+    changed
+}
+
+/// Byte-oriented [`stamp_error_ids`]: parse `body` as JSON, stamp missing
+/// `errors[].id` with `id`, and re-serialize.
+///
+/// Returns the input **unchanged** (a borrowed [`Cow`](std::borrow::Cow)) when
+/// the body is not JSON, is not an `errors` document, or already carries an `id`
+/// on every member — so it is a safe no-op on non-error and non-JSON bodies.
+#[must_use]
+pub fn stamp_error_ids_in_bytes<'a>(body: &'a [u8], id: &str) -> std::borrow::Cow<'a, [u8]> {
+    use std::borrow::Cow;
+
+    let Ok(mut document) = serde_json::from_slice::<serde_json::Value>(body) else {
+        return Cow::Borrowed(body);
+    };
+    if stamp_error_ids(&mut document, id) {
+        match serde_json::to_vec(&document) {
+            Ok(bytes) => Cow::Owned(bytes),
+            // Re-serializing a value we just parsed should never fail; keep the
+            // original body rather than dropping the response if it somehow does.
+            Err(_) => Cow::Borrowed(body),
+        }
+    } else {
+        Cow::Borrowed(body)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -774,5 +830,51 @@ mod tests {
             json["errors"][2]["source"]["pointer"],
             "/data/attributes/author"
         );
+    }
+
+    #[test]
+    fn stamp_error_ids_fills_missing_ids_and_preserves_existing() {
+        let mut doc = serde_json::json!({
+            "errors": [
+                { "status": "422", "detail": "a" },
+                { "id": "kept", "status": "422", "detail": "b" }
+            ]
+        });
+        assert!(stamp_error_ids(&mut doc, "req-1"));
+        assert_eq!(doc["errors"][0]["id"], "req-1");
+        assert_eq!(doc["errors"][1]["id"], "kept");
+    }
+
+    #[test]
+    fn stamp_error_ids_ignores_a_data_document() {
+        let mut doc = serde_json::json!({ "data": { "type": "articles", "id": "1" } });
+        assert!(!stamp_error_ids(&mut doc, "req-1"));
+        assert!(doc.get("errors").is_none());
+        assert_eq!(doc["data"]["id"], "1");
+    }
+
+    #[test]
+    fn stamp_error_ids_in_bytes_stamps_error_documents() {
+        let body = br#"{"errors":[{"status":"404"}]}"#;
+        let out = stamp_error_ids_in_bytes(body, "req-9");
+        let json: Value = serde_json::from_slice(&out).unwrap();
+        assert_eq!(json["errors"][0]["id"], "req-9");
+    }
+
+    #[test]
+    fn stamp_error_ids_in_bytes_is_a_noop_on_non_json_and_data_bodies() {
+        // Non-JSON bytes are returned byte-for-byte, borrowed.
+        let plain = b"not json at all";
+        assert!(matches!(
+            stamp_error_ids_in_bytes(plain, "req-1"),
+            std::borrow::Cow::Borrowed(b) if b == plain
+        ));
+
+        // A data document parses but has no `errors` array → unchanged, borrowed.
+        let data = br#"{"data":{"type":"articles","id":"1"}}"#;
+        assert!(matches!(
+            stamp_error_ids_in_bytes(data, "req-1"),
+            std::borrow::Cow::Borrowed(_)
+        ));
     }
 }

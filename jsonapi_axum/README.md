@@ -166,6 +166,34 @@ errors.push(with_status(422).pointer("/data/attributes/body").detail("required")
 let response: JsonApiError = errors.into(); // one 422 document, two members
 ```
 
+### Correlation / request ids
+
+`RequestIdLayer` makes every error response traceable: it resolves a correlation id, echoes it
+as an `x-request-id` response header, and stamps it onto each `errors[].id` of a JSON:API error
+document (never overwriting an id a handler already set). Only error responses (`>= 400`) are
+buffered; success responses pass through untouched.
+
+Don't reinvent id generation — compose with `tower-http`'s `SetRequestIdLayer` (which mints /
+propagates `x-request-id`). Install `RequestIdLayer` **outermost** relative to
+`NormalizeErrorsLayer` so it also stamps documents the normalize layer synthesizes (e.g. a
+404):
+
+```rust,ignore
+use jsonapi_axum::{JsonApiLayer, NormalizeErrorsLayer, RequestIdLayer};
+use tower_http::request_id::{MakeRequestUuid, SetRequestIdLayer};
+
+let app = router
+    .layer(JsonApiLayer::new())
+    .layer(NormalizeErrorsLayer::new())
+    .layer(RequestIdLayer::new())                                   // reads x-request-id, stamps
+    .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid));       // mints x-request-id (outermost)
+```
+
+The id is resolved from (1) the configured header (default `x-request-id`), (2) a `RequestId`
+request extension, then (3) a generated UUID — the last **only** with the `uuid` feature and
+`RequestIdLayer::new().generate()`. With no source and generation off, the layer is a no-op.
+A handler can read the resolved id with the `RequestId` extractor.
+
 ### Optional integrations (off by default)
 
 | Feature | Effect |
@@ -174,9 +202,10 @@ let response: JsonApiError = errors.into(); // one 422 document, two members
 | `anyhow` | `From<anyhow::Error> for JsonApiError` = `500`. |
 | `sqlx` | `From<sqlx::Error> for JsonApiError`: `RowNotFound` -> `404`, else `500`. |
 | `debug-errors` | Include the raw `detail` in an `internal` `500` (for local debugging only). |
+| `uuid` | Enable `RequestIdLayer::generate()` to mint a UUID when no upstream request id is present. |
 
 ```toml
-jsonapi_axum = { version = "0.2", features = ["validator", "anyhow", "sqlx"] }
+jsonapi_axum = { version = "0.2", features = ["validator", "anyhow", "sqlx", "uuid"] }
 ```
 
 ## Scope

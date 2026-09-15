@@ -49,9 +49,11 @@ use http::{StatusCode, Uri};
 use jsonapi_axum::{
     ApiErrorExt, BaseUrl, ClientIdPolicy, DocumentBuilder, Field, IntoJsonApiError, JsonApi,
     JsonApiError, JsonApiLayer, JsonApiQuery, JsonApiResponse, JsonApiToMany, NegotiatedMediaType,
-    NormalizeErrorsLayer, RelationshipResponse, ResultExt, pagination_links, with_status,
+    NormalizeErrorsLayer, RelationshipResponse, RequestIdLayer, ResultExt, pagination_links,
+    with_status,
 };
 use jsonapi_core::{Link, PageNumberPage, PageStrategy, RelationshipData, ResourceIdentifier, links};
+use tower_http::request_id::{MakeRequestUuid, SetRequestIdLayer};
 
 /// The domain resource, as returned in responses — `id` is always present.
 /// `summary` is nullable, to show a PATCH clearing it.
@@ -388,6 +390,13 @@ fn app() -> Router {
         // is re-shaped into a JSON:API error document, so nothing leaks as
         // text/plain. Already-JSON:API responses pass through unchanged.
         .layer(NormalizeErrorsLayer::new())
+        // Correlation: stamp the request id onto every error document's
+        // `errors[].id` and echo it as `x-request-id`. Outermost of the two so it
+        // also stamps documents the normalize layer synthesizes (e.g. a 404).
+        .layer(RequestIdLayer::new())
+        // Mint/propagate the `x-request-id` the layer above reads. Outermost of
+        // all, so the header is present on the request before anything runs.
+        .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
         .with_state(AppState::default())
 }
 
