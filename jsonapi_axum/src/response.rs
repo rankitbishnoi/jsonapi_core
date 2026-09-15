@@ -7,7 +7,9 @@ use http::{HeaderValue, StatusCode, header};
 use serde::Serialize;
 
 use jsonapi_core::{Document, FieldsetConfig, JsonApiMediaType, Resource, ResourceObject};
-use jsonapi_http::{content_type_value, json_api_response, json_api_response_filtered};
+use jsonapi_http::{content_type_value, try_json_api_response, try_json_api_response_filtered};
+
+use crate::error::JsonApiError;
 
 /// A JSON:API success response wrapping a [`Document`].
 ///
@@ -94,11 +96,19 @@ where
         // Only take the filtering path for a non-empty config: an empty config is
         // a semantic no-op, and skipping it avoids a serialize→Value→serialize
         // round trip (which would also reorder JSON keys).
-        let response = match &self.fields {
+        let result = match &self.fields {
             Some(fields) if !fields.is_empty() => {
-                json_api_response_filtered(self.status, content_type, &self.document, fields)
+                try_json_api_response_filtered(self.status, content_type, &self.document, fields)
             }
-            _ => json_api_response(self.status, content_type, &self.document),
+            _ => try_json_api_response(self.status, content_type, &self.document),
+        };
+        // A payload that cannot be serialized to JSON — e.g. an attribute with
+        // non-string map keys, or a failing custom `Serialize` — must not panic
+        // at the `IntoResponse` boundary. Degrade to a JSON:API 500; the raw
+        // error is scrubbed from the body unless `debug-errors` is enabled.
+        let response = match result {
+            Ok(response) => response,
+            Err(err) => return JsonApiError::internal(err.to_string()).into_response(),
         };
         let mut response = response.map(Body::from);
         // A self link is server-controlled and path-percent-encoded, so it is a
@@ -128,7 +138,7 @@ mod tests {
         serde_json::from_str(r#"{"data":{"type":"articles","id":"1"}}"#).unwrap()
     }
 
-    /// Read status + JSON body, proving the `map(Body::from)` hop preserves bytes.
+    /// Read the status and JSON body from a response.
     fn read(response: Response) -> (StatusCode, Value) {
         let status = response.status();
         let bytes =
@@ -238,8 +248,11 @@ mod tests {
     #[test]
     fn fields_trims_primary_attributes_keeping_type_and_id() {
         let config = FieldsetConfig::new().fields("articles", &["title"]);
-        let (status, json) =
-            read(JsonApiResponse::new(compound_document()).fields(config).into_response());
+        let (status, json) = read(
+            JsonApiResponse::new(compound_document())
+                .fields(config)
+                .into_response(),
+        );
 
         assert_eq!(status, StatusCode::OK);
         assert_eq!(json["data"]["type"], "articles");
@@ -257,8 +270,11 @@ mod tests {
         let config = FieldsetConfig::new()
             .fields("articles", &["title"])
             .fields("people", &["name"]);
-        let (_status, json) =
-            read(JsonApiResponse::new(compound_document()).fields(config).into_response());
+        let (_status, json) = read(
+            JsonApiResponse::new(compound_document())
+                .fields(config)
+                .into_response(),
+        );
 
         assert_eq!(json["data"]["attributes"]["title"], "Hi");
         assert!(json["data"]["attributes"].get("body").is_none());
@@ -284,15 +300,17 @@ mod tests {
         assert_eq!(baseline, empty);
         // And it must still carry every attribute (nothing trimmed).
         assert_eq!(empty["data"]["attributes"]["body"], "World");
-        assert_eq!(empty["included"][0]["attributes"]["email"], "dan@example.com");
+        assert_eq!(
+            empty["included"][0]["attributes"]["email"],
+            "dan@example.com"
+        );
     }
 
     #[test]
     fn media_type_adds_profile_parameter() {
-        let media = JsonApiMediaType::parse(
-            "application/vnd.api+json; profile=\"https://example.com/p\"",
-        )
-        .unwrap();
+        let media =
+            JsonApiMediaType::parse("application/vnd.api+json; profile=\"https://example.com/p\"")
+                .unwrap();
         let response = JsonApiResponse::new(sample_document())
             .media_type(media)
             .into_response();
