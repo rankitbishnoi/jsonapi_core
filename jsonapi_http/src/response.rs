@@ -35,11 +35,36 @@ pub fn content_type_value(media_type: &JsonApiMediaType) -> HeaderValue {
         .expect("a negotiated JSON:API media type is always a valid header value")
 }
 
+/// Wrap an already-encoded body in a [`Response`]. The `status` is a
+/// [`StatusCode`] and `content_type` an already-built [`HeaderValue`], so
+/// building the response genuinely cannot fail.
+fn response_from_body(
+    status: StatusCode,
+    content_type: HeaderValue,
+    body: Vec<u8>,
+) -> Response<Bytes> {
+    Response::builder()
+        .status(status)
+        .header(header::CONTENT_TYPE, content_type)
+        .body(Bytes::from(body))
+        .expect("status and content-type are valid")
+}
+
+/// The panic message shared by the infallible serialization wrappers. Each keeps
+/// a `# Panics` section pointing at its `try_*` counterpart.
+const SERIALIZE_PANIC: &str = "serializing a JSON:API document cannot fail for standard resources; use the `try_*` variant to handle a failing custom `Serialize`";
+
 /// Serialize a [`Document`] into a JSON:API success [`Response`] with status
 /// `200 OK` and a `Content-Type` reflecting `media_type`.
 ///
 /// For any other status (`201 Created`, `204 No Content`, …) use
 /// [`json_api_response`] directly.
+///
+/// # Panics
+/// Panics if `document` cannot be serialized to JSON. This is impossible for
+/// resources built from `#[derive(JsonApi)]` on standard field types, but is
+/// reachable if an attribute type has a custom `Serialize` that errors or uses
+/// non-string map keys. Use [`try_document_response`] to handle that case.
 #[must_use]
 pub fn document_response<P, I>(
     document: &Document<P, I>,
@@ -49,15 +74,35 @@ where
     P: ResourceObject,
     I: Serialize,
 {
-    json_api_response(StatusCode::OK, content_type_value(media_type), document)
+    try_document_response(document, media_type).expect(SERIALIZE_PANIC)
+}
+
+/// Fallible counterpart to [`document_response`]: returns the serialization
+/// error instead of panicking.
+///
+/// # Errors
+/// Returns the [`serde_json::Error`] if `document` cannot be serialized to JSON
+/// (e.g. an attribute with non-string map keys, or a custom `Serialize` that
+/// fails).
+pub fn try_document_response<P, I>(
+    document: &Document<P, I>,
+    media_type: &JsonApiMediaType,
+) -> Result<Response<Bytes>, serde_json::Error>
+where
+    P: ResourceObject,
+    I: Serialize,
+{
+    try_json_api_response(StatusCode::OK, content_type_value(media_type), document)
 }
 
 /// The shared serialization primitive: encode `document` as JSON and wrap it in
 /// a [`Response`] with the given `status` and `Content-Type`.
 ///
-/// Serialization of a JSON:API document cannot fail (all map keys are strings),
-/// so a failure here is a library bug and panics rather than silently returning
-/// a broken body.
+/// # Panics
+/// Panics if `document` cannot be serialized to JSON — impossible for standard
+/// `#[derive(JsonApi)]` resources, but reachable for an attribute type with a
+/// custom `Serialize` that errors or non-string map keys. Use
+/// [`try_json_api_response`] to handle that case.
 #[must_use]
 pub fn json_api_response<P, I>(
     status: StatusCode,
@@ -68,13 +113,26 @@ where
     P: ResourceObject,
     I: Serialize,
 {
-    let body = serde_json::to_vec(document).expect("serializing a JSON:API document cannot fail");
+    try_json_api_response(status, content_type, document).expect(SERIALIZE_PANIC)
+}
 
-    Response::builder()
-        .status(status)
-        .header(header::CONTENT_TYPE, content_type)
-        .body(Bytes::from(body))
-        .expect("status and content-type are valid")
+/// Fallible counterpart to [`json_api_response`]: encode `document` as JSON and
+/// wrap it in a [`Response`], returning the serialization error instead of
+/// panicking.
+///
+/// # Errors
+/// Returns the [`serde_json::Error`] if `document` cannot be serialized to JSON.
+pub fn try_json_api_response<P, I>(
+    status: StatusCode,
+    content_type: HeaderValue,
+    document: &Document<P, I>,
+) -> Result<Response<Bytes>, serde_json::Error>
+where
+    P: ResourceObject,
+    I: Serialize,
+{
+    let body = serde_json::to_vec(document)?;
+    Ok(response_from_body(status, content_type, body))
 }
 
 /// Like [`json_api_response`], but applies a sparse-fieldset `fields` filter to
@@ -86,8 +144,12 @@ where
 /// This serializes the document to an intermediate [`serde_json::Value`], filters
 /// it, then re-serializes — so callers with an empty [`FieldsetConfig`] should
 /// prefer [`json_api_response`] to skip the round trip (and preserve the
-/// document's own key ordering). Serialization cannot fail for the same reason as
-/// [`json_api_response`].
+/// document's own key ordering).
+///
+/// # Panics
+/// Panics if `document` cannot be serialized to JSON, for the same reason as
+/// [`json_api_response`]. Use [`try_json_api_response_filtered`] to handle that
+/// case.
 #[must_use]
 pub fn json_api_response_filtered<P, I>(
     status: StatusCode,
@@ -99,17 +161,28 @@ where
     P: ResourceObject,
     I: Serialize,
 {
-    let value = serde_json::to_value(document)
-        .expect("serializing a JSON:API document to a Value cannot fail");
-    let filtered = sparse_filter(&value, fields);
-    let body =
-        serde_json::to_vec(&filtered).expect("serializing a filtered JSON:API document cannot fail");
+    try_json_api_response_filtered(status, content_type, document, fields).expect(SERIALIZE_PANIC)
+}
 
-    Response::builder()
-        .status(status)
-        .header(header::CONTENT_TYPE, content_type)
-        .body(Bytes::from(body))
-        .expect("status and content-type are valid")
+/// Fallible counterpart to [`json_api_response_filtered`]: returns the
+/// serialization error instead of panicking.
+///
+/// # Errors
+/// Returns the [`serde_json::Error`] if `document` cannot be serialized to JSON.
+pub fn try_json_api_response_filtered<P, I>(
+    status: StatusCode,
+    content_type: HeaderValue,
+    document: &Document<P, I>,
+    fields: &FieldsetConfig,
+) -> Result<Response<Bytes>, serde_json::Error>
+where
+    P: ResourceObject,
+    I: Serialize,
+{
+    let value = serde_json::to_value(document)?;
+    let filtered = sparse_filter(&value, fields);
+    let body = serde_json::to_vec(&filtered)?;
+    Ok(response_from_body(status, content_type, body))
 }
 
 #[cfg(test)]
@@ -136,10 +209,9 @@ mod tests {
 
     #[test]
     fn content_type_value_with_profile() {
-        let mt = JsonApiMediaType::parse(
-            "application/vnd.api+json; profile=\"https://example.com/p\"",
-        )
-        .unwrap();
+        let mt =
+            JsonApiMediaType::parse("application/vnd.api+json; profile=\"https://example.com/p\"")
+                .unwrap();
         let ct = content_type_value(&mt);
         assert_eq!(
             ct.to_str().unwrap(),
@@ -203,5 +275,27 @@ mod tests {
         );
 
         assert_eq!(response.status(), StatusCode::CREATED);
+    }
+
+    #[test]
+    fn try_json_api_response_returns_ok_with_serialized_body() {
+        // The fallible primitive succeeds for a serializable document and wires
+        // the status, content-type, and body identically to the infallible one.
+        // (The Err path — a document that cannot be serialized — is proven
+        // end-to-end at the axum `IntoResponse` boundary, where it degrades to a
+        // JSON:API 500 instead of panicking.)
+        let document: Document<Resource> =
+            serde_json::from_str(r#"{"data":{"type":"articles","id":"1"}}"#).unwrap();
+
+        let response = try_json_api_response(
+            StatusCode::OK,
+            content_type_value(&JsonApiMediaType::plain()),
+            &document,
+        )
+        .expect("a serializable document must produce Ok");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body: Value = serde_json::from_slice(response.body()).unwrap();
+        assert_eq!(body["data"]["id"], "1");
     }
 }

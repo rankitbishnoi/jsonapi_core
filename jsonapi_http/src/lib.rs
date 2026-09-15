@@ -36,6 +36,7 @@ pub use layer::{AcceptLayer, ContentTypeLayer, GuardService, JsonApiLayer};
 pub use request::{check_content_type, deserialize_body, negotiate, parse_query};
 pub use response::{
     content_type_value, document_response, json_api_response, json_api_response_filtered,
+    try_document_response, try_json_api_response, try_json_api_response_filtered,
 };
 
 /// The JSON:API media type: `application/vnd.api+json`.
