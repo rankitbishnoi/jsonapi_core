@@ -106,3 +106,19 @@ jobs:
         run: cargo install cargo-deny --locked
       - name: Check licenses, bans, and sources
         run: cargo deny --all-features check bans licenses sources
+
+  feature-powerset:
+    name: feature-powerset
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - name: Install cargo-hack
+        run: cargo install cargo-hack --locked
+      # Compile every feature and pairwise combination in isolation to catch
+      # non-additive features and missing `#[cfg(feature = "...")]` / `dep:`
+      # gates. `--no-dev-deps` isolates library builds from dev-dependency
+      # feature unification; behavioral tests run in the `test` job.
+      - name: Check feature powerset (depth 2)
+        run: cargo hack --workspace --feature-powerset --depth 2 --no-dev-deps check
