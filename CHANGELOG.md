@@ -1,20 +1,59 @@
 # Changelog
 
-All notable changes to `jsonapi_core` and `jsonapi_core_derive` will be
-documented in this file.
+All notable changes to the workspace crates (`jsonapi_core`,
+`jsonapi_core_derive`, `jsonapi_core_validation`, `jsonapi_http`, and
+`jsonapi_axum`) are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 within the bounds described in the [versioning policy](./README.md#versioning-policy).
 
-The three crates in this workspace (`jsonapi_core`, `jsonapi_core_derive`,
-`jsonapi_core_validation`) are versioned in lockstep via
-`workspace.package.version`. Versions in this file refer to that shared
+All five publishable crates in this workspace (`jsonapi_core`,
+`jsonapi_core_derive`, `jsonapi_core_validation`, `jsonapi_http`, and
+`jsonapi_axum`) are versioned in lockstep via `workspace.package.version` and
+released together under one tag. Versions in this file refer to that shared
 workspace version.
 
 ## [Unreleased]
 
 ### Added
+
+- **New crate `jsonapi_axum`** — a first-class [axum](https://docs.rs/axum)
+  adapter, now published. You can build a JSON:API service with typed extractors
+  (`JsonApi<T>` request bodies, `JsonApiQuery` / `JsonApiQueryValidated`,
+  `NegotiatedMediaType`, `BaseUrl`), responders (`JsonApiResponse` with
+  `201`/`Location`/sparse-fieldset support, `RelationshipResponse`),
+  relationship-endpoint extractors (`JsonApiToOne` / `JsonApiToMany`), and a
+  complete CRUD surface including PATCH partial updates. Errors funnel through
+  `JsonApiError` with `IntoJsonApiError` + `ResultExt::or_json_api` for clean `?`
+  in handlers, with optional `validator` (`from_validation_errors`), `anyhow`,
+  and `sqlx` conversions. Tower layers cover content negotiation (`JsonApiLayer`),
+  error-body normalization (`NormalizeErrorsLayer`, `not_found`), and
+  request-id / error-id correlation (`RequestIdLayer`). Self-links and the
+  `Location` header build from `BaseUrl`; `pagination_links` assembles
+  first/prev/next/last. In-process test helpers ship behind the `testing`
+  feature. Feature flags: `validator`, `anyhow`, `sqlx`, `uuid`, `debug-errors`,
+  `testing`.
+- **New crate `jsonapi_http`** — the framework-agnostic HTTP layer the adapters
+  build on, now published. Provides request parsing (`check_content_type`,
+  `deserialize_body`, `negotiate`, `parse_query`), response building
+  (`json_api_response` / `document_response` and the fallible `try_*` variants),
+  error-document mapping (`status_for`, `to_api_error`, `error_response*`, and the
+  `with_status` / `ApiErrorExt` / `ApiErrors` builders), content-negotiation tower
+  layers (`ContentTypeLayer`, `AcceptLayer`, `JsonApiLayer`), client-id policy
+  (`ClientIdPolicy`, `check_client_id`, `check_id_matches`, `id_conflict`),
+  compound-document include resolution (`IncludeResolver`, `resolve_includes`),
+  and request-id error-id stamping. Depend on it directly to write an adapter for
+  another framework.
+- **New crate `jsonapi_core_validation`** — shared member-name validation used by
+  both `jsonapi_core` (runtime) and `jsonapi_core_derive` (compile time) so the
+  two can no longer drift. An implementation detail published as a dependency;
+  not intended for direct use.
+- You can now build JSON:API responses fallibly: `jsonapi_http::try_json_api_response`,
+  `try_json_api_response_filtered`, and `try_document_response` return a
+  `Result` instead of panicking when a payload cannot be serialized to JSON
+  (e.g. an attribute with non-string map keys). The infallible builders remain,
+  now with documented `# Panics` sections pointing at these variants.
 
 - Dynamic `Resource` round-trips are now lossless for relationships:
   relationship-level `links` and `meta` are preserved (previously dropped), and
@@ -58,6 +97,13 @@ workspace version.
 
 ### Changed
 
+- `jsonapi_http` and `jsonapi_axum` now share the workspace version and are
+  released in lockstep with the other crates (both realign from `0.2.0` to the
+  current workspace version).
+- The `jsonapi_axum` responder (`JsonApiResponse`) now returns a JSON:API `500`
+  error document instead of panicking when a response payload cannot be
+  serialized to JSON. The raw serializer message is only included when the
+  `debug-errors` feature is enabled.
 - Member-name validation is now shared between `jsonapi_core` and
   `jsonapi_core_derive` through a new internal `jsonapi_core_validation` crate,
   so compile-time (derive) and runtime validation can no longer drift. This is
@@ -91,9 +137,19 @@ workspace version.
   `Links::from(map)` instead of `links.0`.
 - **Breaking:** `JsonApiMediaType` is now `#[non_exhaustive]`. Construct it via
   `validate_content_type` / `negotiate_accept` rather than a struct literal.
+- **Breaking:** `JsonApiObject` and `ResolveConfig` are now `#[non_exhaustive]`.
+  Build them via `Default` / the provided setters rather than a struct literal,
+  and add a wildcard arm when exhaustively matching.
 - **Breaking:** `Error::RelationshipCardinalityMismatch`'s `expected` field is
   now a typed `Cardinality` enum instead of `&'static str`. Match on
   `Cardinality::ToOne` / `Cardinality::ToMany` instead of the string literals.
+
+### Performance
+
+- Fewer allocations on the serde hot paths: the `Document` deserializer now
+  consumes the attributes map instead of cloning each field, and the parse
+  pre-pass, registry resolution, and media-type parsing were reworked to avoid
+  intermediate allocations. No behavioral change.
 
 ## [0.3.0] — 2026-09-13
 

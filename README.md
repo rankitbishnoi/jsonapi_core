@@ -148,10 +148,12 @@ Or browse the markdown directly starting at [`docs/introduction.md`](https://git
 
 ### Lockstep workspace versions
 
-The `jsonapi_core` and `jsonapi_core_derive` crates are versioned in lockstep
-via `workspace.package.version`. They are always released together. Pin only
-`jsonapi_core` in your `Cargo.toml`; the derive crate is re-exported via the
-`derive` feature.
+All five publishable crates — `jsonapi_core`, `jsonapi_core_derive`,
+`jsonapi_core_validation`, `jsonapi_http`, and `jsonapi_axum` — are versioned in
+lockstep via `workspace.package.version` and released together under one tag.
+Pin only the crates you depend on directly (e.g. `jsonapi_core` for the type
+model, `jsonapi_axum` for an axum service); `jsonapi_core_derive` is re-exported
+via the `derive` feature and `jsonapi_core_validation` is an internal detail.
 
 ### What is public API
 
