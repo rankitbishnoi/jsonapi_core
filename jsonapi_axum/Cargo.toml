@@ -1,0 +1,45 @@
+[package]
+name = "jsonapi_axum"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "axum adapter for jsonapi_core: JSON:API extractors, responders, and tower layers built on jsonapi_http"
+documentation = "https://docs.rs/jsonapi_axum"
+keywords = ["jsonapi", "json-api", "axum", "web", "rest"]
+categories = ["web-programming"]
+readme = "README.md"
+
+# Thin binding: nearly all logic lives in jsonapi_http. axum uses
+# default-features = false — only the extractor/responder traits are needed here;
+# the server runtime (tokio/http1) is a dev-dependency concern for the example.
+[dependencies]
+jsonapi_core = { path = "../jsonapi_core", version = "0.4.0" }
+jsonapi_http = { path = "../jsonapi_http", version = "0.1.0" }
+axum = { version = "0.8", default-features = false }
+http = "1"
+bytes = "1"
+serde = "1"
+# The NormalizeErrorsLayer is a tower layer that unifies response bodies exactly
+# like jsonapi_http's guard layers; default-features = false keeps only the
+# Service/Layer traits (util is a test-only concern).
+tower = { version = "0.5", default-features = false }
+http-body = "1"
+http-body-util = "0.1"
+
+[dev-dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tower = { version = "0.5", features = ["util"] }
+pollster = "0.4"
+# Server runtime for the CRUD example only (feature-unified onto the lib's
+# default-features=false axum for example/test builds; never affects consumers).
+axum = { version = "0.8", features = ["tokio", "http1"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--cfg", "docsrs"]

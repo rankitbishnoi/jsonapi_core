@@ -41,6 +41,14 @@ impl FieldsetConfig {
         self.fields.contains_key(type_name)
     }
 
+    /// Returns `true` when no per-type fieldsets are configured, i.e. every
+    /// resource passes through unfiltered. Lets callers skip filtering entirely
+    /// (and any serialize→`Value`→serialize round trip) when there is nothing to
+    /// filter.
+    pub fn is_empty(&self) -> bool {
+        self.fields.is_empty()
+    }
+
     /// Returns true if: type has no fieldset entry, OR the field is in the type's fieldset list.
     pub fn is_included(&self, type_name: &str, field_name: &str) -> bool {
         match self.fields.get(type_name) {
@@ -184,6 +192,12 @@ mod tests {
     fn test_fieldset_config_new() {
         let config = FieldsetConfig::new();
         assert!(!config.has_type("articles"));
+    }
+
+    #[test]
+    fn test_fieldset_config_is_empty() {
+        assert!(FieldsetConfig::new().is_empty());
+        assert!(!FieldsetConfig::new().fields("articles", &["title"]).is_empty());
     }
 
     #[test]

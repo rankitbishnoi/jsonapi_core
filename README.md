@@ -79,6 +79,17 @@ let author: Person = registry.get_by_id("people", "9").unwrap();
 assert_eq!(author.name, "Dan Gebhardt");
 ```
 
+## Building an HTTP server
+
+`jsonapi_core` is transport-agnostic. Two companion crates turn it into a server stack:
+
+- **[`jsonapi_axum`](https://docs.rs/jsonapi_axum)** — [axum](https://docs.rs/axum)
+  extractors (`JsonApi<T>`, `JsonApiQuery`), responders (`JsonApiResponse`), and
+  content-negotiation middleware (`JsonApiLayer`). Start here for an axum service.
+- **[`jsonapi_http`](https://docs.rs/jsonapi_http)** — the framework-agnostic layer the
+  adapters are built on (request parsing, response building, tower layers). Depend on it
+  directly to write an adapter for another framework.
+
 ## Feature Flags
 
 | Feature | Default | Description |
@@ -126,6 +137,8 @@ Or browse the markdown directly starting at [`docs/introduction.md`](https://git
 |------|----------|
 | `jsonapi_core/` | The library crate. |
 | `jsonapi_core_derive/` | The proc-macro crate (re-exported via the `derive` feature). |
+| `jsonapi_http/` | Framework-agnostic HTTP integration (request parsing, response building, tower layers). |
+| `jsonapi_axum/` | [axum](https://docs.rs/axum) adapter: JSON:API extractors, responders, and middleware. |
 | `acceptance/` | Spec-conformance integration tests. |
 | `docs/` | The guide book (this is what you're reading). |
 

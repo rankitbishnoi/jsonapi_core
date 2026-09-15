@@ -42,6 +42,9 @@ The `type_info()` impl returns a `TypeInfo` populated with:
   declaration order.
 - `relationships` — `(field_name, target_type)` pairs for every relationship
   field that has `type = "..."` set.
+- `required_attribute_names` — wire names of attribute fields declared as
+  required (non-`Option`, non-`Vec`), which drive the `MissingAttribute` check
+  in `Document::parse` (see [Error Handling](./error-handling.md)).
 
 ## Output casing rules
 

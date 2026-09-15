@@ -61,8 +61,11 @@ if let Document::Data { included, .. } = &doc {
 
 ## Look up a typed value by relationship
 
+Continuing from the round-trip recipe above (reusing its `article` and a `doc`
+whose `included` array carries the author):
+
 ```rust
-let registry = doc.registry()?;
+let registry = doc.registry()?;              // index the document's `included`
 let author: Person = registry.get(&article.author)?;
 ```
 

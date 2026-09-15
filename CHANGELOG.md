@@ -14,15 +14,6 @@ workspace version.
 
 ## [Unreleased]
 
-### Changed
-
-- Member-name validation is now shared between `jsonapi_core` and
-  `jsonapi_core_derive` through a new internal `jsonapi_core_validation` crate,
-  so compile-time (derive) and runtime validation can no longer drift. This is
-  an internal restructure with no behavior change for consumers.
-
-## [0.4.0] — 2026-09-14
-
 ### Added
 
 - Dynamic `Resource` round-trips are now lossless for relationships:
@@ -67,6 +58,10 @@ workspace version.
 
 ### Changed
 
+- Member-name validation is now shared between `jsonapi_core` and
+  `jsonapi_core_derive` through a new internal `jsonapi_core_validation` crate,
+  so compile-time (derive) and runtime validation can no longer drift. This is
+  an internal restructure with no behavior change for consumers.
 - **Breaking:** `ResourceObject::type_info()` is now a required trait method. It
   previously had a default body that panicked at runtime; a missing
   implementation is now a compile error. Code using `#[derive(JsonApi)]` is

@@ -13,5 +13,14 @@ jsonapi_core_derive = { path = "../jsonapi_core_derive" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
+# Adapter-stack acceptance tests (axum_*.rs) drive a router via oneshot from a
+# downstream consumer's seat. Dev-only, and the crate is publish = false, so axum
+# never ships anywhere.
+[dev-dependencies]
+jsonapi_axum = { path = "../jsonapi_axum" }
+axum = { version = "0.8", default-features = false }
+tower = { version = "0.5", features = ["util"] }
+pollster = "0.4"
+
 [lints]
 workspace = true
