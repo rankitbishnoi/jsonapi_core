@@ -26,6 +26,14 @@
 - [Member Name Validation](./member-name-validation.md)
 - [Error Handling](./error-handling.md)
 
+# Building HTTP Servers
+
+- [Overview](./http-servers.md)
+- [Extractors and Responders](./axum-extractors-responders.md)
+- [Error Handling in axum](./axum-error-handling.md)
+- [Compound Documents and Pagination](./axum-includes-pagination.md)
+- [Testing axum Handlers](./axum-testing.md)
+
 # Extensions
 
 - [Atomic Operations](./atomic-operations.md)
