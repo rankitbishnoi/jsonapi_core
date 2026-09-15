@@ -42,6 +42,16 @@ use syn::{DeriveInput, parse_macro_input};
 ///
 /// Unannotated fields are serialized as attributes.
 ///
+/// # PATCH partial updates (`Field<T>`)
+///
+/// For JSON:API `PATCH`, declare an attribute or relationship as
+/// `jsonapi_core::Field<T>` to capture member presence: an absent wire
+/// key deserializes to `Field::Absent` (leave unchanged), an explicit `null` to
+/// `Field::Null` (clear), and a value to `Field::Set(v)`. A `Field<T>` attribute
+/// is never treated as required, so a PATCH body may omit it without triggering
+/// a `MissingAttribute` (422). Serialization mirrors this: `Absent` omits the
+/// key, `Null` emits `null`, `Set` emits the value.
+///
 /// # Fuzzy Deserialization
 ///
 /// The generated `Deserialize` impl accepts all common case variants of each field

@@ -23,16 +23,24 @@
 pub mod error;
 pub mod extract;
 pub mod normalize;
+pub mod pagination;
+pub mod relationship;
 pub mod response;
 
 pub use error::JsonApiError;
-pub use extract::{JsonApi, JsonApiQuery, JsonApiQueryValidated};
+pub use extract::{BaseUrl, JsonApi, JsonApiQuery, JsonApiQueryValidated, NegotiatedMediaType};
 pub use normalize::{NormalizeErrorsLayer, NormalizeErrorsService, not_found};
+pub use pagination::pagination_links;
+pub use relationship::{JsonApiToMany, JsonApiToOne, RelationshipResponse};
 pub use response::JsonApiResponse;
 
 // Re-export the framework-agnostic tower layers so axum users get them from one
 // place.
 pub use jsonapi_http::{AcceptLayer, ContentTypeLayer, JsonApiLayer};
+
+/// Re-export the client-id policy so handlers can configure
+/// [`JsonApi::check_client_id`](crate::JsonApi::check_client_id) from one place.
+pub use jsonapi_http::ClientIdPolicy;
 
 /// Re-exports of the [`jsonapi_core`] types most commonly needed to build
 /// handlers, so handler bodies can import from `jsonapi_axum` alone.
@@ -42,7 +50,7 @@ pub use jsonapi_http::{AcceptLayer, ContentTypeLayer, JsonApiLayer};
 /// `::jsonapi_core::…` paths, so the crate must be nameable in the consumer's
 /// crate. Only the runtime types are re-exported here.
 pub use jsonapi_core::{
-    ApiError, CURSOR_PAGINATION_PROFILE, CursorLinks, CursorPage, Document, DocumentBuilder,
+    ApiError, CURSOR_PAGINATION_PROFILE, CursorLinks, CursorPage, Document, DocumentBuilder, Field,
     JsonApiMediaType, Query, Relationship, Resource, SortField, TypeRegistry,
 };
 

@@ -20,17 +20,20 @@ jsonapi_http = { path = "../jsonapi_http", version = "0.1.0" }
 axum = { version = "0.8", default-features = false }
 http = "1"
 bytes = "1"
-serde = "1"
+# `derive` powers the relationship-document responder's serialization repr (G6).
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 # The NormalizeErrorsLayer is a tower layer that unifies response bodies exactly
 # like jsonapi_http's guard layers; default-features = false keeps only the
 # Service/Layer traits (util is a test-only concern).
 tower = { version = "0.5", default-features = false }
 http-body = "1"
 http-body-util = "0.1"
+# Decoding the request query string to preserve sort/filter/fields/include in
+# pagination links (G7).
+percent-encoding = "2"
 
 [dev-dependencies]
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
 tower = { version = "0.5", features = ["util"] }
 pollster = "0.4"
 # Server runtime for the CRUD example only (feature-unified onto the lib's

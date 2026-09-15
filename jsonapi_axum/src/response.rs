@@ -3,7 +3,7 @@
 
 use axum::body::Body;
 use axum::response::{IntoResponse, Response};
-use http::StatusCode;
+use http::{HeaderValue, StatusCode, header};
 use serde::Serialize;
 
 use jsonapi_core::{Document, FieldsetConfig, JsonApiMediaType, Resource, ResourceObject};
@@ -22,6 +22,7 @@ pub struct JsonApiResponse<P, I = Resource> {
     status: StatusCode,
     media_type: JsonApiMediaType,
     fields: Option<FieldsetConfig>,
+    location: Option<String>,
 }
 
 impl<P, I> JsonApiResponse<P, I> {
@@ -33,6 +34,7 @@ impl<P, I> JsonApiResponse<P, I> {
             status: StatusCode::OK,
             media_type: JsonApiMediaType::plain(),
             fields: None,
+            location: None,
         }
     }
 
@@ -62,6 +64,24 @@ impl<P, I> JsonApiResponse<P, I> {
         self.fields = Some(fields);
         self
     }
+
+    /// Set the `Location` response header (e.g. a newly created resource's self
+    /// link). Pair with [`status`](Self::status), or use [`created`](Self::created)
+    /// to set both `201` and `Location` at once.
+    #[must_use]
+    pub fn location(mut self, location: impl Into<String>) -> Self {
+        self.location = Some(location.into());
+        self
+    }
+
+    /// Shape a `201 Created` response: sets status `201` and the `Location`
+    /// header to `self_link` (typically
+    /// [`links::resource_self`](jsonapi_core::links::resource_self) built from a
+    /// [`BaseUrl`](crate::BaseUrl)).
+    #[must_use]
+    pub fn created(self, self_link: impl Into<String>) -> Self {
+        self.status(StatusCode::CREATED).location(self_link)
+    }
 }
 
 impl<P, I> IntoResponse for JsonApiResponse<P, I>
@@ -80,7 +100,16 @@ where
             }
             _ => json_api_response(self.status, content_type, &self.document),
         };
-        response.map(Body::from)
+        let mut response = response.map(Body::from);
+        // A self link is server-controlled and path-percent-encoded, so it is a
+        // valid ASCII header value; on the impossible parse failure we omit the
+        // header rather than panic in a responder.
+        if let Some(location) = self.location
+            && let Ok(value) = HeaderValue::from_str(&location)
+        {
+            response.headers_mut().insert(header::LOCATION, value);
+        }
+        response
     }
 }
 
@@ -105,6 +134,44 @@ mod tests {
         let bytes =
             pollster::block_on(axum::body::to_bytes(response.into_body(), usize::MAX)).unwrap();
         (status, serde_json::from_slice(&bytes).unwrap())
+    }
+
+    #[test]
+    fn created_sets_201_and_location_header_with_body_intact() {
+        let response = JsonApiResponse::new(sample_document())
+            .created("https://api.test/articles/1")
+            .into_response();
+        assert_eq!(
+            response
+                .headers()
+                .get(header::LOCATION)
+                .and_then(|v| v.to_str().ok()),
+            Some("https://api.test/articles/1")
+        );
+        let (status, json) = read(response);
+        assert_eq!(status, StatusCode::CREATED);
+        assert_eq!(json["data"]["id"], "1");
+    }
+
+    #[test]
+    fn location_without_created_sets_header_but_keeps_status() {
+        let response = JsonApiResponse::new(sample_document())
+            .location("https://api.test/articles/1")
+            .into_response();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response
+                .headers()
+                .get(header::LOCATION)
+                .and_then(|v| v.to_str().ok()),
+            Some("https://api.test/articles/1")
+        );
+    }
+
+    #[test]
+    fn no_location_header_by_default() {
+        let response = JsonApiResponse::new(sample_document()).into_response();
+        assert!(response.headers().get(header::LOCATION).is_none());
     }
 
     #[test]

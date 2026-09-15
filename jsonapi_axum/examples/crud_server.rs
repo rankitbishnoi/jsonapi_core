@@ -2,9 +2,18 @@
 //!
 //! Demonstrates the whole adapter surface end to end:
 //! - [`JsonApiLayer`] for content-type (415) and accept (406) negotiation,
-//! - [`JsonApi<T>`] to extract a typed request document,
-//! - [`JsonApiQuery`] to read `sort`/`page`/`filter`/`include`,
-//! - [`JsonApiResponse`] to serialize responses (with the right media type),
+//! - [`NormalizeErrorsLayer`] + [`not_found`](jsonapi_axum::not_found) to
+//!   JSON:API-shape framework errors (404/405/…),
+//! - [`JsonApi<T>`] to extract typed request documents (and PATCH partial
+//!   updates via [`Field`]),
+//! - [`JsonApiQuery`] for `sort`/`page`/`filter`/`include`/`fields`,
+//! - [`JsonApiResponse`] to serialize responses — with sparse fieldsets,
+//!   self links, the negotiated media type, and `201 Created` + `Location`,
+//! - [`pagination_links`](jsonapi_axum::pagination_links) for a paginated list,
+//! - id consistency ([`JsonApi::require_id`]) and a client-id policy
+//!   ([`JsonApi::check_client_id`]),
+//! - a `/articles/{id}/relationships/tags` endpoint via [`JsonApiToMany`] +
+//!   [`RelationshipResponse`],
 //! - [`JsonApiError`] for spec-shaped error documents.
 //!
 //! Run it with:
@@ -18,33 +27,34 @@
 //! ```text
 //! curl -s localhost:3000/articles \
 //!   -H 'content-type: application/vnd.api+json' \
-//!   -d '{"data":{"type":"articles","attributes":{"title":"Hi","body":"..."}}}'
-//! curl -s localhost:3000/articles
+//!   -d '{"data":{"type":"articles","attributes":{"title":"Hi","body":"..."}}}' -i
+//! curl -sg 'localhost:3000/articles?page[number]=1&page[size]=2'
+//! curl -s localhost:3000/articles/1/relationships/tags \
+//!   -X POST -H 'content-type: application/vnd.api+json' \
+//!   -d '{"data":[{"type":"tags","id":"rust"}]}'
 //! ```
-//!
-//! Note the create body omits `id`: the server assigns it. That is why the
-//! request type ([`NewArticle`]) declares `id: Option<String>` while the
-//! response type ([`Article`]) requires it — JSON:API lets a client omit `id`
-//! when creating a resource the server will identify.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use axum::Router;
-use axum::extract::{Path, State};
+use axum::extract::{FromRef, Path, State};
 use axum::response::IntoResponse;
 use axum::routing::get;
-use http::StatusCode;
+use http::{StatusCode, Uri};
 
 // Runtime types are re-exported from jsonapi_axum, so a handler crate imports
 // from one place. (Deriving `JsonApi` below still needs a direct `jsonapi_core`
 // dependency — the derive macro expands to `::jsonapi_core` paths.)
 use jsonapi_axum::{
-    ApiError, DocumentBuilder, JsonApi, JsonApiError, JsonApiLayer, JsonApiQuery, JsonApiResponse,
-    NormalizeErrorsLayer,
+    ApiError, BaseUrl, ClientIdPolicy, DocumentBuilder, Field, JsonApi, JsonApiError, JsonApiLayer,
+    JsonApiQuery, JsonApiResponse, JsonApiToMany, NegotiatedMediaType, NormalizeErrorsLayer,
+    RelationshipResponse, pagination_links,
 };
+use jsonapi_core::{Link, PageNumberPage, PageStrategy, RelationshipData, ResourceIdentifier, links};
 
 /// The domain resource, as returned in responses — `id` is always present.
+/// `summary` is nullable, to show a PATCH clearing it.
 #[derive(Debug, Clone, jsonapi_core::JsonApi)]
 #[jsonapi(type = "articles")]
 struct Article {
@@ -52,6 +62,7 @@ struct Article {
     id: String,
     title: String,
     body: String,
+    summary: Option<String>,
 }
 
 /// The create/replace request body — `id` is optional so a client may omit it
@@ -63,13 +74,49 @@ struct NewArticle {
     id: Option<String>,
     title: String,
     body: String,
+    summary: Option<String>,
+}
+
+/// The PATCH request body — every attribute is a tri-state [`Field`], so the
+/// handler can tell "leave unchanged" (absent) from "clear" (null) from "set".
+/// This is what makes `update_article` a genuine JSON:API partial update.
+#[derive(Debug, Clone, jsonapi_core::JsonApi)]
+#[jsonapi(type = "articles")]
+struct ArticlePatch {
+    #[jsonapi(id)]
+    id: String,
+    title: Field<String>,
+    body: Field<String>,
+    summary: Field<String>,
 }
 
 /// In-memory application state (an `Arc`-shared store, cloned per request).
-#[derive(Clone, Default)]
+#[derive(Clone)]
 struct AppState {
+    base_url: BaseUrl,
     articles: Arc<Mutex<BTreeMap<String, Article>>>,
+    /// Out-of-band `tags` linkage per article, driven by the relationship endpoint.
+    tags: Arc<Mutex<BTreeMap<String, Vec<ResourceIdentifier>>>>,
     next_id: Arc<Mutex<u64>>,
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        Self {
+            base_url: BaseUrl("http://localhost:3000".to_string()),
+            articles: Arc::default(),
+            tags: Arc::default(),
+            next_id: Arc::default(),
+        }
+    }
+}
+
+// The base URL is provided from state via `FromRef`, so the `BaseUrl` extractor
+// works in any handler (Shared Decision 1: explicit, proxy-safe).
+impl FromRef<AppState> for BaseUrl {
+    fn from_ref(state: &AppState) -> BaseUrl {
+        state.base_url.clone()
+    }
 }
 
 impl AppState {
@@ -90,48 +137,76 @@ fn not_found(id: &str) -> JsonApiError {
     })
 }
 
-/// `GET /articles` — list all articles as a collection document.
+/// `GET /articles` — a paginated collection with `self`/`first`/`prev`/`next`/
+/// `last` links, honoring `page[number]`/`page[size]` and preserving other query
+/// params. Sparse fieldsets and the negotiated media type are applied too.
 async fn list_articles(
     State(state): State<AppState>,
+    NegotiatedMediaType(media): NegotiatedMediaType,
+    uri: Uri,
     JsonApiQuery(query): JsonApiQuery,
-) -> impl IntoResponse {
-    // `query` carries parsed sort/page/filter/include; applying those to the
-    // datastore is the consumer's job (a deliberate non-goal of the library).
-    // Sparse fieldsets (`?fields[articles]=title`) are applied to the response
-    // for free by handing `query.fields` to `JsonApiResponse::fields`.
-    let articles: Vec<Article> = state.articles.lock().unwrap().values().cloned().collect();
-    JsonApiResponse::new(DocumentBuilder::collection(articles).build()).fields(query.fields)
+) -> Result<impl IntoResponse, JsonApiError> {
+    let page = PageNumberPage::from_query(&query).map_err(|err| JsonApiError::from_core(&err))?;
+    let number = page.number.max(1);
+    let size = page.size.unwrap_or(2).max(1);
+
+    let all: Vec<Article> = state.articles.lock().unwrap().values().cloned().collect();
+    let total = all.len() as u64;
+    // Slicing the page is the consumer's job; the library only represents it.
+    let start = ((number - 1) * size) as usize;
+    let items: Vec<Article> = all.into_iter().skip(start).take(size as usize).collect();
+
+    let strategy = PageStrategy::PageNumber { number, size };
+    let links = pagination_links(&uri, strategy, Some(total));
+
+    Ok(JsonApiResponse::new(DocumentBuilder::collection(items).links(links).build())
+        .fields(query.fields)
+        .media_type(media))
 }
 
-/// `GET /articles/{id}` — fetch a single article.
+/// `GET /articles/{id}` — a single article with a `self` link.
 async fn get_article(
     State(state): State<AppState>,
+    BaseUrl(base): BaseUrl,
+    NegotiatedMediaType(media): NegotiatedMediaType,
     Path(id): Path<String>,
     JsonApiQuery(query): JsonApiQuery,
 ) -> Result<JsonApiResponse<Article>, JsonApiError> {
     let article = state.articles.lock().unwrap().get(&id).cloned();
     match article {
-        Some(article) => Ok(JsonApiResponse::new(DocumentBuilder::single(article).build())
-            .fields(query.fields)),
+        Some(article) => {
+            let self_link = links::resource_self(&base, "articles", &id);
+            Ok(JsonApiResponse::new(
+                DocumentBuilder::single(article)
+                    .link("self", Link::String(self_link))
+                    .build(),
+            )
+            .fields(query.fields)
+            .media_type(media))
+        }
         None => Err(not_found(&id)),
     }
 }
 
-/// `POST /articles` — create an article from a typed request document. The
-/// client may omit `id` (see [`NewArticle`]); the server always assigns one.
+/// `POST /articles` — create, responding `201 Created` with a `Location` header.
+/// This server owns identity, so client-supplied ids are rejected (403).
 async fn create_article(
     State(state): State<AppState>,
-    JsonApi(document): JsonApi<NewArticle>,
+    BaseUrl(base): BaseUrl,
+    NegotiatedMediaType(media): NegotiatedMediaType,
+    document: JsonApi<NewArticle>,
 ) -> Result<impl IntoResponse, JsonApiError> {
+    document.check_client_id(ClientIdPolicy::Forbid)?;
     let new = document
+        .0
         .into_single()
         .map_err(|err| JsonApiError::from_core(&err))?;
 
-    // Any client-supplied `id` is ignored; the server owns identity here.
     let article = Article {
         id: state.allocate_id(),
         title: new.title,
         body: new.body,
+        summary: new.summary,
     };
     state
         .articles
@@ -139,32 +214,55 @@ async fn create_article(
         .unwrap()
         .insert(article.id.clone(), article.clone());
 
-    Ok(JsonApiResponse::new(DocumentBuilder::single(article).build()).status(StatusCode::CREATED))
+    let self_link = links::resource_self(&base, "articles", &article.id);
+    Ok(JsonApiResponse::new(
+        DocumentBuilder::single(article)
+            .link("self", Link::String(self_link.clone()))
+            .build(),
+    )
+    .created(self_link)
+    .media_type(media))
 }
 
-/// `PATCH /articles/{id}` — replace an article's attributes. The id comes from
-/// the URL, so the body's `id` is optional and, if present, ignored.
+/// `PATCH /articles/{id}` — a genuine JSON:API **partial** update. The body id
+/// must match the URL id (else 409). Only present attributes change; `null`
+/// clears the nullable `summary`; absent members are left as they were.
 async fn update_article(
     State(state): State<AppState>,
+    BaseUrl(base): BaseUrl,
+    NegotiatedMediaType(media): NegotiatedMediaType,
     Path(id): Path<String>,
-    JsonApi(document): JsonApi<NewArticle>,
+    document: JsonApi<ArticlePatch>,
 ) -> Result<JsonApiResponse<Article>, JsonApiError> {
-    let incoming = document
+    document.require_id(&id)?; // 409 Conflict if data.id != URL id
+    let patch = document
+        .0
         .into_single()
         .map_err(|err| JsonApiError::from_core(&err))?;
 
     let mut store = state.articles.lock().unwrap();
-    if !store.contains_key(&id) {
+    let Some(article) = store.get_mut(&id) else {
         return Err(not_found(&id));
-    }
-    let article = Article {
-        id: id.clone(),
-        title: incoming.title,
-        body: incoming.body,
     };
-    store.insert(id, article.clone());
 
-    Ok(JsonApiResponse::new(DocumentBuilder::single(article).build()))
+    if let Some(title) = patch.title.into_set() {
+        article.title = title;
+    }
+    if let Some(body) = patch.body.into_set() {
+        article.body = body;
+    }
+    patch.summary.apply(&mut article.summary);
+
+    let updated = article.clone();
+    drop(store);
+
+    let self_link = links::resource_self(&base, "articles", &id);
+    Ok(JsonApiResponse::new(
+        DocumentBuilder::single(updated)
+            .link("self", Link::String(self_link))
+            .build(),
+    )
+    .media_type(media))
 }
 
 /// `DELETE /articles/{id}` — remove an article.
@@ -173,10 +271,70 @@ async fn delete_article(
     Path(id): Path<String>,
 ) -> Result<StatusCode, JsonApiError> {
     if state.articles.lock().unwrap().remove(&id).is_some() {
+        state.tags.lock().unwrap().remove(&id);
         Ok(StatusCode::NO_CONTENT)
     } else {
         Err(not_found(&id))
     }
+}
+
+// --- Relationship endpoint: /articles/{id}/relationships/tags (to-many) -----
+//
+// Per JSON:API, on a to-many relationship: POST appends, PATCH replaces the
+// whole set, DELETE removes the given members. The extractor yields the linkage;
+// applying these semantics is the handler's job (below).
+
+fn tags_response(state: &AppState, id: &str) -> RelationshipResponse {
+    let current = state.tags.lock().unwrap().get(id).cloned().unwrap_or_default();
+    let links = links::relationship_links(&state.base_url.0, "articles", id, "tags");
+    RelationshipResponse::new(RelationshipData::ToMany(current)).links(links)
+}
+
+async fn get_tags(State(state): State<AppState>, Path(id): Path<String>) -> RelationshipResponse {
+    tags_response(&state, &id)
+}
+
+/// `POST` — append members that are not already present.
+async fn append_tags(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    JsonApiToMany(incoming): JsonApiToMany,
+) -> RelationshipResponse {
+    {
+        let mut store = state.tags.lock().unwrap();
+        let set = store.entry(id.clone()).or_default();
+        for rid in incoming {
+            if !set.contains(&rid) {
+                set.push(rid);
+            }
+        }
+    }
+    tags_response(&state, &id)
+}
+
+/// `PATCH` — replace the whole set.
+async fn replace_tags(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    JsonApiToMany(incoming): JsonApiToMany,
+) -> RelationshipResponse {
+    state.tags.lock().unwrap().insert(id.clone(), incoming);
+    tags_response(&state, &id)
+}
+
+/// `DELETE` — remove the given members.
+async fn remove_tags(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    JsonApiToMany(remove): JsonApiToMany,
+) -> RelationshipResponse {
+    {
+        let mut store = state.tags.lock().unwrap();
+        if let Some(set) = store.get_mut(&id) {
+            set.retain(|rid| !remove.contains(rid));
+        }
+    }
+    tags_response(&state, &id)
 }
 
 /// Build the application router. Kept as a function so it can be tested via
@@ -187,6 +345,13 @@ fn app() -> Router {
         .route(
             "/articles/{id}",
             get(get_article).patch(update_article).delete(delete_article),
+        )
+        .route(
+            "/articles/{id}/relationships/tags",
+            get(get_tags)
+                .post(append_tags)
+                .patch(replace_tags)
+                .delete(remove_tags),
         )
         // Unmatched routes get a JSON:API 404 instead of axum's plain-text one.
         .fallback(jsonapi_axum::not_found)

@@ -454,7 +454,9 @@
 pub mod builder;
 pub mod case;
 pub mod error;
+pub mod field;
 pub mod fieldset;
+pub mod links;
 pub mod media_type;
 pub mod model;
 pub mod pagination;
@@ -470,6 +472,7 @@ pub mod atomic;
 pub use builder::DocumentBuilder;
 pub use case::{CaseConfig, CaseConvention};
 pub use error::{Cardinality, Error, Result};
+pub use field::Field;
 pub use fieldset::{FieldsetConfig, SparseSerializer, sparse_filter};
 pub use media_type::{JsonApiMediaType, negotiate_accept, validate_content_type};
 pub use model::{
@@ -477,7 +480,10 @@ pub use model::{
     JsonApiObject, Link, LinkObject, Links, Meta, PrimaryData, Relationship, RelationshipData,
     Resource, ResourceIdentifier, ResourceObject, ResourceRelationship,
 };
-pub use pagination::{CURSOR_PAGINATION_PROFILE, CursorLinks, CursorPage};
+pub use pagination::{
+    CURSOR_PAGINATION_PROFILE, CursorLinks, CursorPage, OffsetPage, PageNumberPage, PageStrategy,
+    PaginationLinks,
+};
 pub use query::{Query, QueryBuilder, SortField};
 pub use registry::{Registry, ResolveConfig};
 pub use type_registry::{TypeInfo, TypeRegistry};

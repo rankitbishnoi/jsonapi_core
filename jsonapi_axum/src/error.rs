@@ -11,7 +11,7 @@ use bytes::Bytes;
 use http::StatusCode;
 
 use jsonapi_core::{ApiError, Error};
-use jsonapi_http::{error_response, error_response_for, error_response_for_status};
+use jsonapi_http::{error_response, error_response_for, error_response_for_status, id_conflict};
 
 /// A JSON:API error response, usable both as an axum extractor `Rejection` and
 /// as an [`IntoResponse`] error returned from a handler.
@@ -55,6 +55,14 @@ impl JsonApiError {
         Self {
             response: error_response_for_status(status, detail),
         }
+    }
+
+    /// Build a **409 Conflict** JSON:API error for an id collision (a chosen id
+    /// that already exists), with `source.pointer` `/data/id`. Collision
+    /// *detection* is the application's job; this produces the error to return.
+    #[must_use]
+    pub fn conflict(detail: impl Into<String>) -> Self {
+        Self::from_api_error(id_conflict(detail))
     }
 }
 

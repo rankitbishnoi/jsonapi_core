@@ -4,6 +4,7 @@
 //! and delegates to [`jsonapi_http`], turning failures into a [`JsonApiError`]
 //! rejection.
 
+use std::convert::Infallible;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -12,14 +13,63 @@ use bytes::Bytes;
 use http::request::Parts;
 use serde::de::DeserializeOwned;
 
-use jsonapi_core::{Document, Query, ResourceObject, TypeRegistry};
-use jsonapi_http::{check_content_type, deserialize_body, parse_query};
+use jsonapi_core::{Document, JsonApiMediaType, PrimaryData, Query, ResourceObject, TypeRegistry};
+use jsonapi_http::{
+    ClientIdPolicy, check_client_id, check_content_type, check_id_matches, deserialize_body,
+    parse_query,
+};
 
 use crate::error::JsonApiError;
+
+/// The response media type negotiated by [`AcceptLayer`](crate::AcceptLayer),
+/// read back out of the request extensions where the layer stored it.
+///
+/// A responder's `IntoResponse` cannot see the request, so a handler that wants
+/// the response `Content-Type` to reflect the negotiated `ext`/`profile`
+/// parameters extracts this and passes it to
+/// [`JsonApiResponse::media_type`](crate::JsonApiResponse::media_type):
+///
+/// ```no_run
+/// use jsonapi_axum::{NegotiatedMediaType, JsonApiResponse};
+/// # use jsonapi_axum::{Document, Resource};
+/// async fn handler(NegotiatedMediaType(media): NegotiatedMediaType) -> JsonApiResponse<Resource> {
+///     # let document: Document<Resource> = todo!();
+///     JsonApiResponse::new(document).media_type(media)
+/// }
+/// ```
+///
+/// When no [`AcceptLayer`](crate::AcceptLayer) ran (nothing stored an extension),
+/// it falls back to [`JsonApiMediaType::plain`], so it never fails.
+#[derive(Debug, Clone)]
+pub struct NegotiatedMediaType(pub JsonApiMediaType);
+
+impl<S> FromRequestParts<S> for NegotiatedMediaType
+where
+    S: Send + Sync,
+{
+    type Rejection = Infallible;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        let media = parts
+            .extensions
+            .get::<JsonApiMediaType>()
+            .cloned()
+            .unwrap_or_else(JsonApiMediaType::plain);
+        Ok(NegotiatedMediaType(media))
+    }
+}
 
 /// Typed JSON:API request-body extractor. Validates the `Content-Type`, buffers
 /// the body, and deserializes a [`Document<T>`], rejecting with a JSON:API error
 /// document (415 / 400 / 409 / 422) on failure.
+///
+/// # PATCH
+///
+/// This is also the PATCH extractor: define a companion resource whose patchable
+/// members are [`Field<T>`](jsonapi_core::Field) and use `JsonApi<ArticlePatch>`.
+/// Absent members deserialize to `Field::Absent` (leave unchanged), `null` to
+/// `Field::Null` (clear), and values to `Field::Set` — and such members are never
+/// required, so a partial body does not 422. See `examples/crud_server.rs`.
 #[derive(Debug, Clone)]
 pub struct JsonApi<T>(pub Document<T>);
 
@@ -43,6 +93,90 @@ where
 
         let document = deserialize_body::<T>(&bytes).map_err(JsonApiError::from)?;
         Ok(JsonApi(document))
+    }
+}
+
+impl<T: ResourceObject> JsonApi<T> {
+    /// The primary resource's `id` from a single-resource body, if any.
+    fn body_id(&self) -> Option<&str> {
+        match &self.0 {
+            Document::Data {
+                data: PrimaryData::Single(primary),
+                ..
+            } => primary.resource_id(),
+            _ => None,
+        }
+    }
+
+    /// Assert the body's `data.id` matches `path_id` (the JSON:API `PATCH` rule),
+    /// rejecting with a **409 Conflict** JSON:API error (`source.pointer`
+    /// `/data/id`) on mismatch. An absent body id is accepted (identity comes
+    /// from the URL). Delegates to [`jsonapi_http::check_id_matches`].
+    ///
+    /// ```no_run
+    /// # use jsonapi_axum::{JsonApi, JsonApiError};
+    /// # async fn h(id: String, doc: JsonApi<jsonapi_core::Resource>) -> Result<(), JsonApiError> {
+    /// doc.require_id(&id)?;
+    /// # Ok(()) }
+    /// ```
+    ///
+    /// # Errors
+    /// A 409 [`JsonApiError`] when a present body id differs from `path_id`.
+    // The `Err` is the crate's standard by-value rejection so handlers can `?`
+    // it straight into their own `Result<_, JsonApiError>`; boxing it would break
+    // that ergonomic, so the large-err lint is intentionally allowed here.
+    #[allow(clippy::result_large_err)]
+    pub fn require_id(&self, path_id: &str) -> Result<(), JsonApiError> {
+        check_id_matches(self.body_id(), path_id).map_err(JsonApiError::from)
+    }
+
+    /// Apply a [`ClientIdPolicy`] to a create body's client-supplied `id`.
+    /// Under [`ClientIdPolicy::Forbid`], a present id is rejected with a
+    /// **403 Forbidden** JSON:API error. Delegates to
+    /// [`jsonapi_http::check_client_id`].
+    ///
+    /// # Errors
+    /// A 403 [`JsonApiError`] when `policy` is `Forbid` and the body carries an id.
+    #[allow(clippy::result_large_err)] // by-value rejection for `?`; see `require_id`
+    pub fn check_client_id(&self, policy: ClientIdPolicy) -> Result<(), JsonApiError> {
+        check_client_id(policy, self.body_id()).map_err(JsonApiError::from)
+    }
+}
+
+/// The application's base URL for building `self`/`related` links (G8) and the
+/// `Location` header (G9), provided from application state via
+/// [`FromRef`].
+///
+/// Per the 0.2 design (Shared Decision 1), the base URL is an explicit,
+/// app-configured value rather than one derived from the request `Host` /
+/// `X-Forwarded-*` headers, which are fragile behind proxies. Store it in your
+/// state and implement [`FromRef`] (or make it the state itself); a handler then
+/// extracts it directly:
+///
+/// ```no_run
+/// use axum::extract::FromRef;
+/// use jsonapi_axum::BaseUrl;
+///
+/// #[derive(Clone)]
+/// struct AppState { base_url: BaseUrl }
+/// impl FromRef<AppState> for BaseUrl {
+///     fn from_ref(state: &AppState) -> BaseUrl { state.base_url.clone() }
+/// }
+///
+/// async fn handler(BaseUrl(base): BaseUrl) -> String { base }
+/// ```
+#[derive(Debug, Clone)]
+pub struct BaseUrl(pub String);
+
+impl<S> FromRequestParts<S> for BaseUrl
+where
+    S: Send + Sync,
+    Self: FromRef<S>,
+{
+    type Rejection = Infallible;
+
+    async fn from_request_parts(_parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        Ok(Self::from_ref(state))
     }
 }
 
@@ -334,6 +468,92 @@ mod tests {
                     .as_str()
                     .unwrap()
                     .contains("bogus")
+            );
+        });
+    }
+
+    // --- NegotiatedMediaType (G10) ---
+
+    const TEST_PROFILE: &str = "https://example.com/p";
+
+    async fn body_text(response: axum::response::Response) -> String {
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        String::from_utf8(bytes.to_vec()).unwrap()
+    }
+
+    #[test]
+    fn negotiated_media_type_reflects_accept_layer_profile() {
+        pollster::block_on(async {
+            // Reflect the negotiated profile into the body so we prove the layer's
+            // stored media type reached the extractor.
+            async fn handler(NegotiatedMediaType(media): NegotiatedMediaType) -> String {
+                media.profile.join(",")
+            }
+            let router = Router::new()
+                .route("/x", get(handler))
+                .layer(crate::AcceptLayer::new().profile([TEST_PROFILE]));
+            let request = Request::builder()
+                .uri("/x")
+                .header(
+                    header::ACCEPT,
+                    format!("application/vnd.api+json; profile=\"{TEST_PROFILE}\""),
+                )
+                .body(Body::empty())
+                .unwrap();
+            let response = router.oneshot(request).await.unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(body_text(response).await, TEST_PROFILE);
+        });
+    }
+
+    #[test]
+    fn negotiated_media_type_without_layer_falls_back_to_plain() {
+        pollster::block_on(async {
+            async fn handler(NegotiatedMediaType(media): NegotiatedMediaType) -> String {
+                (media == JsonApiMediaType::plain()).to_string()
+            }
+            // No AcceptLayer: nothing stored in extensions.
+            let router = Router::new().route("/x", get(handler));
+            let request = Request::builder().uri("/x").body(Body::empty()).unwrap();
+            let response = router.oneshot(request).await.unwrap();
+            assert_eq!(body_text(response).await, "true");
+        });
+    }
+
+    #[test]
+    fn negotiated_media_type_drives_response_content_type_end_to_end() {
+        pollster::block_on(async {
+            use crate::JsonApiResponse;
+            async fn handler(
+                NegotiatedMediaType(media): NegotiatedMediaType,
+            ) -> JsonApiResponse<jsonapi_core::Resource> {
+                let document: Document<jsonapi_core::Resource> =
+                    serde_json::from_str(r#"{"data":{"type":"articles","id":"1"}}"#).unwrap();
+                JsonApiResponse::new(document).media_type(media)
+            }
+            let router = Router::new()
+                .route("/x", get(handler))
+                .layer(crate::AcceptLayer::new().profile([TEST_PROFILE]));
+            let request = Request::builder()
+                .uri("/x")
+                .header(
+                    header::ACCEPT,
+                    format!("application/vnd.api+json; profile=\"{TEST_PROFILE}\""),
+                )
+                .body(Body::empty())
+                .unwrap();
+            let response = router.oneshot(request).await.unwrap();
+            let content_type = response
+                .headers()
+                .get(header::CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok())
+                .unwrap()
+                .to_string();
+            assert_eq!(
+                content_type,
+                format!("application/vnd.api+json; profile=\"{TEST_PROFILE}\"")
             );
         });
     }

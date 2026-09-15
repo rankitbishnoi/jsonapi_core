@@ -11,6 +11,7 @@
 //!
 //! - [`error`] — map [`jsonapi_core::Error`] to an HTTP status and a JSON:API
 //!   error document response.
+//! - [`id`] — resource-`id` consistency and client-id policy checks.
 //! - [`request`] — parse an incoming request (content type, accept, query,
 //!   typed body) into typed values.
 //! - [`response`] — build a JSON:API [`http::Response`] from a document.
@@ -18,6 +19,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub mod error;
+pub mod id;
 pub mod layer;
 pub mod request;
 pub mod response;
@@ -26,6 +28,7 @@ pub use error::{
     api_error_for_status, error_response, error_response_for, error_response_for_status, status_for,
     to_api_error,
 };
+pub use id::{ClientIdPolicy, check_client_id, check_id_matches, id_conflict};
 pub use layer::{AcceptLayer, ContentTypeLayer, GuardService, JsonApiLayer};
 pub use request::{check_content_type, deserialize_body, negotiate, parse_query};
 pub use response::{
