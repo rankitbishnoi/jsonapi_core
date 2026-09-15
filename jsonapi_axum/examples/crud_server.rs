@@ -47,9 +47,9 @@ use http::{StatusCode, Uri};
 // from one place. (Deriving `JsonApi` below still needs a direct `jsonapi_core`
 // dependency — the derive macro expands to `::jsonapi_core` paths.)
 use jsonapi_axum::{
-    ApiError, BaseUrl, ClientIdPolicy, DocumentBuilder, Field, JsonApi, JsonApiError, JsonApiLayer,
-    JsonApiQuery, JsonApiResponse, JsonApiToMany, NegotiatedMediaType, NormalizeErrorsLayer,
-    RelationshipResponse, pagination_links,
+    ApiErrorExt, BaseUrl, ClientIdPolicy, DocumentBuilder, Field, IntoJsonApiError, JsonApi,
+    JsonApiError, JsonApiLayer, JsonApiQuery, JsonApiResponse, JsonApiToMany, NegotiatedMediaType,
+    NormalizeErrorsLayer, RelationshipResponse, ResultExt, pagination_links, with_status,
 };
 use jsonapi_core::{Link, PageNumberPage, PageStrategy, RelationshipData, ResourceIdentifier, links};
 
@@ -127,14 +127,36 @@ impl AppState {
     }
 }
 
-/// A `404` JSON:API error document for a missing article.
+/// A `404` JSON:API error document for a missing article, built with the fluent
+/// [`with_status`] + [`ApiErrorExt`] builder instead of a raw struct literal.
 fn not_found(id: &str) -> JsonApiError {
-    JsonApiError::from_api_error(ApiError {
-        status: Some("404".to_string()),
-        title: Some("Not Found".to_string()),
-        detail: Some(format!("article `{id}` does not exist")),
-        ..Default::default()
-    })
+    JsonApiError::from_api_error(
+        with_status(404).detail(format!("article `{id}` does not exist")),
+    )
+}
+
+/// A domain-level validation error. Implementing [`IntoJsonApiError`] lets a
+/// handler propagate it with `?` via [`ResultExt::or_json_api`], keeping the
+/// mapping-to-HTTP concern out of the handler body.
+struct BlankTitle;
+
+impl IntoJsonApiError for BlankTitle {
+    fn into_json_api_error(self) -> JsonApiError {
+        JsonApiError::from_api_error(
+            with_status(422)
+                .pointer("/data/attributes/title")
+                .detail("title must not be empty"),
+        )
+    }
+}
+
+/// A trivial domain rule: an article title may not be blank.
+fn validate_title(title: &str) -> Result<(), BlankTitle> {
+    if title.trim().is_empty() {
+        Err(BlankTitle)
+    } else {
+        Ok(())
+    }
 }
 
 /// `GET /articles` — a paginated collection with `self`/`first`/`prev`/`next`/
@@ -201,6 +223,9 @@ async fn create_article(
         .0
         .into_single()
         .map_err(|err| JsonApiError::from_core(&err))?;
+
+    // Domain validation propagated with `?` via the `IntoJsonApiError` mapping.
+    validate_title(&new.title).or_json_api()?;
 
     let article = Article {
         id: state.allocate_id(),

@@ -1,6 +1,6 @@
 [package]
 name = "jsonapi_axum"
-version = "0.1.0"
+version = "0.2.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -16,7 +16,7 @@ readme = "README.md"
 # the server runtime (tokio/http1) is a dev-dependency concern for the example.
 [dependencies]
 jsonapi_core = { path = "../jsonapi_core", version = "0.4.0" }
-jsonapi_http = { path = "../jsonapi_http", version = "0.1.0" }
+jsonapi_http = { path = "../jsonapi_http", version = "0.2.0" }
 axum = { version = "0.8", default-features = false }
 http = "1"
 bytes = "1"
@@ -32,6 +32,26 @@ http-body-util = "0.1"
 # Decoding the request query string to preserve sort/filter/fields/include in
 # pagination links (G7).
 percent-encoding = "2"
+
+# --- Optional error-integration deps (all off by default) ---
+# G11: aggregate `validator::ValidationErrors` into JSON:API 422 errors.
+validator = { version = "0.20", optional = true, default-features = false }
+# G12: `From<anyhow::Error>` for ergonomic `?` in handlers.
+anyhow = { version = "1", optional = true }
+# G12: only the `sqlx::Error` type is needed; default-features = false avoids
+# pulling in a runtime or driver.
+sqlx = { version = "0.8", optional = true, default-features = false }
+
+[features]
+# Map `validator::ValidationErrors` into aggregated JSON:API 422 errors (G11).
+validator = ["dep:validator"]
+# `From<anyhow::Error> for JsonApiError` = 500 (G12).
+anyhow = ["dep:anyhow"]
+# `From<sqlx::Error> for JsonApiError`: RowNotFound → 404, else 500 (G12).
+sqlx = ["dep:sqlx"]
+# Include the raw error text in an `internal` 500's `detail`. Off by default so
+# internal messages never leak to clients; enable only for local debugging.
+debug-errors = []
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }

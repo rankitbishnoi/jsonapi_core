@@ -26,17 +26,27 @@ pub mod normalize;
 pub mod pagination;
 pub mod relationship;
 pub mod response;
+#[cfg(feature = "validator")]
+#[cfg_attr(docsrs, doc(cfg(feature = "validator")))]
+pub mod validation;
 
-pub use error::JsonApiError;
+pub use error::{IntoJsonApiError, JsonApiError, ResultExt};
 pub use extract::{BaseUrl, JsonApi, JsonApiQuery, JsonApiQueryValidated, NegotiatedMediaType};
 pub use normalize::{NormalizeErrorsLayer, NormalizeErrorsService, not_found};
 pub use pagination::pagination_links;
 pub use relationship::{JsonApiToMany, JsonApiToOne, RelationshipResponse};
 pub use response::JsonApiResponse;
+#[cfg(feature = "validator")]
+#[cfg_attr(docsrs, doc(cfg(feature = "validator")))]
+pub use validation::from_validation_errors;
 
 // Re-export the framework-agnostic tower layers so axum users get them from one
 // place.
 pub use jsonapi_http::{AcceptLayer, ContentTypeLayer, JsonApiLayer};
+
+/// Re-export the fluent [`ApiError`] builder surface so handlers can construct
+/// JSON:API errors without importing `jsonapi_http` directly.
+pub use jsonapi_http::{ApiErrorExt, ApiErrors, with_status};
 
 /// Re-export the client-id policy so handlers can configure
 /// [`JsonApi::check_client_id`](crate::JsonApi::check_client_id) from one place.

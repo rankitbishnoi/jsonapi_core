@@ -105,6 +105,80 @@ async fn list(query: JsonApiQueryValidated<Article>) -> JsonApiResponse<Article>
 
 Apps that don't need include validation use `JsonApiQuery`, which requires no state.
 
+## Errors
+
+Every error a handler returns is a `JsonApiError`, which renders as a JSON:API error
+document. Build one-off errors fluently with `with_status` + the `ApiErrorExt` setters, or
+use the convenience constructors (`not_found`, `forbidden`, `conflict`, `internal`):
+
+```rust,ignore
+use jsonapi_axum::{with_status, ApiErrorExt, JsonApiError};
+
+let err = JsonApiError::from_api_error(
+    with_status(422)
+        .pointer("/data/attributes/title")
+        .detail("must not be empty"),
+);
+```
+
+`internal(detail)` returns a `500` whose body never echoes the raw `detail` (so internal
+messages don't leak); log the raw text in your app. Enable the `debug-errors` feature to
+include it in the response for local debugging.
+
+### Mapping domain errors with `?`
+
+Implement `IntoJsonApiError` for your own error type and use `.or_json_api()` so `?` stays
+clean in handlers:
+
+```rust,ignore
+use jsonapi_axum::{IntoJsonApiError, JsonApiError, ResultExt};
+
+struct NotAuthorized;
+impl IntoJsonApiError for NotAuthorized {
+    fn into_json_api_error(self) -> JsonApiError {
+        JsonApiError::forbidden("not your resource")
+    }
+}
+
+async fn handler() -> Result<(), JsonApiError> {
+    authorize().or_json_api()?; // NotAuthorized -> 403 JSON:API document
+    Ok(())
+}
+# fn authorize() -> Result<(), NotAuthorized> { Ok(()) }
+```
+
+There is deliberately **no** blanket `From<E: IntoJsonApiError>` impl — it would collide with
+the concrete `From<jsonapi_core::Error>` impl under coherence. Use `.or_json_api()` /
+`.into_json_api_error()` instead.
+
+### Aggregating field errors
+
+Collect one error per invalid attribute into an `ApiErrors` accumulator; converting it to a
+`JsonApiError` yields a single document with one member per problem (the shared status
+becomes the top-level HTTP status):
+
+```rust,ignore
+use jsonapi_axum::{with_status, ApiErrorExt, ApiErrors, JsonApiError};
+
+let mut errors = ApiErrors::new();
+errors.push(with_status(422).pointer("/data/attributes/title").detail("required"));
+errors.push(with_status(422).pointer("/data/attributes/body").detail("required"));
+let response: JsonApiError = errors.into(); // one 422 document, two members
+```
+
+### Optional integrations (off by default)
+
+| Feature | Effect |
+|---|---|
+| `validator` | `from_validation_errors(&ValidationErrors) -> Vec<ApiError>` — one `422` per field, `source.pointer` = `/data/attributes/<field>`. |
+| `anyhow` | `From<anyhow::Error> for JsonApiError` = `500`. |
+| `sqlx` | `From<sqlx::Error> for JsonApiError`: `RowNotFound` -> `404`, else `500`. |
+| `debug-errors` | Include the raw `detail` in an `internal` `500` (for local debugging only). |
+
+```toml
+jsonapi_axum = { version = "0.2", features = ["validator", "anyhow", "sqlx"] }
+```
+
 ## Scope
 
 This crate parses and represents `sort` / `filter` / `page`; **applying** them to a

@@ -9,7 +9,7 @@
 use bytes::Bytes;
 use http::{HeaderValue, Response, StatusCode};
 
-use jsonapi_core::{ApiError, Document, Error, ErrorSource, Resource};
+use jsonapi_core::{ApiError, Document, Error, ErrorLinks, ErrorSource, Link, Meta, Resource};
 
 use crate::JSON_API_MEDIA_TYPE;
 use crate::response::json_api_response;
@@ -202,6 +202,164 @@ pub fn api_error_for_status(status: StatusCode, detail: Option<String>) -> ApiEr
 #[must_use]
 pub fn error_response_for_status(status: StatusCode, detail: Option<String>) -> Response<Bytes> {
     error_response(std::iter::once(api_error_for_status(status, detail)))
+}
+
+/// Start building an [`ApiError`] for the given HTTP `status`.
+///
+/// Sets the `status` member to the numeric string (e.g. `"422"`) and `title` to
+/// the status's canonical reason phrase (`"Unprocessable Entity"`) when `status`
+/// is a recognised HTTP code. Chain the [`ApiErrorExt`] setters to fill in the
+/// rest; a later [`ApiErrorExt::title`] overrides the default.
+///
+/// This is the fluent counterpart to [`api_error_for_status`]: prefer it when
+/// hand-building an error in a handler.
+///
+/// ```
+/// use jsonapi_http::{with_status, ApiErrorExt};
+/// let err = with_status(422)
+///     .pointer("/data/attributes/title")
+///     .detail("must not be empty");
+/// assert_eq!(err.status.as_deref(), Some("422"));
+/// assert_eq!(err.title.as_deref(), Some("Unprocessable Entity"));
+/// assert_eq!(
+///     err.source.unwrap().pointer.as_deref(),
+///     Some("/data/attributes/title")
+/// );
+/// ```
+#[must_use]
+pub fn with_status(status: u16) -> ApiError {
+    ApiError {
+        status: Some(status.to_string()),
+        title: StatusCode::from_u16(status)
+            .ok()
+            .and_then(|s| s.canonical_reason())
+            .map(str::to_string),
+        ..Default::default()
+    }
+}
+
+/// Chainable, `#[must_use]` setters for [`ApiError`], letting an error be built
+/// fluently from [`with_status`].
+///
+/// The setters live here — as an extension trait — rather than as inherent
+/// methods on [`ApiError`] so that `jsonapi_core` stays a pure data model with
+/// no HTTP dependency. Import the trait to bring the setters into scope.
+pub trait ApiErrorExt: Sized {
+    /// Set `source.pointer` — an RFC 6901 JSON pointer to the offending value
+    /// (e.g. `/data/attributes/title`).
+    #[must_use]
+    fn pointer(self, pointer: impl Into<String>) -> Self;
+    /// Set `detail` — a human-readable explanation of this occurrence.
+    #[must_use]
+    fn detail(self, detail: impl Into<String>) -> Self;
+    /// Set `code` — an application-specific error code.
+    #[must_use]
+    fn code(self, code: impl Into<String>) -> Self;
+    /// Set `title`, overriding the default canonical reason from [`with_status`].
+    #[must_use]
+    fn title(self, title: impl Into<String>) -> Self;
+    /// Set `id` — a unique identifier for this particular occurrence.
+    #[must_use]
+    fn id(self, id: impl Into<String>) -> Self;
+    /// Set error-level `meta`.
+    #[must_use]
+    fn meta(self, meta: Meta) -> Self;
+    /// Set `links.about` — a bare-URL link to further details about the error.
+    #[must_use]
+    fn about_link(self, href: impl Into<String>) -> Self;
+}
+
+impl ApiErrorExt for ApiError {
+    fn pointer(mut self, pointer: impl Into<String>) -> Self {
+        self.source.get_or_insert_with(ErrorSource::default).pointer = Some(pointer.into());
+        self
+    }
+
+    fn detail(mut self, detail: impl Into<String>) -> Self {
+        self.detail = Some(detail.into());
+        self
+    }
+
+    fn code(mut self, code: impl Into<String>) -> Self {
+        self.code = Some(code.into());
+        self
+    }
+
+    fn title(mut self, title: impl Into<String>) -> Self {
+        self.title = Some(title.into());
+        self
+    }
+
+    fn id(mut self, id: impl Into<String>) -> Self {
+        self.id = Some(id.into());
+        self
+    }
+
+    fn meta(mut self, meta: Meta) -> Self {
+        self.meta = Some(meta);
+        self
+    }
+
+    fn about_link(mut self, href: impl Into<String>) -> Self {
+        self.links.get_or_insert_with(ErrorLinks::default).about = Some(Link::String(href.into()));
+        self
+    }
+}
+
+/// A small accumulator for building a JSON:API `errors` list — collect one
+/// [`ApiError`] per problem (e.g. per invalid attribute), then turn the batch
+/// into a single errors document.
+///
+/// It is `IntoIterator`, so it flows straight into [`error_response`] or
+/// `JsonApiError::from_api_errors`; `jsonapi_axum` also provides
+/// `From<ApiErrors> for JsonApiError` for `.into()`.
+#[derive(Debug, Clone, Default)]
+pub struct ApiErrors(Vec<ApiError>);
+
+impl ApiErrors {
+    /// An empty accumulator.
+    #[must_use]
+    pub fn new() -> Self {
+        Self(Vec::new())
+    }
+
+    /// Append an error.
+    pub fn push(&mut self, error: ApiError) {
+        self.0.push(error);
+    }
+
+    /// `true` when no errors have been collected.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// The number of collected errors.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
+impl From<ApiErrors> for Vec<ApiError> {
+    fn from(errors: ApiErrors) -> Self {
+        errors.0
+    }
+}
+
+impl IntoIterator for ApiErrors {
+    type Item = ApiError;
+    type IntoIter = std::vec::IntoIter<ApiError>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl FromIterator<ApiError> for ApiErrors {
+    fn from_iter<I: IntoIterator<Item = ApiError>>(iter: I) -> Self {
+        Self(iter.into_iter().collect())
+    }
 }
 
 /// Choose the top-level HTTP status for a set of error objects.
@@ -549,5 +707,72 @@ mod tests {
             },
         ];
         assert_eq!(top_level_status(&errors), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[test]
+    fn with_status_sets_numeric_status_and_canonical_title() {
+        let err = with_status(422);
+        assert_eq!(err.status.as_deref(), Some("422"));
+        assert_eq!(err.title.as_deref(), Some("Unprocessable Entity"));
+        assert!(err.source.is_none());
+    }
+
+    #[test]
+    fn with_status_leaves_title_absent_for_unknown_code() {
+        let err = with_status(799);
+        assert_eq!(err.status.as_deref(), Some("799"));
+        assert!(err.title.is_none());
+    }
+
+    #[test]
+    fn ext_setters_populate_expected_fields() {
+        let mut meta = Meta::new();
+        meta.insert("trace".into(), serde_json::json!("abc"));
+        let err = with_status(422)
+            .pointer("/data/attributes/title")
+            .detail("must not be empty")
+            .code("blank")
+            .title("Blank title")
+            .id("err-1")
+            .meta(meta)
+            .about_link("https://example.com/errors/blank");
+
+        assert_eq!(err.status.as_deref(), Some("422"));
+        assert_eq!(err.title.as_deref(), Some("Blank title"));
+        assert_eq!(err.detail.as_deref(), Some("must not be empty"));
+        assert_eq!(err.code.as_deref(), Some("blank"));
+        assert_eq!(err.id.as_deref(), Some("err-1"));
+        assert_eq!(
+            err.source.as_ref().unwrap().pointer.as_deref(),
+            Some("/data/attributes/title")
+        );
+        assert_eq!(err.meta.as_ref().unwrap()["trace"], serde_json::json!("abc"));
+        assert_eq!(
+            err.links.unwrap().about,
+            Some(Link::String("https://example.com/errors/blank".into()))
+        );
+    }
+
+    #[test]
+    fn api_errors_accumulates_and_aggregates_into_one_document() {
+        let mut errors = ApiErrors::new();
+        assert!(errors.is_empty());
+        for field in ["title", "body", "author"] {
+            errors.push(
+                with_status(422)
+                    .pointer(format!("/data/attributes/{field}"))
+                    .detail(format!("{field} is required")),
+            );
+        }
+        assert_eq!(errors.len(), 3);
+
+        let response = error_response(errors);
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        let json: Value = serde_json::from_slice(response.body()).unwrap();
+        assert_eq!(json["errors"].as_array().unwrap().len(), 3);
+        assert_eq!(
+            json["errors"][2]["source"]["pointer"],
+            "/data/attributes/author"
+        );
     }
 }
