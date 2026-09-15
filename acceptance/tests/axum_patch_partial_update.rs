@@ -14,9 +14,7 @@ use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use tower::ServiceExt;
 
-use jsonapi_axum::{
-    DocumentBuilder, Field, JsonApi, JsonApiError, JsonApiLayer, JsonApiResponse,
-};
+use jsonapi_axum::{DocumentBuilder, Field, JsonApi, JsonApiError, JsonApiLayer, JsonApiResponse};
 use serde_json::{Value, json};
 
 const JSON_API: &str = "application/vnd.api+json";
@@ -84,7 +82,9 @@ async fn get_one(
     Path(id): Path<String>,
 ) -> Result<JsonApiResponse<Article>, JsonApiError> {
     match state.articles.lock().unwrap().get(&id).cloned() {
-        Some(article) => Ok(JsonApiResponse::new(DocumentBuilder::single(article).build())),
+        Some(article) => Ok(JsonApiResponse::new(
+            DocumentBuilder::single(article).build(),
+        )),
         None => Err(JsonApiError::from_api_error(jsonapi_core::ApiError {
             status: Some("404".into()),
             ..Default::default()

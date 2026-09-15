@@ -109,7 +109,11 @@ fn serialize_omits_absent_emits_null_and_value() {
 #[test]
 fn round_trips_all_three_states() {
     for (attrs, expected_title, expected_summary) in [
-        (json!({"title": "T"}), Field::Set("T".to_string()), Field::Absent),
+        (
+            json!({"title": "T"}),
+            Field::Set("T".to_string()),
+            Field::Absent,
+        ),
         (json!({"summary": null}), Field::Absent, Field::Null),
         (
             json!({"title": "T", "summary": "S"}),

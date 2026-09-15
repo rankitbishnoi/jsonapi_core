@@ -155,10 +155,7 @@ fn patch_omitting_required_on_create_attribute_succeeds_without_422() {
         // entirely (empty attributes). A full-typed extractor would 422; the
         // Field<T> patch type resolves them all to Absent and 200s.
         let (app, store) = app_with_seed(seed());
-        let response = app
-            .oneshot(patch_request("1", json!({})))
-            .await
-            .unwrap();
+        let response = app.oneshot(patch_request("1", json!({}))).await.unwrap();
         let (status, _json) = status_and_json(response).await;
         assert_eq!(status, StatusCode::OK);
 

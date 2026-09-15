@@ -352,9 +352,7 @@ impl<'a> PaginationLinks<'a> {
             links.insert("prev", Some(Link::String(self.url(&page(number - 1)))));
         }
 
-        let last_number = self
-            .total
-            .map(|total| total.div_ceil(size).max(1));
+        let last_number = self.total.map(|total| total.div_ceil(size).max(1));
         let has_next = match last_number {
             Some(last) => number < last,
             None => true,
@@ -510,16 +508,24 @@ mod tests {
     fn offset_page_bad_value_is_query_parse_error() {
         let q = Query::from_pairs(&[("page[offset]", "nope")]).unwrap();
         let err = OffsetPage::from_query(&q).unwrap_err();
-        assert!(matches!(err, crate::Error::QueryParse { ref param, .. } if param == "page[offset]"));
+        assert!(
+            matches!(err, crate::Error::QueryParse { ref param, .. } if param == "page[offset]")
+        );
     }
 
     #[test]
     fn offset_middle_page_has_all_rels_and_preserves_params() {
         // offset=20, limit=10, total=35 → middle page.
-        let links = PaginationLinks::new("/articles", PageStrategy::Offset { offset: 20, limit: 10 })
-            .preserve(&[("sort", "-created"), ("filter[status]", "published")])
-            .total(35)
-            .build();
+        let links = PaginationLinks::new(
+            "/articles",
+            PageStrategy::Offset {
+                offset: 20,
+                limit: 10,
+            },
+        )
+        .preserve(&[("sort", "-created"), ("filter[status]", "published")])
+        .total(35)
+        .build();
 
         assert!(links.contains("self"));
         assert!(links.contains("first"));
@@ -542,9 +548,15 @@ mod tests {
 
     #[test]
     fn offset_first_page_omits_prev() {
-        let links = PaginationLinks::new("/articles", PageStrategy::Offset { offset: 0, limit: 10 })
-            .total(35)
-            .build();
+        let links = PaginationLinks::new(
+            "/articles",
+            PageStrategy::Offset {
+                offset: 0,
+                limit: 10,
+            },
+        )
+        .total(35)
+        .build();
         assert!(!links.contains("prev"));
         assert!(links.contains("next"));
         assert!(links.contains("last"));
@@ -553,9 +565,15 @@ mod tests {
     #[test]
     fn offset_last_page_omits_next() {
         // offset=30, limit=10, total=35 → last page (30..35).
-        let links = PaginationLinks::new("/articles", PageStrategy::Offset { offset: 30, limit: 10 })
-            .total(35)
-            .build();
+        let links = PaginationLinks::new(
+            "/articles",
+            PageStrategy::Offset {
+                offset: 30,
+                limit: 10,
+            },
+        )
+        .total(35)
+        .build();
         assert!(links.contains("prev"));
         assert!(!links.contains("next"), "at/after end must omit next");
         assert!(links.contains("last"));
@@ -563,8 +581,14 @@ mod tests {
 
     #[test]
     fn unknown_total_omits_last_but_keeps_next() {
-        let links = PaginationLinks::new("/articles", PageStrategy::Offset { offset: 10, limit: 10 })
-            .build();
+        let links = PaginationLinks::new(
+            "/articles",
+            PageStrategy::Offset {
+                offset: 10,
+                limit: 10,
+            },
+        )
+        .build();
         assert!(!links.contains("last"), "unknown total → no last");
         assert!(links.contains("next"), "unknown total → next still emitted");
         assert!(links.contains("prev"));
@@ -573,10 +597,15 @@ mod tests {
     #[test]
     fn page_number_middle_page_computes_neighbors_and_last() {
         // number=2, size=10, total=35 → last page = ceil(35/10) = 4.
-        let links =
-            PaginationLinks::new("/articles", PageStrategy::PageNumber { number: 2, size: 10 })
-                .total(35)
-                .build();
+        let links = PaginationLinks::new(
+            "/articles",
+            PageStrategy::PageNumber {
+                number: 2,
+                size: 10,
+            },
+        )
+        .total(35)
+        .build();
         assert!(link_str(&links, "prev").contains("page[number]=1"));
         assert!(link_str(&links, "next").contains("page[number]=3"));
         assert!(link_str(&links, "last").contains("page[number]=4"));
@@ -586,10 +615,15 @@ mod tests {
 
     #[test]
     fn page_number_last_page_omits_next() {
-        let links =
-            PaginationLinks::new("/articles", PageStrategy::PageNumber { number: 4, size: 10 })
-                .total(35)
-                .build();
+        let links = PaginationLinks::new(
+            "/articles",
+            PageStrategy::PageNumber {
+                number: 4,
+                size: 10,
+            },
+        )
+        .total(35)
+        .build();
         assert!(!links.contains("next"));
         assert!(links.contains("prev"));
         assert!(link_str(&links, "last").contains("page[number]=4"));

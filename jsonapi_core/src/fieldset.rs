@@ -197,7 +197,11 @@ mod tests {
     #[test]
     fn test_fieldset_config_is_empty() {
         assert!(FieldsetConfig::new().is_empty());
-        assert!(!FieldsetConfig::new().fields("articles", &["title"]).is_empty());
+        assert!(
+            !FieldsetConfig::new()
+                .fields("articles", &["title"])
+                .is_empty()
+        );
     }
 
     #[test]

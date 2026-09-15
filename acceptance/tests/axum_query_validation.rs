@@ -6,8 +6,8 @@
 use std::sync::Arc;
 
 use axum::Router;
-use axum::routing::get;
 use axum::http::StatusCode;
+use axum::routing::get;
 
 use jsonapi_axum::testing::{RouterTestExt, TestRequest};
 use jsonapi_axum::{JsonApiQueryValidated, JsonApiResponse};

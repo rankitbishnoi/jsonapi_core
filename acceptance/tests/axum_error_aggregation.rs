@@ -4,9 +4,9 @@
 //! and the `ApiErrors` accumulator, driven through a `jsonapi_axum` router.
 
 use axum::Router;
+use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::post;
-use axum::http::StatusCode;
 
 use jsonapi_axum::testing::{RouterTestExt, TestRequest};
 use jsonapi_axum::{ApiErrorExt, ApiErrors, JsonApi, JsonApiError, JsonApiLayer, with_status};

@@ -17,7 +17,9 @@ use jsonapi_axum::{
     BaseUrl, DocumentBuilder, JsonApi, JsonApiError, JsonApiLayer, JsonApiQuery, JsonApiResponse,
     JsonApiToMany, RelationshipResponse, pagination_links,
 };
-use jsonapi_core::{Link, PageNumberPage, PageStrategy, RelationshipData, ResourceIdentifier, links};
+use jsonapi_core::{
+    Link, PageNumberPage, PageStrategy, RelationshipData, ResourceIdentifier, links,
+};
 use serde_json::{Value, json};
 
 const JSON_API: &str = "application/vnd.api+json";
@@ -81,7 +83,11 @@ async fn create(
         id: id.clone(),
         title: new.title,
     };
-    state.articles.lock().unwrap().insert(id.clone(), article.clone());
+    state
+        .articles
+        .lock()
+        .unwrap()
+        .insert(id.clone(), article.clone());
     let self_link = links::resource_self(&base, "articles", &id);
     Ok(JsonApiResponse::new(
         DocumentBuilder::single(article)
@@ -104,7 +110,9 @@ async fn list(
     let start = ((number - 1) * size) as usize;
     let items: Vec<Article> = all.into_iter().skip(start).take(size as usize).collect();
     let l = pagination_links(&uri, PageStrategy::PageNumber { number, size }, Some(total));
-    Ok(JsonApiResponse::new(DocumentBuilder::collection(items).links(l).build()))
+    Ok(JsonApiResponse::new(
+        DocumentBuilder::collection(items).links(l).build(),
+    ))
 }
 
 async fn replace_tags(
@@ -112,7 +120,11 @@ async fn replace_tags(
     Path(id): Path<String>,
     JsonApiToMany(incoming): JsonApiToMany,
 ) -> RelationshipResponse {
-    state.tags.lock().unwrap().insert(id.clone(), incoming.clone());
+    state
+        .tags
+        .lock()
+        .unwrap()
+        .insert(id.clone(), incoming.clone());
     let l = links::relationship_links(&state.base_url.0, "articles", &id, "tags");
     RelationshipResponse::new(RelationshipData::ToMany(incoming)).links(l)
 }
@@ -120,7 +132,10 @@ async fn replace_tags(
 fn app() -> Router {
     Router::new()
         .route("/articles", get(list).post(create))
-        .route("/articles/{id}/relationships/tags", post(replace_tags).patch(replace_tags))
+        .route(
+            "/articles/{id}/relationships/tags",
+            post(replace_tags).patch(replace_tags),
+        )
         .layer(JsonApiLayer::new())
         .with_state(AppState::default())
 }
@@ -190,10 +205,19 @@ fn paginated_list_has_first_and_next_links() {
         let (status, json) = read(app.oneshot(req).await.unwrap()).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(json["data"].as_array().unwrap().len(), 2);
-        assert_eq!(json["links"]["first"], "/articles?page[number]=1&page[size]=2");
-        assert_eq!(json["links"]["next"], "/articles?page[number]=2&page[size]=2");
+        assert_eq!(
+            json["links"]["first"],
+            "/articles?page[number]=1&page[size]=2"
+        );
+        assert_eq!(
+            json["links"]["next"],
+            "/articles?page[number]=2&page[size]=2"
+        );
         assert!(json["links"].get("prev").is_none(), "first page omits prev");
-        assert_eq!(json["links"]["last"], "/articles?page[number]=3&page[size]=2");
+        assert_eq!(
+            json["links"]["last"],
+            "/articles?page[number]=3&page[size]=2"
+        );
     });
 }
 

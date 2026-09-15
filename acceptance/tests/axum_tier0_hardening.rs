@@ -17,9 +17,7 @@ use axum::routing::get;
 use std::sync::Arc;
 use tower::ServiceExt;
 
-use jsonapi_axum::{
-    JsonApiLayer, JsonApiQuery, JsonApiResponse, NormalizeErrorsLayer, not_found,
-};
+use jsonapi_axum::{JsonApiLayer, JsonApiQuery, JsonApiResponse, NormalizeErrorsLayer, not_found};
 use jsonapi_core::DocumentBuilder;
 use serde_json::Value;
 

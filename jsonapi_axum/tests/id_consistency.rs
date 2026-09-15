@@ -29,10 +29,7 @@ struct NewArticle {
     title: String,
 }
 
-async fn update(
-    Path(id): Path<String>,
-    doc: JsonApi<Article>,
-) -> Result<StatusCode, JsonApiError> {
+async fn update(Path(id): Path<String>, doc: JsonApi<Article>) -> Result<StatusCode, JsonApiError> {
     doc.require_id(&id)?; // 409 if body id != URL id
     Ok(StatusCode::OK)
 }
@@ -104,7 +101,8 @@ fn patch_with_matching_id_is_ok() {
 #[test]
 fn post_with_client_id_under_forbid_policy_is_403() {
     pollster::block_on(async {
-        let body = json!({"data": {"type": "articles", "id": "client-1", "attributes": {"title": "x"}}});
+        let body =
+            json!({"data": {"type": "articles", "id": "client-1", "attributes": {"title": "x"}}});
         let (status, json) = read(
             app()
                 .oneshot(body_req("POST", "/articles", body))

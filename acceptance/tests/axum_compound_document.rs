@@ -167,7 +167,8 @@ fn no_include_yields_no_included_member() {
 
         // An empty `included` array is fine; the point is no author was fetched.
         assert!(
-            response.json()
+            response
+                .json()
                 .get("included")
                 .and_then(Value::as_array)
                 .is_none_or(|included| included.is_empty())

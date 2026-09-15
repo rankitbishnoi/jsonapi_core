@@ -52,7 +52,9 @@ use jsonapi_axum::{
     NormalizeErrorsLayer, RelationshipResponse, RequestIdLayer, ResultExt, pagination_links,
     with_status,
 };
-use jsonapi_core::{Link, PageNumberPage, PageStrategy, RelationshipData, ResourceIdentifier, links};
+use jsonapi_core::{
+    Link, PageNumberPage, PageStrategy, RelationshipData, ResourceIdentifier, links,
+};
 use tower_http::request_id::{MakeRequestUuid, SetRequestIdLayer};
 
 /// The domain resource, as returned in responses — `id` is always present.
@@ -132,9 +134,7 @@ impl AppState {
 /// A `404` JSON:API error document for a missing article, built with the fluent
 /// [`with_status`] + [`ApiErrorExt`] builder instead of a raw struct literal.
 fn not_found(id: &str) -> JsonApiError {
-    JsonApiError::from_api_error(
-        with_status(404).detail(format!("article `{id}` does not exist")),
-    )
+    JsonApiError::from_api_error(with_status(404).detail(format!("article `{id}` does not exist")))
 }
 
 /// A domain-level validation error. Implementing [`IntoJsonApiError`] lets a
@@ -183,9 +183,11 @@ async fn list_articles(
     let strategy = PageStrategy::PageNumber { number, size };
     let links = pagination_links(&uri, strategy, Some(total));
 
-    Ok(JsonApiResponse::new(DocumentBuilder::collection(items).links(links).build())
-        .fields(query.fields)
-        .media_type(media))
+    Ok(
+        JsonApiResponse::new(DocumentBuilder::collection(items).links(links).build())
+            .fields(query.fields)
+            .media_type(media),
+    )
 }
 
 /// `GET /articles/{id}` — a single article with a `self` link.
@@ -312,7 +314,13 @@ async fn delete_article(
 // applying these semantics is the handler's job (below).
 
 fn tags_response(state: &AppState, id: &str) -> RelationshipResponse {
-    let current = state.tags.lock().unwrap().get(id).cloned().unwrap_or_default();
+    let current = state
+        .tags
+        .lock()
+        .unwrap()
+        .get(id)
+        .cloned()
+        .unwrap_or_default();
     let links = links::relationship_links(&state.base_url.0, "articles", id, "tags");
     RelationshipResponse::new(RelationshipData::ToMany(current)).links(links)
 }
@@ -371,7 +379,9 @@ fn app() -> Router {
         .route("/articles", get(list_articles).post(create_article))
         .route(
             "/articles/{id}",
-            get(get_article).patch(update_article).delete(delete_article),
+            get(get_article)
+                .patch(update_article)
+                .delete(delete_article),
         )
         .route(
             "/articles/{id}/relationships/tags",

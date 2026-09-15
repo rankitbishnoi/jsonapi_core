@@ -6,8 +6,8 @@
 use axum::Extension;
 use axum::Router;
 use axum::body::{Body, to_bytes};
-use axum::routing::get;
 use axum::http::{Request, StatusCode, header};
+use axum::routing::get;
 use tower::ServiceExt;
 
 use jsonapi_axum::{JsonApi, JsonApiLayer, JsonApiResponse};
@@ -137,7 +137,10 @@ fn unadvertised_ext_is_dropped_yielding_a_plain_response() {
         // the response falls back to a plain JSON:API Content-Type.
         let request = Request::builder()
             .uri("/articles")
-            .header(header::ACCEPT, format!("{JSON_API}; ext=\"https://unadvertised/ext\""))
+            .header(
+                header::ACCEPT,
+                format!("{JSON_API}; ext=\"https://unadvertised/ext\""),
+            )
             .body(Body::empty())
             .unwrap();
         let (status, content_type, _) = read(app().oneshot(request).await.unwrap()).await;

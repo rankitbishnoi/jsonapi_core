@@ -89,10 +89,10 @@ struct ResolveError {
 
 impl IntoJsonApiError for ResolveError {
     fn into_json_api_error(self) -> JsonApiError {
-        JsonApiError::from_api_error(
-            with_status(500)
-                .detail(format!("cannot resolve includes of type `{}`", self.type_name)),
-        )
+        JsonApiError::from_api_error(with_status(500).detail(format!(
+            "cannot resolve includes of type `{}`",
+            self.type_name
+        )))
     }
 }
 

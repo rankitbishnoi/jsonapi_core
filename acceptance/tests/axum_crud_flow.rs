@@ -9,9 +9,9 @@ use std::sync::{Arc, Mutex};
 use axum::Router;
 use axum::body::{Body, to_bytes};
 use axum::extract::{Path, State};
+use axum::http::{Request, StatusCode, header};
 use axum::response::IntoResponse;
 use axum::routing::get;
-use axum::http::{Request, StatusCode, header};
 use tower::ServiceExt;
 
 use jsonapi_axum::{JsonApi, JsonApiError, JsonApiLayer, JsonApiQuery, JsonApiResponse};
@@ -65,7 +65,9 @@ async fn get_one(
     Path(id): Path<String>,
 ) -> Result<JsonApiResponse<Article>, JsonApiError> {
     match state.articles.lock().unwrap().get(&id).cloned() {
-        Some(article) => Ok(JsonApiResponse::new(DocumentBuilder::single(article).build())),
+        Some(article) => Ok(JsonApiResponse::new(
+            DocumentBuilder::single(article).build(),
+        )),
         None => Err(not_found(&id)),
     }
 }
@@ -109,7 +111,9 @@ async fn update(
         body: incoming.body,
     };
     store.insert(id, article.clone());
-    Ok(JsonApiResponse::new(DocumentBuilder::single(article).build()))
+    Ok(JsonApiResponse::new(
+        DocumentBuilder::single(article).build(),
+    ))
 }
 
 async fn delete(
@@ -126,10 +130,7 @@ async fn delete(
 fn app() -> Router {
     Router::new()
         .route("/articles", get(list).post(create))
-        .route(
-            "/articles/{id}",
-            get(get_one).patch(update).delete(delete),
-        )
+        .route("/articles/{id}", get(get_one).patch(update).delete(delete))
         .layer(JsonApiLayer::new())
         .with_state(AppState::default())
 }
@@ -206,7 +207,9 @@ fn create_read_list_and_not_found() {
             .unwrap();
         let (status, json) = read_json(app.clone().oneshot(list_req).await.unwrap()).await;
         assert_eq!(status, StatusCode::OK);
-        let data = json["data"].as_array().expect("collection data is an array");
+        let data = json["data"]
+            .as_array()
+            .expect("collection data is an array");
         assert_eq!(data.len(), 1, "exactly the one created article");
         assert_eq!(data[0]["id"], assigned_id);
 
@@ -243,7 +246,10 @@ fn create_ignores_a_client_supplied_id() {
             .unwrap();
         let (status, json) = read_json(app().oneshot(request).await.unwrap()).await;
         assert_eq!(status, StatusCode::CREATED);
-        assert_ne!(json["data"]["id"], "client-temp", "client id must be replaced");
+        assert_ne!(
+            json["data"]["id"], "client-temp",
+            "client id must be replaced"
+        );
     });
 }
 

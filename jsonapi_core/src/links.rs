@@ -175,7 +175,9 @@ mod tests {
     #[test]
     fn links_maps_carry_self_and_related() {
         let links = resource_self_links("https://api.test", "articles", "1");
-        assert!(matches!(links.get("self"), Some(Link::String(s)) if s == "https://api.test/articles/1"));
+        assert!(
+            matches!(links.get("self"), Some(Link::String(s)) if s == "https://api.test/articles/1")
+        );
 
         let rel = relationship_links("https://api.test", "articles", "1", "author");
         assert!(rel.get("self").is_some());
