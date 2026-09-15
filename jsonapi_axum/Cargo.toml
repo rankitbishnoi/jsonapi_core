@@ -1,6 +1,6 @@
 [package]
 name = "jsonapi_axum"
-version = "0.2.0"
+version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -16,7 +16,7 @@ readme = "README.md"
 # the server runtime (tokio/http1) is a dev-dependency concern for the example.
 [dependencies]
 jsonapi_core = { path = "../jsonapi_core", version = "0.4.0" }
-jsonapi_http = { path = "../jsonapi_http", version = "0.2.0" }
+jsonapi_http = { path = "../jsonapi_http", version = "0.4.0" }
 axum = { version = "0.8", default-features = false }
 http = "1"
 bytes = "1"
