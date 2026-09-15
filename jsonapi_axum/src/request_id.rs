@@ -1,4 +1,4 @@
-//! Request-id / error-id correlation (G13).
+//! Request-id / error-id correlation.
 //!
 //! When a client reports "I got an error", an operator must be able to find it
 //! in the logs. [`RequestIdLayer`] resolves a correlation id per request, echoes
@@ -415,7 +415,9 @@ mod tests {
                     "/boom",
                     get(|| async { JsonApiError::not_found("missing") }),
                 )
-                .layer(RequestIdLayer::new().header_name(HeaderName::from_static("x-correlation-id")));
+                .layer(
+                    RequestIdLayer::new().header_name(HeaderName::from_static("x-correlation-id")),
+                );
             let request = Request::builder()
                 .uri("/boom")
                 .header("x-correlation-id", "corr-1")

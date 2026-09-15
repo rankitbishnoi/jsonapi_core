@@ -189,7 +189,7 @@ mod tests {
     use http::StatusCode;
     use serde_json::Value;
 
-    /// Read status + JSON body, proving the `map(Body::from)` hop preserves bytes.
+    /// Read the status and JSON body from a response.
     fn read(response: Response) -> (StatusCode, Value) {
         let status = response.status();
         let bytes =
@@ -240,8 +240,7 @@ mod tests {
                 ..Default::default()
             },
         ];
-        let (status, json) =
-            read(JsonApiError::from_api_errors(errors).into_response());
+        let (status, json) = read(JsonApiError::from_api_errors(errors).into_response());
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
         assert_eq!(json["errors"].as_array().unwrap().len(), 2);
         assert_eq!(json["errors"][0]["detail"], "title is required");
@@ -270,23 +269,24 @@ mod tests {
     #[cfg(not(feature = "debug-errors"))]
     #[test]
     fn internal_does_not_leak_raw_message() {
-        let (status, json) = read(
-            JsonApiError::internal("db url: postgres://user:hunter2@host/db").into_response(),
-        );
+        let (status, json) =
+            read(JsonApiError::internal("db url: postgres://user:hunter2@host/db").into_response());
         assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
         assert_eq!(json["errors"][0]["status"], "500");
         // Default build (no `debug-errors`): the raw message must be absent.
         let body = json.to_string();
-        assert!(!body.contains("hunter2"), "raw internal message leaked: {body}");
+        assert!(
+            !body.contains("hunter2"),
+            "raw internal message leaked: {body}"
+        );
         assert!(json["errors"][0]["detail"].is_null());
     }
 
     #[cfg(feature = "debug-errors")]
     #[test]
     fn internal_includes_raw_message_when_debug_errors_enabled() {
-        let (status, json) = read(
-            JsonApiError::internal("db url: postgres://user:hunter2@host/db").into_response(),
-        );
+        let (status, json) =
+            read(JsonApiError::internal("db url: postgres://user:hunter2@host/db").into_response());
         assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
         assert_eq!(
             json["errors"][0]["detail"],
@@ -317,8 +317,7 @@ mod tests {
 
     #[test]
     fn not_found_builds_404_with_detail() {
-        let (status, json) =
-            read(JsonApiError::not_found("article 99 missing").into_response());
+        let (status, json) = read(JsonApiError::not_found("article 99 missing").into_response());
         assert_eq!(status, StatusCode::NOT_FOUND);
         assert_eq!(json["errors"][0]["detail"], "article 99 missing");
     }
@@ -335,13 +334,11 @@ mod tests {
     #[cfg(feature = "sqlx")]
     #[test]
     fn sqlx_row_not_found_maps_to_404_others_500() {
-        let (status, _) =
-            read(JsonApiError::from(sqlx::Error::RowNotFound).into_response());
+        let (status, _) = read(JsonApiError::from(sqlx::Error::RowNotFound).into_response());
         assert_eq!(status, StatusCode::NOT_FOUND);
 
-        let (status, _) = read(
-            JsonApiError::from(sqlx::Error::Protocol("bad packet".into())).into_response(),
-        );
+        let (status, _) =
+            read(JsonApiError::from(sqlx::Error::Protocol("bad packet".into())).into_response());
         assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
     }
 }

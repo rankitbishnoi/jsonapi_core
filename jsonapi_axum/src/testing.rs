@@ -1,4 +1,4 @@
-//! In-process test utilities (G17), behind the `testing` feature.
+//! In-process test utilities, behind the `testing` feature.
 //!
 //! These cut the `oneshot` + build-request + collect-body + parse-JSON
 //! boilerplate that every JSON:API server test repeats, without hiding intent:
@@ -154,8 +154,7 @@ impl TestRequest {
 /// [`Router`]; call [`send`](Self::send) with a built [`TestRequest`].
 pub trait RouterTestExt {
     /// Run `request` against this router via `oneshot` and collect the response.
-    fn send(self, request: Request<Body>)
-    -> impl Future<Output = JsonApiTestResponse> + Send;
+    fn send(self, request: Request<Body>) -> impl Future<Output = JsonApiTestResponse> + Send;
 }
 
 impl RouterTestExt for Router {
@@ -266,10 +265,7 @@ impl JsonApiTestResponse {
 
     /// Assert the number of members in the `errors` array.
     pub fn assert_error_count(self, count: usize) -> Self {
-        let got = self
-            .errors()
-            .as_array()
-            .map_or(0, std::vec::Vec::len);
+        let got = self.errors().as_array().map_or(0, std::vec::Vec::len);
         assert_eq!(got, count, "expected {count} error(s), got {got}");
         self
     }

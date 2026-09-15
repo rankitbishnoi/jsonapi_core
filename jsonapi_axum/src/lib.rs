@@ -40,9 +40,9 @@ pub mod validation;
 pub use error::{IntoJsonApiError, JsonApiError, ResultExt};
 pub use extract::{BaseUrl, JsonApi, JsonApiQuery, JsonApiQueryValidated, NegotiatedMediaType};
 pub use normalize::{NormalizeErrorsLayer, NormalizeErrorsService, not_found};
-pub use request_id::{RequestId, RequestIdLayer, RequestIdService};
 pub use pagination::pagination_links;
 pub use relationship::{JsonApiToMany, JsonApiToOne, RelationshipResponse};
+pub use request_id::{RequestId, RequestIdLayer, RequestIdService};
 pub use response::JsonApiResponse;
 #[cfg(feature = "validator")]
 #[cfg_attr(docsrs, doc(cfg(feature = "validator")))]
@@ -60,7 +60,7 @@ pub use jsonapi_http::{ApiErrorExt, ApiErrors, with_status};
 /// [`JsonApi::check_client_id`](crate::JsonApi::check_client_id) from one place.
 pub use jsonapi_http::ClientIdPolicy;
 
-/// Re-export the compound-document `include` resolver (G16) so a handler can
+/// Re-export the compound-document `include` resolver so a handler can
 /// assemble a deduped `included` array from the requested include paths and a
 /// consumer-supplied batch loader.
 pub use jsonapi_http::{IncludeResolver, resolve_includes};

@@ -73,10 +73,7 @@ pub fn check_id_matches(body_id: Option<&str>, path_id: &str) -> Result<(), Box<
 /// # Errors
 /// Returns a 403 [`ApiError`] when the policy is `Forbid` and a client id is
 /// present. Boxed for the same reason as [`check_id_matches`].
-pub fn check_client_id(
-    policy: ClientIdPolicy,
-    body_id: Option<&str>,
-) -> Result<(), Box<ApiError>> {
+pub fn check_client_id(policy: ClientIdPolicy, body_id: Option<&str>) -> Result<(), Box<ApiError>> {
     match (policy, body_id) {
         (ClientIdPolicy::Forbid, Some(id)) => Err(Box::new(pointer_error(
             StatusCode::FORBIDDEN,

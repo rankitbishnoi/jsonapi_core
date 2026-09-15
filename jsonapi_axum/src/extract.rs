@@ -143,11 +143,11 @@ impl<T: ResourceObject> JsonApi<T> {
     }
 }
 
-/// The application's base URL for building `self`/`related` links (G8) and the
-/// `Location` header (G9), provided from application state via
+/// The application's base URL for building `self`/`related` links and the
+/// `Location` header, provided from application state via
 /// [`FromRef`].
 ///
-/// Per the 0.2 design (Shared Decision 1), the base URL is an explicit,
+/// The base URL is an explicit,
 /// app-configured value rather than one derived from the request `Host` /
 /// `X-Forwarded-*` headers, which are fragile behind proxies. Store it in your
 /// state and implement [`FromRef`] (or make it the state itself); a handler then
@@ -236,9 +236,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::Router;
     use axum::body::Body;
     use axum::routing::{get, post};
-    use axum::Router;
     use http::{Request, StatusCode, header};
     use jsonapi_core::Relationship;
     use serde_json::Value;
@@ -362,7 +362,10 @@ mod tests {
                 .unwrap();
             let (status, json) = status_of(response).await;
             assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-            assert_eq!(json["errors"][0]["source"]["pointer"], "/data/attributes/title");
+            assert_eq!(
+                json["errors"][0]["source"]["pointer"],
+                "/data/attributes/title"
+            );
         });
     }
 
@@ -392,7 +395,10 @@ mod tests {
             async fn list(JsonApiQuery(q): JsonApiQuery) -> String {
                 let field = &q.sort[0];
                 let page_size = q.page.get("size").map(String::as_str).unwrap_or("none");
-                format!("sort={}:{} page_size={page_size}", field.field, field.descending)
+                format!(
+                    "sort={}:{} page_size={page_size}",
+                    field.field, field.descending
+                )
             }
             let router = Router::new().route("/articles", get(list));
             let request = Request::builder()

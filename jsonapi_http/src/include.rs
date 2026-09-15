@@ -1,4 +1,4 @@
-//! Compound-document / `include` resolution (G16).
+//! Compound-document / `include` resolution.
 //!
 //! Given the primary resources, the client's requested `include` paths, and a
 //! consumer-supplied [`IncludeResolver`], [`resolve_includes`] assembles the
@@ -6,10 +6,10 @@
 //! (e.g. `comments.author`) segment by segment and deduping by `(type, id)`.
 //!
 //! The library owns the walk / batching / dedup / assembly; **fetching stays the
-//! consumer's job** (the resolver). G16 never touches a datastore and never
+//! consumer's job** (the resolver). This crate never touches a datastore and never
 //! applies sort / filter / page — those are permanent non-goals.
 //!
-//! # Resolver interface (Decision 1)
+//! # Resolver interface
 //!
 //! The resolver is a **dumb batch loader keyed by identity** — it receives a
 //! type and a deduped id list and returns the matching resources:
@@ -34,9 +34,9 @@
 //! must not depend on any web framework. An adapter maps the error at the edge
 //! (e.g. `jsonapi_axum`'s `.or_json_api()`).
 //!
-//! # Sparse fieldsets (G1)
+//! # Sparse fieldsets
 //!
-//! G16 only *assembles* the `included` array. `fields[type]` filtering of
+//! This crate only *assembles* the `included` array. `fields[type]` filtering of
 //! included resources happens later, at serialization
 //! ([`json_api_response_filtered`](crate::json_api_response_filtered)); the two
 //! compose without interaction here.
@@ -321,9 +321,11 @@ mod tests {
             store.insert(resource("people", "9"));
 
             let mut a1 = resource("articles", "1");
-            a1.relationships.insert("author".into(), to_one("people", "9"));
+            a1.relationships
+                .insert("author".into(), to_one("people", "9"));
             let mut a2 = resource("articles", "2");
-            a2.relationships.insert("author".into(), to_one("people", "9"));
+            a2.relationships
+                .insert("author".into(), to_one("people", "9"));
 
             let included = resolve_includes(&[a1, a2], &["author"], &store)
                 .await
@@ -341,9 +343,11 @@ mod tests {
             let mut store = FakeStore::default();
             // Two comments share one author.
             let mut c1 = resource("comments", "5");
-            c1.relationships.insert("author".into(), to_one("people", "9"));
+            c1.relationships
+                .insert("author".into(), to_one("people", "9"));
             let mut c2 = resource("comments", "6");
-            c2.relationships.insert("author".into(), to_one("people", "9"));
+            c2.relationships
+                .insert("author".into(), to_one("people", "9"));
             store.insert(c1);
             store.insert(c2);
             store.insert(resource("people", "9"));
@@ -426,7 +430,9 @@ mod tests {
                 ..FakeStore::default()
             };
             let mut article = resource("articles", "1");
-            article.relationships.insert("author".into(), to_one("people", "9"));
+            article
+                .relationships
+                .insert("author".into(), to_one("people", "9"));
 
             let err = resolve_includes(&[article], &["author"], &store)
                 .await

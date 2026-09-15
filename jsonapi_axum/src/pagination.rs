@@ -1,4 +1,4 @@
-//! Request-URI-aware pagination links (G7).
+//! Request-URI-aware pagination links.
 //!
 //! Thin binding over [`jsonapi_core::PaginationLinks`]: it takes the request
 //! [`Uri`], uses its path as the link base, and preserves every non-`page` query
@@ -91,7 +91,10 @@ mod tests {
             .unwrap();
         let links = pagination_links(
             &uri,
-            PageStrategy::PageNumber { number: 2, size: 10 },
+            PageStrategy::PageNumber {
+                number: 2,
+                size: 10,
+            },
             Some(35),
         );
 
@@ -109,7 +112,14 @@ mod tests {
     #[test]
     fn offset_strategy_over_request_uri() {
         let uri: Uri = "/articles?page[offset]=0&page[limit]=10".parse().unwrap();
-        let links = pagination_links(&uri, PageStrategy::Offset { offset: 0, limit: 10 }, Some(25));
+        let links = pagination_links(
+            &uri,
+            PageStrategy::Offset {
+                offset: 0,
+                limit: 10,
+            },
+            Some(25),
+        );
         assert!(!links.contains("prev"), "first page omits prev");
         assert!(link_str(&links, "next").contains("page[offset]=10"));
         // last offset = floor((25-1)/10)*10 = 20.
@@ -119,7 +129,14 @@ mod tests {
     #[test]
     fn no_query_string_still_builds_links() {
         let uri: Uri = "/articles".parse().unwrap();
-        let links = pagination_links(&uri, PageStrategy::Offset { offset: 0, limit: 5 }, None);
+        let links = pagination_links(
+            &uri,
+            PageStrategy::Offset {
+                offset: 0,
+                limit: 5,
+            },
+            None,
+        );
         assert!(link_str(&links, "self").starts_with("/articles?page[offset]=0"));
     }
 }

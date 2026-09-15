@@ -1,4 +1,4 @@
-//! Relationship-endpoint payloads (G6).
+//! Relationship-endpoint payloads.
 //!
 //! Endpoints like `/articles/1/relationships/author` operate on **resource
 //! identifier objects** (`{type, id}`), not full resources: the request body is
@@ -88,7 +88,9 @@ where
             )),
             // `RelationshipData` is #[non_exhaustive]; any future shape is not a
             // valid to-one linkage.
-            _ => Err(bad_linkage("unsupported relationship linkage for a to-one endpoint")),
+            _ => Err(bad_linkage(
+                "unsupported relationship linkage for a to-one endpoint",
+            )),
         }
     }
 }
@@ -111,7 +113,9 @@ where
             RelationshipData::ToOne(_) => Err(bad_linkage(
                 "expected a to-many relationship linkage (an array), got an object or null",
             )),
-            _ => Err(bad_linkage("unsupported relationship linkage for a to-many endpoint")),
+            _ => Err(bad_linkage(
+                "unsupported relationship linkage for a to-many endpoint",
+            )),
         }
     }
 }
@@ -189,8 +193,8 @@ impl IntoResponse for RelationshipResponse {
             links: self.links.as_ref(),
             meta: self.meta.as_ref(),
         };
-        let body = serde_json::to_vec(&repr)
-            .expect("serializing a relationship document cannot fail");
+        let body =
+            serde_json::to_vec(&repr).expect("serializing a relationship document cannot fail");
         Response::builder()
             .status(self.status)
             .header(header::CONTENT_TYPE, content_type_value(&self.media_type))
@@ -394,7 +398,8 @@ mod tests {
     #[test]
     fn relationship_response_serializes_empty_to_many_as_array() {
         pollster::block_on(async {
-            let response = RelationshipResponse::new(RelationshipData::ToMany(vec![])).into_response();
+            let response =
+                RelationshipResponse::new(RelationshipData::ToMany(vec![])).into_response();
             let (_status, json) = status_and_json(response).await;
             assert!(json["data"].is_array());
             assert_eq!(json["data"].as_array().unwrap().len(), 0);

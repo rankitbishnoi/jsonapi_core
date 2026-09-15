@@ -393,7 +393,7 @@ fn top_level_status(errors: &[ApiError]) -> StatusCode {
 /// Stamp a correlation `id` onto every member of a JSON:API `errors` array that
 /// does not already carry an `id`, in place.
 ///
-/// This is the reusable half of request-id correlation (G13): an adapter buffers
+/// This is the reusable half of request-id correlation: an adapter buffers
 /// an error response body, runs this, and rebuilds it. It is deliberately
 /// conservative:
 ///
@@ -495,10 +495,7 @@ mod tests {
                 },
                 StatusCode::UNSUPPORTED_MEDIA_TYPE,
             ),
-            (
-                Error::MediaTypeParse("bad".into()),
-                StatusCode::BAD_REQUEST,
-            ),
+            (Error::MediaTypeParse("bad".into()), StatusCode::BAD_REQUEST),
             (Error::NoAcceptableMediaType, StatusCode::NOT_ACCEPTABLE),
             (
                 Error::AllMediaTypesUnsupportedParams,
@@ -802,7 +799,10 @@ mod tests {
             err.source.as_ref().unwrap().pointer.as_deref(),
             Some("/data/attributes/title")
         );
-        assert_eq!(err.meta.as_ref().unwrap()["trace"], serde_json::json!("abc"));
+        assert_eq!(
+            err.meta.as_ref().unwrap()["trace"],
+            serde_json::json!("abc")
+        );
         assert_eq!(
             err.links.unwrap().about,
             Some(Link::String("https://example.com/errors/blank".into()))

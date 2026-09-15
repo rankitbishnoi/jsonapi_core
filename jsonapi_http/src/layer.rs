@@ -297,10 +297,7 @@ mod tests {
         };
     }
 
-    fn request_with(
-        method: &str,
-        headers: &[(header::HeaderName, &str)],
-    ) -> Request<Full<Bytes>> {
+    fn request_with(method: &str, headers: &[(header::HeaderName, &str)]) -> Request<Full<Bytes>> {
         let mut builder = Request::builder().method(method).uri("/articles");
         for (name, value) in headers {
             builder = builder.header(name.clone(), *value);
@@ -371,7 +368,9 @@ mod tests {
                 } else {
                     "absent"
                 };
-                Ok::<_, Infallible>(Response::new(Full::new(Bytes::from_static(body.as_bytes()))))
+                Ok::<_, Infallible>(Response::new(Full::new(Bytes::from_static(
+                    body.as_bytes(),
+                ))))
             });
             let svc = AcceptLayer::new().layer(inner);
             let req = request_with("GET", &[(header::ACCEPT, JSON_API_MEDIA_TYPE)]);
@@ -399,7 +398,10 @@ mod tests {
             let svc = AcceptLayer::new().ext([EXT]).layer(inner);
             let req = request_with(
                 "GET",
-                &[(header::ACCEPT, &format!("{JSON_API_MEDIA_TYPE}; ext=\"{EXT}\""))],
+                &[(
+                    header::ACCEPT,
+                    &format!("{JSON_API_MEDIA_TYPE}; ext=\"{EXT}\""),
+                )],
             );
             let res = svc.oneshot(req).await.unwrap();
 
@@ -424,7 +426,10 @@ mod tests {
             let svc = AcceptLayer::new().layer(inner);
             let req = request_with(
                 "GET",
-                &[(header::ACCEPT, &format!("{JSON_API_MEDIA_TYPE}; ext=\"https://unadvertised\""))],
+                &[(
+                    header::ACCEPT,
+                    &format!("{JSON_API_MEDIA_TYPE}; ext=\"https://unadvertised\""),
+                )],
             );
             let res = svc.oneshot(req).await.unwrap();
 
