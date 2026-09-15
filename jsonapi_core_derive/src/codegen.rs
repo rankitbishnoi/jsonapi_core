@@ -441,7 +441,10 @@ fn gen_deserialize(
 /// the wire map (`__attrs` or `__rels`) during serialization.
 fn gen_field_serialize(field: &ParsedField, target_var: &str) -> TokenStream {
     let ident = &field.ident;
-    let wire = field.wire_name.as_ref().unwrap();
+    let wire = field
+        .wire_name
+        .as_ref()
+        .expect("codegen invariant: attribute/relationship fields always have a wire_name");
     let target = format_ident!("{}", target_var);
 
     if field.is_field {
@@ -490,7 +493,10 @@ fn gen_field_extract(field: &ParsedField, source_var: &str) -> TokenStream {
     // Build the lookup chain
     let lookup = if field.aliases.is_empty() {
         // Single lookup (no aliases, or renamed field)
-        let wire = field.wire_name.as_ref().unwrap();
+        let wire = field
+            .wire_name
+            .as_ref()
+            .expect("codegen invariant: attribute/relationship fields always have a wire_name");
         quote! { #source.and_then(|__s| __s.get(#wire)) }
     } else {
         // Fuzzy alias chain: try output case first, then alternatives
@@ -504,7 +510,10 @@ fn gen_field_extract(field: &ParsedField, source_var: &str) -> TokenStream {
         chain
     };
 
-    let wire = field.wire_name.as_ref().unwrap();
+    let wire = field
+        .wire_name
+        .as_ref()
+        .expect("codegen invariant: attribute/relationship fields always have a wire_name");
     if field.is_field {
         // Tri-state PATCH member: the wire key being ABSENT → Absent, an explicit
         // `null` → Null, and any other value → Set(deserialized). This is the
