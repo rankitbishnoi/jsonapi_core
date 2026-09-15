@@ -24,7 +24,10 @@ Plain functions and tower layers over `http::Request` / `http::Response`:
 | `response` | `document_response` / `json_api_response` | Serialize a `Document` into a JSON:API `http::Response` (200, or any status). |
 | `response` | `content_type_value` | Build a `Content-Type` header value carrying negotiated `ext`/`profile`. |
 | `error` | `status_for` / `to_api_error` | Map a `jsonapi_core::Error` to an HTTP status and a JSON:API `ApiError`. |
-| `error` | `error_response` / `error_response_for` | Build a spec-shaped JSON:API error-document response. |
+| `error` | `error_response` / `error_response_for` / `error_response_for_status` | Build a spec-shaped JSON:API error-document response (from `ApiError`s, an `Error`, or a bare status). |
+| `error` | `with_status` + `ApiErrorExt` / `ApiErrors` | Fluently build an `ApiError` from a status and accumulate several into one document. |
+| `id` | `ClientIdPolicy` / `check_client_id` / `check_id_matches` / `id_conflict` | Enforce client-supplied `id` policy on create (`Assign`/`Accept`/`Forbid`) and PATCH id-matching. |
+| `include` | `IncludeResolver` / `resolve_includes` | Assemble a deduped compound-document `included` array from `include` paths via a batch loader (one load per type per level — no N+1). |
 | `layer` | `ContentTypeLayer` / `AcceptLayer` / `JsonApiLayer` | tower layers that reject non-conforming requests (415 / 406) before they reach a handler. |
 
 Every failure — from an extractor, a layer, or a handler — funnels through
@@ -34,7 +37,7 @@ Every failure — from an extractor, a layer, or a handler — funnels through
 
 ```toml
 [dependencies]
-jsonapi_http = "0.1"
+jsonapi_http = "0.4"
 jsonapi_core = "0.4"
 ```
 
