@@ -234,6 +234,40 @@ impl<T> Relationship<T> {
         }
     }
 
+    /// Convenience constructor for a to-one relationship pointing at a single
+    /// identifier.
+    #[must_use]
+    pub fn to_one(rid: ResourceIdentifier) -> Self {
+        Self::new(RelationshipData::ToOne(Some(rid)))
+    }
+
+    /// Convenience constructor for an explicitly null (empty) to-one
+    /// relationship.
+    #[must_use]
+    pub fn to_one_null() -> Self {
+        Self::new(RelationshipData::ToOne(None))
+    }
+
+    /// Convenience constructor for a to-one relationship, building the
+    /// identifier from a `type`/`id` pair.
+    ///
+    /// ```
+    /// # use jsonapi_core::Relationship;
+    /// let rel = Relationship::<()>::to_one_id("authors", "42");
+    /// assert_eq!(rel.first_id(), Some("42"));
+    /// ```
+    #[must_use]
+    pub fn to_one_id(r#type: impl Into<String>, id: impl Into<String>) -> Self {
+        Self::to_one(ResourceIdentifier::new(r#type, id))
+    }
+
+    /// Convenience constructor for a to-many relationship from any iterator of
+    /// identifiers.
+    #[must_use]
+    pub fn to_many(rids: impl IntoIterator<Item = ResourceIdentifier>) -> Self {
+        Self::new(RelationshipData::ToMany(rids.into_iter().collect()))
+    }
+
     /// Unified slice view of every identifier inside the relationship,
     /// regardless of cardinality.
     ///
@@ -437,6 +471,35 @@ mod tests {
     // Phantom target; `Relationship::<T>` only uses T for type-safe registry
     // lookups at the call site, so this is a fine stand-in for unit tests.
     struct Target;
+
+    #[test]
+    fn relationship_to_one_wraps_single_identifier() {
+        let rel: Relationship<Target> = Relationship::to_one(rid("people", "9"));
+        assert_eq!(rel.data, RelationshipData::ToOne(Some(rid("people", "9"))));
+    }
+
+    #[test]
+    fn relationship_to_one_null_is_empty_to_one() {
+        let rel: Relationship<Target> = Relationship::to_one_null();
+        assert_eq!(rel.data, RelationshipData::ToOne(None));
+    }
+
+    #[test]
+    fn relationship_to_one_id_builds_identifier() {
+        let rel: Relationship<Target> = Relationship::to_one_id("people", "9");
+        assert_eq!(rel.data, RelationshipData::ToOne(Some(rid("people", "9"))));
+        assert_eq!(rel.first_id(), Some("9"));
+    }
+
+    #[test]
+    fn relationship_to_many_collects_iterator() {
+        let rel: Relationship<Target> =
+            Relationship::to_many([rid("people", "1"), rid("people", "2")]);
+        assert_eq!(
+            rel.data,
+            RelationshipData::ToMany(vec![rid("people", "1"), rid("people", "2")])
+        );
+    }
 
     #[test]
     fn relationship_ids_skips_null_to_one() {
