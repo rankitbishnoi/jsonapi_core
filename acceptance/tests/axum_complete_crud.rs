@@ -102,7 +102,8 @@ async fn list(
     uri: Uri,
     JsonApiQuery(query): JsonApiQuery,
 ) -> Result<impl IntoResponse, JsonApiError> {
-    let page = PageNumberPage::from_query(&query).map_err(|e| JsonApiError::from_core(&e))?;
+    // `?` converts jsonapi_core::Error into JsonApiError via its `From` impl.
+    let page = PageNumberPage::from_query(&query)?;
     let number = page.number.max(1);
     let size = page.size.unwrap_or(2).max(1);
     let all: Vec<Article> = state.articles.lock().unwrap().values().cloned().collect();

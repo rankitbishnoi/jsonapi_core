@@ -15,7 +15,8 @@ use jsonapi_axum::{JsonApi, JsonApiError, JsonApiResponse, DocumentBuilder};
 async fn create(JsonApi(document): JsonApi<Article>)
     -> Result<JsonApiResponse<Article>, JsonApiError>
 {
-    let article = document.into_single().map_err(|e| JsonApiError::from_core(&e))?;
+    // `?` converts jsonapi_core::Error into JsonApiError via its `From` impl.
+    let article = document.into_single()?;
     Ok(JsonApiResponse::new(DocumentBuilder::single(article).build()))
 }
 ```
