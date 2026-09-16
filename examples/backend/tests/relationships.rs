@@ -108,3 +108,17 @@ async fn add_and_remove_tags_adjust_linkage() {
         .collect();
     assert!(ids.contains(&"t-rust") && ids.contains(&"t-web") && !ids.contains(&"t-api"));
 }
+
+#[tokio::test]
+async fn set_author_rejects_null_data_400() {
+    let app = support::seeded_app().await;
+    let res = app
+        .send(
+            TestRequest::patch("/articles/art-01/relationships/author")
+                .content_type_json_api()
+                .body_json(&json!({ "data": null }))
+                .build(),
+        )
+        .await;
+    res.assert_error(StatusCode::BAD_REQUEST);
+}
