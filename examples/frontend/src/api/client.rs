@@ -31,28 +31,45 @@ impl ApiClient {
         js_sys::Date::now()
     }
 
-    /// Perform a request, record the full exchange, and return status + body.
+    /// Perform a `application/vnd.api+json` request, record the full exchange,
+    /// and return status + body. Thin wrapper over [`Self::send_raw`] with the
+    /// JSON:API media type as both Accept and Content-Type.
     pub async fn send(&self, method: &str, path: &str, body: Option<String>) -> CallResult {
+        self.send_raw(method, path, MEDIA_TYPE, MEDIA_TYPE, body)
+            .await
+    }
+
+    /// Like [`Self::send`], but with caller-controlled Accept/Content-Type — used
+    /// by the errors page (406/415) and the atomic page (atomic ext media type).
+    /// Still fully captured into the inspector. `content_type` is only applied
+    /// (sent and recorded) when `body` is `Some`; it is ignored for bodyless
+    /// requests, mirroring what the request actually puts on the wire.
+    pub async fn send_raw(
+        &self,
+        method: &str,
+        path: &str,
+        accept: &str,
+        content_type: &str,
+        body: Option<String>,
+    ) -> CallResult {
         let url = format!("{}{}", api_base(), path);
-        // Mirror exactly what the builder sends below: Content-Type is only set
-        // when there is a body, so the inspector must not claim otherwise.
         let mut req_headers = vec![Header {
             name: "accept".into(),
-            value: MEDIA_TYPE.into(),
+            value: accept.into(),
         }];
         if body.is_some() {
             req_headers.push(Header {
                 name: "content-type".into(),
-                value: MEDIA_TYPE.into(),
+                value: content_type.into(),
             });
         }
 
         let start = Self::now_ms();
         let mut builder = RequestBuilder::new(&url).method(parse_method(method));
-        builder = builder.header("Accept", MEDIA_TYPE);
+        builder = builder.header("Accept", accept);
 
         let sent = if let Some(ref b) = body {
-            builder = builder.header("Content-Type", MEDIA_TYPE);
+            builder = builder.header("Content-Type", content_type);
             builder.body(b.clone())
         } else {
             builder.build()

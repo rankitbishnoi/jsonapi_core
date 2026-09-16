@@ -6,7 +6,8 @@ use crate::api::ApiClient;
 use crate::components::Nav;
 use crate::inspector::{InspectorPanel, InspectorStore};
 use crate::pages::{
-    CreateEditPage, IncludesPage, PaginationPage, ReadPage, SortFilterPage, SparsePage,
+    AtomicPage, CreateEditPage, ErrorsPage, IncludesPage, PaginationPage, ReadPage,
+    RelationshipsPage, SortFilterPage, SparsePage,
 };
 
 #[component]
@@ -27,6 +28,9 @@ pub fn App() -> impl IntoView {
                         <Route path=path!("/sparse") view=SparsePage/>
                         <Route path=path!("/sort-filter") view=SortFilterPage/>
                         <Route path=path!("/create-edit") view=CreateEditPage/>
+                        <Route path=path!("/relationships") view=RelationshipsPage/>
+                        <Route path=path!("/errors") view=ErrorsPage/>
+                        <Route path=path!("/atomic") view=AtomicPage/>
                     </Routes>
                 </main>
                 <InspectorPanel/>
