@@ -25,7 +25,7 @@ pub async fn list(
 
     let opts = ArticleQuery {
         limit: size as i64,
-        offset: ((number - 1) * size) as i64,
+        offset: number.saturating_sub(1).saturating_mul(size).min(i64::MAX as u64) as i64,
         sort: vec![ArticleSort::CreatedAt(SortDir::Asc)],
         author_id: None,
     };

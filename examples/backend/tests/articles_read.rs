@@ -21,5 +21,5 @@ async fn get_missing_article_returns_404() {
     let res = app
         .send(TestRequest::get("/articles/nope").accept_json_api().build())
         .await;
-    res.assert_error(StatusCode::NOT_FOUND.as_u16());
+    res.assert_status(StatusCode::NOT_FOUND).assert_error(StatusCode::NOT_FOUND.as_u16());
 }
