@@ -22,12 +22,14 @@ pub struct ArticleResource {
 
 /// Write resource for creating a new article. `id` is optional so the client
 /// may omit it and let the server assign one.
-#[derive(Debug, Clone, jsonapi_core::JsonApi)]
+#[derive(Debug, Clone, jsonapi_core::JsonApi, validator::Validate)]
 #[jsonapi(type = "articles", case = "camelCase")]
 pub struct NewArticleResource {
     #[jsonapi(id)]
     pub id: Option<String>,
+    #[validate(length(min = 1, max = 200, message = "title must be 1..=200 chars"))]
     pub title: String,
+    #[validate(length(min = 1, message = "body must not be empty"))]
     pub body: String,
     #[jsonapi(relationship)]
     pub author: Relationship<AuthorResource>,

@@ -6,3 +6,4 @@ pub mod resource;
 pub mod router;
 pub mod routes;
 pub mod state;
+pub mod util;

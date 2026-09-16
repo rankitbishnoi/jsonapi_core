@@ -17,6 +17,7 @@ use serde_json::Value;
 use sqlx::SqliteConnection;
 
 use crate::state::AppState;
+use crate::util::{mint_id, now};
 
 /// Content-Type / Accept value for atomic operations responses.
 fn atomic_content_type() -> HeaderValue {
@@ -24,41 +25,6 @@ fn atomic_content_type() -> HeaderValue {
         "application/vnd.api+json; ext=\"{ATOMIC_EXT_URI}\""
     ))
     .expect("static header value is valid")
-}
-
-/// Generate an id from nanoseconds since epoch (same strategy as articles.rs).
-fn mint_id() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos()
-        .to_string()
-}
-
-/// ISO-8601-ish timestamp (UTC) — reused from articles.rs approach.
-fn now() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let d = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default();
-    let secs = d.as_secs();
-    let nanos = d.subsec_nanos();
-    let s = secs % 60;
-    let m = (secs / 60) % 60;
-    let h = (secs / 3600) % 24;
-    let days = secs / 86400;
-    let z = days + 719468;
-    let era = z / 146097;
-    let doe = z - era * 146097;
-    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
-    let y = yoe + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let day = doy - (153 * mp + 2) / 5 + 1;
-    let month = if mp < 10 { mp + 3 } else { mp - 9 };
-    let year = if month <= 2 { y + 1 } else { y };
-    format!("{year:04}-{month:02}-{day:02}T{h:02}:{m:02}:{s:02}.{nanos:09}Z")
 }
 
 // ── Per-type operations on &mut SqliteConnection ─────────────────────────────
@@ -81,11 +47,7 @@ async fn add_author(
         .bind(&ts)
         .execute(&mut *conn)
         .await
-        .map_err(|e| {
-            JsonApiError::from_api_error(
-                with_status(StatusCode::UNPROCESSABLE_ENTITY).detail(e.to_string()),
-            )
-        })?;
+        .map_err(sqlx_err)?;
 
     // Record lid -> real id so later ops can reference it.
     if let Some(lid) = &resource.lid {
@@ -213,11 +175,7 @@ async fn add_article(
     .bind(&ts)
     .execute(&mut *conn)
     .await
-    .map_err(|e| {
-        JsonApiError::from_api_error(
-            with_status(StatusCode::UNPROCESSABLE_ENTITY).detail(e.to_string()),
-        )
-    })?;
+    .map_err(sqlx_err)?;
 
     if let Some(lid) = &resource.lid {
         lid_map.insert(lid.clone(), id.clone());
@@ -435,11 +393,10 @@ fn resolve_target_id(
     }
 }
 
-/// Map a sqlx error to a JSON:API 422 error.
+/// Map a sqlx error to a JSON:API error: `RowNotFound` → 404, all others → 500
+/// (message scrubbed from the response body).
 fn sqlx_err(e: sqlx::Error) -> JsonApiError {
-    JsonApiError::from_api_error(
-        with_status(StatusCode::UNPROCESSABLE_ENTITY).detail(e.to_string()),
-    )
+    JsonApiError::from(e)
 }
 
 // ── Main handler ─────────────────────────────────────────────────────────────
@@ -457,11 +414,7 @@ pub async fn operations(
     request.validate_lid_refs().map_err(JsonApiError::from)?;
 
     // 3. Begin transaction.
-    let mut tx = state.pool.begin().await.map_err(|e| {
-        JsonApiError::from_api_error(
-            with_status(StatusCode::INTERNAL_SERVER_ERROR).detail(e.to_string()),
-        )
-    })?;
+    let mut tx = state.pool.begin().await.map_err(JsonApiError::from)?;
 
     let mut lid_map: HashMap<String, String> = HashMap::new();
     let mut results: Vec<AtomicResult> = Vec::with_capacity(request.operations.len());
@@ -480,11 +433,7 @@ pub async fn operations(
     }
 
     // 4. Commit.
-    tx.commit().await.map_err(|e| {
-        JsonApiError::from_api_error(
-            with_status(StatusCode::INTERNAL_SERVER_ERROR).detail(e.to_string()),
-        )
-    })?;
+    tx.commit().await.map_err(JsonApiError::from)?;
 
     // 5. Serialize response.
     let response_body = AtomicResponse {

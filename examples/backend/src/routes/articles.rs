@@ -5,10 +5,11 @@ use axum::response::IntoResponse;
 use jsonapi_axum::{
     ApiErrorExt, CURSOR_PAGINATION_PROFILE, ClientIdPolicy, CursorLinks, CursorPage,
     DocumentBuilder, JsonApi, JsonApiError, JsonApiQuery, JsonApiQueryValidated, JsonApiResponse,
-    OffsetPage, PageNumberPage, SortField, pagination_links_with_base, resolve_includes,
-    with_status,
+    OffsetPage, PageNumberPage, SortField, from_validation_errors, pagination_links_with_base,
+    resolve_includes, with_status,
 };
 use jsonapi_core::{JsonApiMediaType, Link, PageStrategy, Resource, links};
+use validator::Validate;
 
 use crate::domain::{ArticlePatch, NewArticle};
 use crate::include_resolver::DbIncludeResolver;
@@ -16,44 +17,7 @@ use crate::repo::article_repo::{self, ArticleQuery, ArticleSort, SortDir};
 use crate::repo::{comment_repo, tag_repo};
 use crate::resource::{ArticlePatchResource, ArticleResource, NewArticleResource};
 use crate::state::AppState;
-
-/// Returns an ISO-8601-ish sortable timestamp string (UTC) from the system
-/// clock. Uses only `std` — no external crates. Since `Duration::as_secs`
-/// returns `u64`, all arithmetic is unsigned and post-epoch only.
-fn now() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let d = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default();
-    let secs = d.as_secs();
-    let nanos = d.subsec_nanos();
-    let s = secs % 60;
-    let m = (secs / 60) % 60;
-    let h = (secs / 3600) % 24;
-    let days = secs / 86400;
-    // Gregorian calendar conversion (civil date from epoch days, post-1970 only)
-    let z = days + 719468;
-    let era = z / 146097;
-    let doe = z - era * 146097;
-    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
-    let y = yoe + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let day = doy - (153 * mp + 2) / 5 + 1;
-    let month = if mp < 10 { mp + 3 } else { mp - 9 };
-    let year = if month <= 2 { y + 1 } else { y };
-    format!("{year:04}-{month:02}-{day:02}T{h:02}:{m:02}:{s:02}.{nanos:09}Z")
-}
-
-/// Generate an id from nanoseconds since epoch.
-fn mint_id() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos()
-        .to_string()
-}
+use crate::util::{mint_id, now};
 
 /// Map `query.sort` fields to the whitelisted [`ArticleSort`] enum, or return a
 /// 400 error for any unrecognised field name.
@@ -255,6 +219,11 @@ pub async fn create(
     document.check_client_id(ClientIdPolicy::Assign)?;
 
     let new_res = document.0.into_single()?;
+
+    // Validate before any DB write; aggregate all field errors into one 422 response.
+    if let Err(errs) = new_res.validate() {
+        return Err(JsonApiError::from_api_errors(from_validation_errors(&errs)));
+    }
 
     let author_id = new_res
         .author
