@@ -16,8 +16,6 @@ impl InspectorStore {
     }
 
     /// Record an exchange (newest first, auto-selected). Returns its id.
-    // consumed by the HTTP client in a later task
-    #[allow(dead_code)]
     pub fn record(&self, init: ExchangeInit) -> usize {
         let mut id = None;
         self.log.update(|l| id = Some(l.record(init)));
