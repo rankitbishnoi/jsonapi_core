@@ -21,6 +21,18 @@ pub fn build_router(state: AppState) -> Router {
                 .patch(routes::articles::patch)
                 .delete(routes::articles::delete),
         )
+        .route(
+            "/articles/{id}/relationships/tags",
+            get(routes::article_relationships::get_tags)
+                .patch(routes::article_relationships::replace_tags)
+                .post(routes::article_relationships::add_tags)
+                .delete(routes::article_relationships::remove_tags),
+        )
+        .route(
+            "/articles/{id}/relationships/author",
+            get(routes::article_relationships::get_author)
+                .patch(routes::article_relationships::set_author),
+        )
         .layer(JsonApiLayer::new())
         .with_state(state)
 }

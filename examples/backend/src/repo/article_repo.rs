@@ -158,6 +158,31 @@ pub async fn delete(pool: &SqlitePool, id: &str) -> Result<bool, sqlx::Error> {
     Ok(result.rows_affected() > 0)
 }
 
+/// Set the author of an article. Returns `RowNotFound` (→ 404) if the article
+/// does not exist.
+pub async fn set_author(
+    pool: &SqlitePool,
+    article_id: &str,
+    author_id: &str,
+) -> Result<(), sqlx::Error> {
+    let _ = get(pool, article_id).await?;
+    sqlx::query("UPDATE articles SET author_id = ? WHERE id = ?")
+        .bind(author_id)
+        .bind(article_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+/// Return the author id for an article. Returns `RowNotFound` (→ 404) if the
+/// article does not exist.
+pub async fn author_id_of(pool: &SqlitePool, article_id: &str) -> Result<String, sqlx::Error> {
+    sqlx::query_scalar("SELECT author_id FROM articles WHERE id = ?")
+        .bind(article_id)
+        .fetch_one(pool)
+        .await
+}
+
 pub async fn list_after(
     pool: &SqlitePool,
     after: Option<&str>,

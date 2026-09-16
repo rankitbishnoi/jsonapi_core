@@ -53,3 +53,56 @@ pub async fn by_ids(pool: &SqlitePool, ids: &[String]) -> Result<Vec<Tag>, sqlx:
     }
     query.fetch_all(pool).await
 }
+
+/// Replace all tags for an article atomically.
+pub async fn replace_article_tags(
+    pool: &SqlitePool,
+    article_id: &str,
+    tag_ids: &[String],
+) -> Result<(), sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    sqlx::query("DELETE FROM article_tags WHERE article_id = ?")
+        .bind(article_id)
+        .execute(&mut *tx)
+        .await?;
+    for tag_id in tag_ids {
+        sqlx::query("INSERT OR IGNORE INTO article_tags (article_id, tag_id) VALUES (?, ?)")
+            .bind(article_id)
+            .bind(tag_id)
+            .execute(&mut *tx)
+            .await?;
+    }
+    tx.commit().await
+}
+
+/// Add tags to an article (idempotent — ignores existing links).
+pub async fn add_article_tags(
+    pool: &SqlitePool,
+    article_id: &str,
+    tag_ids: &[String],
+) -> Result<(), sqlx::Error> {
+    for tag_id in tag_ids {
+        sqlx::query("INSERT OR IGNORE INTO article_tags (article_id, tag_id) VALUES (?, ?)")
+            .bind(article_id)
+            .bind(tag_id)
+            .execute(pool)
+            .await?;
+    }
+    Ok(())
+}
+
+/// Remove specific tags from an article.
+pub async fn remove_article_tags(
+    pool: &SqlitePool,
+    article_id: &str,
+    tag_ids: &[String],
+) -> Result<(), sqlx::Error> {
+    for tag_id in tag_ids {
+        sqlx::query("DELETE FROM article_tags WHERE article_id = ? AND tag_id = ?")
+            .bind(article_id)
+            .bind(tag_id)
+            .execute(pool)
+            .await?;
+    }
+    Ok(())
+}
