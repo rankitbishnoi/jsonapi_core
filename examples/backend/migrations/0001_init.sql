@@ -1,5 +1,3 @@
-PRAGMA foreign_keys = ON;
-
 CREATE TABLE authors (
     id         TEXT PRIMARY KEY,
     name       TEXT NOT NULL,
