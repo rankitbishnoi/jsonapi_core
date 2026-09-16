@@ -5,10 +5,13 @@ use axum::response::IntoResponse;
 use jsonapi_axum::{
     CURSOR_PAGINATION_PROFILE, CursorLinks, CursorPage, DocumentBuilder, JsonApiError,
     JsonApiQuery, JsonApiResponse, OffsetPage, PageNumberPage, pagination_links_with_base,
+    resolve_includes,
 };
-use jsonapi_core::{JsonApiMediaType, Link, PageStrategy, links};
+use jsonapi_core::{JsonApiMediaType, Link, PageStrategy, Resource, links};
 
+use crate::include_resolver::DbIncludeResolver;
 use crate::repo::article_repo::{self, ArticleQuery, ArticleSort, SortDir};
+use crate::repo::{comment_repo, tag_repo};
 use crate::resource::ArticleResource;
 use crate::state::AppState;
 
@@ -129,13 +132,33 @@ pub async fn list_cursor(
 pub async fn get(
     State(state): State<AppState>,
     Path(id): Path<String>,
+    JsonApiQuery(query): JsonApiQuery,
 ) -> Result<impl IntoResponse, JsonApiError> {
     let article = article_repo::get(&state.pool, &id).await?;
     let self_link = links::resource_self(&state.base_url.0, "articles", &article.id);
-    let resource = ArticleResource::from_parts(article, &[], &[]);
+
+    let tag_ids = tag_repo::ids_for_article(&state.pool, &article.id).await?;
+    let comment_ids = comment_repo::ids_for_article(&state.pool, &article.id).await?;
+
+    let resource = ArticleResource::from_parts(article, &tag_ids, &comment_ids);
+
+    if query.include.is_empty() {
+        return Ok(JsonApiResponse::new(
+            DocumentBuilder::single(resource)
+                .link("self", Link::String(self_link))
+                .build(),
+        ));
+    }
+
+    let primary = Resource::from_typed(&resource).map_err(|e| JsonApiError::from_core(&e))?;
+    let paths: Vec<&str> = query.include.iter().map(String::as_str).collect();
+    let resolver = DbIncludeResolver { state: &state };
+    let included = resolve_includes(&[primary], &paths, &resolver).await?;
+
     Ok(JsonApiResponse::new(
         DocumentBuilder::single(resource)
             .link("self", Link::String(self_link))
+            .include_many(included)
             .build(),
     ))
 }
