@@ -65,3 +65,22 @@ async fn cursor_pagination_advances_and_sets_profile() {
     let second = second.assert_status(StatusCode::OK);
     assert_eq!(second.json()["data"][0]["id"], "art-06");
 }
+
+#[tokio::test]
+async fn cursor_pagination_last_page_omits_next() {
+    let app = support::seeded_app().await;
+    let res = app
+        .send(
+            TestRequest::get("/articles/cursor?page[after]=art-10&page[size]=5")
+                .accept_json_api()
+                .build(),
+        )
+        .await;
+    let res = res.assert_status(StatusCode::OK);
+    // art-11 and art-12 are the only remaining articles after art-10
+    assert_eq!(res.json()["data"].as_array().unwrap().len(), 2);
+    assert!(
+        res.json()["links"].get("next").is_none(),
+        "last page must omit next"
+    );
+}

@@ -63,7 +63,7 @@ pub async fn list_offset(
 
     let opts = ArticleQuery {
         limit: limit as i64,
-        offset: offset as i64,
+        offset: offset.min(i64::MAX as u64) as i64,
         sort: vec![ArticleSort::CreatedAt(SortDir::Asc)],
         author_id: None,
     };
@@ -98,7 +98,11 @@ pub async fn list_cursor(
 
     let rows = article_repo::list_after(&state.pool, page.after.as_deref(), size as i64).await?;
 
-    let next_cursor = rows.last().map(|a| a.id.clone());
+    let next_cursor = if rows.len() as u64 == size {
+        rows.last().map(|a| a.id.clone())
+    } else {
+        None
+    };
 
     let resources: Vec<ArticleResource> = rows
         .into_iter()
