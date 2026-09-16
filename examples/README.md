@@ -100,3 +100,67 @@ handler (`POST /operations`), the resource `type` string on each `add` and `upda
 validated and rejected with `400 Bad Request` when it is not a valid JSON:API member name. This is
 distinct from the `422 Unprocessable Entity` returned for a syntactically valid but unsupported
 type such as `"widgets"`: a malformed name never reaches the dispatch table.
+
+## Frontend (Leptos CSR SPA)
+
+A client-side-rendered SPA in `examples/frontend` that drives every backend endpoint and captures
+the raw JSON:API wire exchange in a persistent right-side inspector — method, URL, request/response
+headers, pretty-printed body, HTTP status, duration, and `X-Request-Id` — all self-captured,
+independent of browser devtools.
+
+### Prerequisites
+
+```sh
+rustup target add wasm32-unknown-unknown
+cargo install trunk --locked wasm-bindgen-cli
+```
+
+### Run locally
+
+```sh
+# terminal 1 — from examples/
+just run-backend
+
+# terminal 2 — from examples/
+just run-frontend
+```
+
+Open http://127.0.0.1:8081.
+
+### Feature pages
+
+| Page | What it exercises |
+|---|---|
+| Read (single) | Fetch one resource by ID, compound document with `?include=` |
+| Read (typed list) | Typed collection, content-type negotiation |
+| Pagination | Page-number, offset/limit, and cursor strategies side-by-side |
+| Includes | Transitive compound documents (`?include=author,tags`) |
+| Sparse fieldsets | `?fields[articles]=title,body` reducing wire payload |
+| Sort & filter | `?sort=`, `?filter[…]=` query params |
+| Create / edit | Resource creation and `Field<T>`-aware PATCH (absent fields left unchanged) |
+| Relationships | To-one and to-many relationship endpoints (GET/PATCH/POST/DELETE) |
+| Errors | 415 / 406 / 404 / 422 error aggregation and pointer mapping |
+| Atomic ops | `POST /operations` with `lid` cross-references |
+
+### Tests
+
+```sh
+# from examples/
+just test-frontend
+```
+
+Runs native unit tests (`cargo test --lib`) plus the wasm store smoke test under node
+(`wasm-bindgen-test-runner`) — no browser required.
+
+### Config
+
+The API base URL is resolved at runtime from `window.__SHOWCASE_CONFIG__.apiBase` (set in
+`examples/frontend/index.html`) and falls back to `http://127.0.0.1:8080`. For custom deployments
+set the `API_BASE` environment variable at build time (`trunk build`) to bake a different default.
+
+### Docker
+
+```sh
+# from the repo root — starts backend on :8080 and frontend on :8081
+docker compose -f examples/docker/compose.yml up
+```

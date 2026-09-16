@@ -58,7 +58,7 @@ jobs:
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           workspaces: examples -> examples/target
-      - run: cargo clippy -p jsonapi-showcase-backend --all-targets -- -D warnings
+      - run: cargo clippy -p jsonapi-showcase-backend -p jsonapi-showcase-resources --all-targets -- -D warnings
 
   test:
     name: test (examples)
@@ -74,3 +74,27 @@ jobs:
           workspaces: examples -> examples/target
       - name: Test backend
         run: cargo test -p jsonapi-showcase-backend
+
+  frontend:
+    name: frontend build (examples)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: examples
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: clippy
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: examples -> examples/target
+      - name: Install trunk + wasm-bindgen
+        run: cargo install trunk --locked wasm-bindgen-cli
+      - name: Frontend unit tests (native)
+        run: cargo test -p jsonapi-showcase-frontend --lib
+      - name: Trunk build
+        run: cd frontend && trunk build
+      - name: Clippy (wasm)
+        run: cargo clippy -p jsonapi-showcase-frontend --target wasm32-unknown-unknown --all-targets -- -D warnings
