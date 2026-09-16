@@ -250,6 +250,10 @@ pub trait ApiErrorExt: Sized {
     /// (e.g. `/data/attributes/title`).
     #[must_use]
     fn pointer(self, pointer: impl Into<String>) -> Self;
+    /// Set `source.parameter` — the name of the offending query parameter
+    /// (e.g. `sort`), for errors that originate in the query string.
+    #[must_use]
+    fn parameter(self, parameter: impl Into<String>) -> Self;
     /// Set `detail` — a human-readable explanation of this occurrence.
     #[must_use]
     fn detail(self, detail: impl Into<String>) -> Self;
@@ -273,6 +277,13 @@ pub trait ApiErrorExt: Sized {
 impl ApiErrorExt for ApiError {
     fn pointer(mut self, pointer: impl Into<String>) -> Self {
         self.source.get_or_insert_with(ErrorSource::default).pointer = Some(pointer.into());
+        self
+    }
+
+    fn parameter(mut self, parameter: impl Into<String>) -> Self {
+        self.source
+            .get_or_insert_with(ErrorSource::default)
+            .parameter = Some(parameter.into());
         self
     }
 
@@ -776,6 +787,16 @@ mod tests {
         let err = with_status(StatusCode::from_u16(799).unwrap());
         assert_eq!(err.status.as_deref(), Some("799"));
         assert!(err.title.is_none());
+    }
+
+    #[test]
+    fn parameter_sets_source_parameter() {
+        let err = with_status(StatusCode::BAD_REQUEST).parameter("sort");
+        assert_eq!(
+            err.source.as_ref().unwrap().parameter.as_deref(),
+            Some("sort")
+        );
+        assert_eq!(err.source.unwrap().pointer, None);
     }
 
     #[test]
