@@ -85,6 +85,40 @@ impl ResourceIdentifier {
             meta: None,
         }
     }
+
+    /// Build a `Vec` of server-assigned identifiers sharing one `type` from an
+    /// iterator of ids — the common shape for a to-many relationship's linkage.
+    ///
+    /// ```
+    /// # use jsonapi_core::{Relationship, ResourceIdentifier};
+    /// let rel = Relationship::<()>::to_many(ResourceIdentifier::many("tags", ["1", "2"]));
+    /// assert_eq!(rel.ids().collect::<Vec<_>>(), ["1", "2"]);
+    /// ```
+    #[must_use]
+    pub fn many(
+        r#type: impl Into<String>,
+        ids: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Vec<Self> {
+        let r#type = r#type.into();
+        ids.into_iter()
+            .map(|id| Self {
+                r#type: r#type.clone(),
+                identity: Identity::Id(id.into()),
+                meta: None,
+            })
+            .collect()
+    }
+
+    /// The server-assigned `id`, or an error when this identifier carries only a
+    /// client-local `lid`. Use at a relationship endpoint that maps linkage to
+    /// datastore ids and must reject `lid`-only members rather than skip them.
+    ///
+    /// # Errors
+    /// [`Error::LidNotIndexed`](crate::Error::LidNotIndexed) when the identity is
+    /// a `lid`.
+    pub fn require_id(&self) -> crate::Result<&str> {
+        self.identity.as_id().ok_or(crate::Error::LidNotIndexed)
+    }
 }
 
 /// Borrowing representation used for serialization.
@@ -194,6 +228,26 @@ mod tests {
             serde_json::to_string(&rid).unwrap(),
             r#"{"type":"people","lid":"local-1"}"#
         );
+    }
+
+    #[test]
+    fn test_resource_identifier_many_builds_shared_type_ids() {
+        let rids = ResourceIdentifier::many("tags", ["1", "2", "3"]);
+        assert_eq!(rids.len(), 3);
+        assert!(rids.iter().all(|r| r.r#type == "tags"));
+        assert_eq!(rids[2].identity, Identity::Id("3".into()));
+    }
+
+    #[test]
+    fn test_resource_identifier_require_id_ok_for_id() {
+        let rid = ResourceIdentifier::new("people", "9");
+        assert_eq!(rid.require_id().unwrap(), "9");
+    }
+
+    #[test]
+    fn test_resource_identifier_require_id_errors_for_lid() {
+        let rid = ResourceIdentifier::with_lid("people", "local-1");
+        assert!(matches!(rid.require_id(), Err(crate::Error::LidNotIndexed)));
     }
 
     #[test]
