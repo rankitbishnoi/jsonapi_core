@@ -18,17 +18,18 @@ use crate::response::json_api_response;
 ///
 /// The mapping follows JSON:API v1.1 semantics:
 ///
-/// - **400 Bad Request** — malformed body/query/document structure.
+/// - **400 Bad Request** — malformed body/query/document structure, or a `lid`
+///   in client linkage that resolves to no resource.
 /// - **406 Not Acceptable** — no acceptable media type in `Accept`.
-/// - **409 Conflict** — resource `type` on the wire conflicts with the target
-///   (JSON:API's prescribed status for a type mismatch on write).
+/// - **409 Conflict** — resource `type` conflicts with the target, or a
+///   relationship's cardinality (to-one vs to-many) conflicts with the schema.
 /// - **415 Unsupported Media Type** — bad or unsupported `Content-Type`.
 /// - **422 Unprocessable Entity** — semantic validation (missing required
-///   attribute).
-/// - **500 Internal Server Error** — server-side resolution faults, and any
-///   future [`Error`] variant not yet mapped (the enum is `#[non_exhaustive]`,
-///   so a new variant defaults to 500 rather than silently becoming a
-///   misleading 4xx).
+///   attribute, or a null to-one where a related resource is required).
+/// - **500 Internal Server Error** — genuine server-side faults (registry
+///   lookup), and any future [`Error`] variant not yet mapped (the enum is
+///   `#[non_exhaustive]`, so a new variant defaults to 500 rather than silently
+///   becoming a misleading 4xx).
 #[must_use]
 pub fn status_for(err: &Error) -> StatusCode {
     match err {
@@ -42,13 +43,24 @@ pub fn status_for(err: &Error) -> StatusCode {
         | Error::MalformedRelationship { .. }
         | Error::IncludedRefMissing { .. }
         | Error::UnexpectedDocumentShape { .. }
+        // A `lid` in client-supplied linkage that resolves to no resource is a
+        // bad reference in the request, not a server fault.
+        | Error::LidNotIndexed
         | Error::MediaTypeParse(_) => StatusCode::BAD_REQUEST,
 
         // --- Semantic validation ---
-        Error::MissingAttribute { .. } => StatusCode::UNPROCESSABLE_ENTITY,
+        // A null-`data` to-one where a related resource is required is a
+        // semantically invalid request body.
+        Error::MissingAttribute { .. } | Error::NullRelationship => {
+            StatusCode::UNPROCESSABLE_ENTITY
+        }
 
-        // --- Resource `type` conflict on write ---
-        Error::TypeMismatch { .. } => StatusCode::CONFLICT,
+        // --- Resource conflicts on write ---
+        // A to-many payload where the schema is to-one (or vice versa) is a
+        // cardinality conflict with the target relationship.
+        Error::TypeMismatch { .. } | Error::RelationshipCardinalityMismatch { .. } => {
+            StatusCode::CONFLICT
+        }
 
         // --- Content negotiation ---
         Error::MediaTypeMismatch { .. } | Error::UnsupportedMediaTypeParam { .. } => {
@@ -59,10 +71,7 @@ pub fn status_for(err: &Error) -> StatusCode {
         }
 
         // --- Server-side resolution faults ---
-        Error::RegistryLookup { .. }
-        | Error::NullRelationship
-        | Error::RelationshipCardinalityMismatch { .. }
-        | Error::LidNotIndexed => StatusCode::INTERNAL_SERVER_ERROR,
+        Error::RegistryLookup { .. } => StatusCode::INTERNAL_SERVER_ERROR,
 
         // `Error` is #[non_exhaustive]: a future variant defaults to 500.
         _ => StatusCode::INTERNAL_SERVER_ERROR,
@@ -486,14 +495,14 @@ mod tests {
                 },
                 StatusCode::INTERNAL_SERVER_ERROR,
             ),
-            (Error::NullRelationship, StatusCode::INTERNAL_SERVER_ERROR),
+            (Error::NullRelationship, StatusCode::UNPROCESSABLE_ENTITY),
             (
                 Error::RelationshipCardinalityMismatch {
                     expected: Cardinality::ToOne,
                 },
-                StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::CONFLICT,
             ),
-            (Error::LidNotIndexed, StatusCode::INTERNAL_SERVER_ERROR),
+            (Error::LidNotIndexed, StatusCode::BAD_REQUEST),
             (
                 Error::MediaTypeMismatch {
                     expected: "application/vnd.api+json".into(),
