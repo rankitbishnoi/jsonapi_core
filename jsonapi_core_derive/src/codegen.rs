@@ -11,15 +11,55 @@ pub fn generate(
     fields: &[ParsedField],
 ) -> TokenStream {
     let resource_object_impl = gen_resource_object(name, struct_attrs, fields);
+    let resource_type_impl = gen_resource_type(name, struct_attrs);
     let serialize_impl = gen_serialize(name, struct_attrs, fields);
     let deserialize_impl = gen_deserialize(name, struct_attrs, fields);
     let accessor_impls = gen_accessor_traits(name, fields);
 
     quote! {
         #resource_object_impl
+        #resource_type_impl
         #serialize_impl
         #deserialize_impl
         #accessor_impls
+    }
+}
+
+/// Emit `impl ResourceType for #name { const TYPE = "<type>"; }` so the resource's
+/// JSON:API type string is available statically — letting other resources infer
+/// this one as a relationship target from `Relationship<#name>`.
+fn gen_resource_type(name: &syn::Ident, struct_attrs: &StructAttrs) -> TokenStream {
+    let type_name = &struct_attrs.type_name;
+    quote! {
+        impl ::jsonapi_core::model::ResourceType for #name {
+            const TYPE: &'static str = #type_name;
+        }
+    }
+}
+
+/// Extract the target resource type `T` from a relationship field's type, so its
+/// `<T as ResourceType>::TYPE` can populate the relationship's target in
+/// `TypeInfo` without an explicit `type = "..."`. Handles `Relationship<T>` and a
+/// single `Vec<...>` / `Option<...>` wrapper (`Vec<Relationship<T>>`); returns
+/// `None` for anything else, so those relationships fall back to needing `type`.
+fn relationship_inner_type(ty: &syn::Type) -> Option<&syn::Type> {
+    let syn::Type::Path(type_path) = ty else {
+        return None;
+    };
+    let segment = type_path.path.segments.last()?;
+    let syn::PathArguments::AngleBracketed(args) = &segment.arguments else {
+        return None;
+    };
+    let first_ty = args.args.iter().find_map(|arg| match arg {
+        syn::GenericArgument::Type(inner) => Some(inner),
+        _ => None,
+    })?;
+    if segment.ident == "Relationship" {
+        Some(first_ty)
+    } else if segment.ident == "Vec" || segment.ident == "Option" {
+        relationship_inner_type(first_ty)
+    } else {
+        None
     }
 }
 
@@ -99,19 +139,29 @@ fn gen_resource_object(
         .filter_map(|f| f.wire_name.as_deref())
         .collect();
 
-    // Collect relationship (wire_name, target_type) pairs for type_info()
-    let rel_pairs: Vec<(&str, &str)> = fields
+    // Collect relationship (wire_name, target_type) pairs for type_info(). The
+    // target is the explicit `type = "..."` when given, otherwise inferred from
+    // the field's `Relationship<T>` via `<T as ResourceType>::TYPE` — so a bare
+    // `#[jsonapi(relationship)]` still registers a valid include-path target
+    // instead of silently dropping out of `TypeInfo.relationships`.
+    let rel_pairs: Vec<(&str, TokenStream)> = fields
         .iter()
         .filter(|f| matches!(f.kind, FieldKind::Relationship))
         .filter_map(|f| {
             let wire = f.wire_name.as_deref()?;
-            let target = f.rel_target_type.as_deref()?;
+            let target = if let Some(explicit) = f.rel_target_type.as_deref() {
+                quote! { #explicit }
+            } else if let Some(inner) = relationship_inner_type(&f.ty) {
+                quote! { <#inner as ::jsonapi_core::model::ResourceType>::TYPE }
+            } else {
+                return None;
+            };
             Some((wire, target))
         })
         .collect();
 
     let rel_name_tokens: Vec<&str> = rel_pairs.iter().map(|(n, _)| *n).collect();
-    let rel_target_tokens: Vec<&str> = rel_pairs.iter().map(|(_, t)| *t).collect();
+    let rel_target_tokens: Vec<&TokenStream> = rel_pairs.iter().map(|(_, t)| t).collect();
 
     // Wire names of attributes the consumer declared as required:
     // attribute fields that are neither Option, Vec, nor a `Field<T>` tri-state.

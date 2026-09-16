@@ -478,7 +478,7 @@ pub use media_type::{JsonApiMediaType, negotiate_accept, validate_content_type};
 pub use model::{
     ApiError, Document, ErrorLinks, ErrorSource, HasLinks, HasMeta, Hreflang, Identity,
     JsonApiObject, Link, LinkObject, Links, Meta, PrimaryData, Relationship, RelationshipData,
-    Resource, ResourceIdentifier, ResourceObject, ResourceRelationship,
+    Resource, ResourceIdentifier, ResourceObject, ResourceRelationship, ResourceType,
 };
 pub use pagination::{
     CURSOR_PAGINATION_PROFILE, CursorLinks, CursorPage, OffsetPage, PageNumberPage, PageStrategy,

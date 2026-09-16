@@ -33,8 +33,8 @@ use syn::{DeriveInput, parse_macro_input};
 /// |-----------|-------------|
 /// | `#[jsonapi(id)]` | Marks the resource ID field. Required, exactly one per struct. Type: `String` or `Option<String>`. |
 /// | `#[jsonapi(lid)]` | Marks the local identifier field (JSON:API 1.1). At most one. Type: `Option<String>`. |
-/// | `#[jsonapi(relationship)]` | Field appears in `relationships`, not `attributes`. Must be `Relationship<T>` or `Vec<Relationship<T>>`. |
-/// | `#[jsonapi(relationship, type = "...")]` | Relationship with explicit target type for `TypeInfo`. |
+/// | `#[jsonapi(relationship)]` | Field appears in `relationships`, not `attributes`. Must be `Relationship<T>` or `Vec<Relationship<T>>`. The target type for `TypeInfo` / include validation is inferred from `T` (via `<T as ResourceType>::TYPE`). |
+/// | `#[jsonapi(relationship, type = "...")]` | Override the inferred target type — needed only for a heterogeneous `Relationship<Resource>` or a `T` that isn't a derived resource. |
 /// | `#[jsonapi(meta)]` | Maps to resource-level `meta`. At most one. Type: `Option<Meta>`. |
 /// | `#[jsonapi(links)]` | Maps to resource-level `links`. At most one. Type: `Option<Links>`. |
 /// | `#[jsonapi(rename = "...")]` | Override the wire name for this field. |
