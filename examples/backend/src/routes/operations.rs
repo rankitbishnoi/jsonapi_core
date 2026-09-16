@@ -117,8 +117,6 @@ async fn update_author(
     resource: &Resource,
     id: &str,
 ) -> Result<AtomicResult, JsonApiError> {
-    let ts = now();
-
     if let Some(name) = resource.attributes.get("name").and_then(Value::as_str) {
         sqlx::query("UPDATE authors SET name = ? WHERE id = ?")
             .bind(name)
@@ -154,7 +152,6 @@ async fn update_author(
     attrs.insert("name".into(), Value::String(name));
     attrs.insert("email".into(), Value::String(email));
     attrs.insert("createdAt".into(), Value::String(created_at));
-    let _ = ts; // ts captured but update already done above
 
     Ok(AtomicResult {
         data: Some(PrimaryData::Single(Box::new(Resource {
@@ -200,7 +197,8 @@ async fn add_article(
     // Resolve author identity from relationships.
     let author_id = resolve_author_id(resource, lid_map)?;
 
-    let id = mint_id();
+    // Honour a client-supplied id; fall back to a server-minted one.
+    let id = resource.id.clone().unwrap_or_else(mint_id);
     let ts = now();
 
     sqlx::query(

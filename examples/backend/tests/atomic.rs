@@ -73,39 +73,40 @@ async fn atomic_unresolvable_lid_is_rejected() {
 async fn atomic_rolls_back_on_failure() {
     let app = support::seeded_app().await;
 
-    // Add a valid author (op 0), then remove a non-existent article (op 1).
-    // Op 1 fails -> whole tx should roll back -> the author must NOT have been persisted.
+    // Op 0: add an article with a known client-supplied id.
+    // Op 1: remove a non-existent article -> fails with 404.
+    // Expected: the whole transaction rolls back, so "rollback-art" must not exist.
     let res = app
+        .clone()
         .send(
             TestRequest::post("/operations")
                 .header(header::CONTENT_TYPE, ATOMIC_CT)
                 .header(header::ACCEPT, ATOMIC_CT)
                 .body_json(&json!({ "atomic:operations": [
-                    { "op": "add", "data": { "type": "authors", "lid": "rollback-auth",
-                        "attributes": { "name": "Temp", "email": "temp@example.com" } } },
+                    { "op": "add", "data": { "type": "articles", "id": "rollback-art",
+                        "attributes": { "title": "Doomed", "body": "rolled back" },
+                        "relationships": { "author": { "data": { "type": "authors", "id": "a1" } } } } },
                     { "op": "remove", "ref": { "type": "articles", "id": "does-not-exist" } }
                 ] }))
                 .build(),
         )
         .await;
 
-    // The remove of a non-existent article returns 404, which causes the tx to roll back.
     assert!(
         res.status.as_u16() >= 400,
         "expected failure status, got {}",
         res.status
     );
 
-    // Atomicity proof: the author added in op 0 must NOT exist in the database because
-    // the transaction was rolled back. We verify by trying to add them again (different
-    // request) — if they had been committed, the DB would contain a duplicate, but since
-    // SQLite in-memory and our schema don't enforce unique email here, we instead verify
-    // the rollback indirectly: the 400-level response above is itself proof that the
-    // operation was not committed (the spec requires all-or-nothing).
-    //
-    // A deeper check is not possible through the router alone without an authors list
-    // endpoint, but the handler explicitly rolls back via tx.rollback() on any op failure,
-    // making this the observable proof point.
+    // Prove rollback: the article from op 0 must NOT be present.
+    let get = app
+        .send(
+            TestRequest::get("/articles/rollback-art")
+                .accept_json_api()
+                .build(),
+        )
+        .await;
+    get.assert_error(StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
