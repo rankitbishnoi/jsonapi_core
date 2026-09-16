@@ -84,6 +84,13 @@ impl JsonApiError {
         Self::from_api_error(with_status(StatusCode::FORBIDDEN).detail(detail))
     }
 
+    /// Build a **422 Unprocessable Entity** JSON:API error with a human-readable
+    /// `detail` — for a well-formed request that fails semantic validation.
+    #[must_use]
+    pub fn unprocessable(detail: impl Into<String>) -> Self {
+        Self::from_api_error(with_status(StatusCode::UNPROCESSABLE_ENTITY).detail(detail))
+    }
+
     /// Build a **500 Internal Server Error** JSON:API error.
     ///
     /// The `detail` you pass is treated as internal, potentially sensitive text:
@@ -349,6 +356,14 @@ mod tests {
         let (status, json) = read(JsonApiError::not_found("article 99 missing").into_response());
         assert_eq!(status, StatusCode::NOT_FOUND);
         assert_eq!(json["errors"][0]["detail"], "article 99 missing");
+    }
+
+    #[test]
+    fn unprocessable_builds_422_with_detail() {
+        let (status, json) =
+            read(JsonApiError::unprocessable("title must not be empty").into_response());
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(json["errors"][0]["detail"], "title must not be empty");
     }
 
     #[cfg(feature = "anyhow")]
