@@ -7,7 +7,7 @@ publish = false
 
 [dependencies]
 jsonapi_core = { path = "../../jsonapi_core", version = "0.4.0", features = ["atomic-ops"] }
-jsonapi_axum = { path = "../../jsonapi_axum", version = "0.4.0", features = ["sqlx", "uuid", "validator", "anyhow"] }
+jsonapi_axum = { path = "../../jsonapi_axum", version = "0.4.0", features = ["sqlx", "uuid", "validator", "anyhow", "atomic-ops"] }
 
 axum = { version = "0.8", features = ["tokio", "http1", "macros"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal"] }
@@ -23,7 +23,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 anyhow = "1"
 
 [dev-dependencies]
-jsonapi_axum = { path = "../../jsonapi_axum", version = "0.4.0", features = ["sqlx", "uuid", "validator", "anyhow", "testing"] }
+jsonapi_axum = { path = "../../jsonapi_axum", version = "0.4.0", features = ["sqlx", "uuid", "validator", "anyhow", "atomic-ops", "testing"] }
 
 [lints]
 workspace = true

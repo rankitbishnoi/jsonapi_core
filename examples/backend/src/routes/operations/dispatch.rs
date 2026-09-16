@@ -258,47 +258,24 @@ pub(super) fn resolve_author_id(
     resource: &Resource,
     lid_map: &HashMap<String, String>,
 ) -> Result<String, JsonApiError> {
-    let rel = resource.relationships.get("author").ok_or_else(|| {
-        JsonApiError::from_api_error(
-            with_status(StatusCode::UNPROCESSABLE_ENTITY)
-                .pointer("/data/relationships/author")
-                .detail("articles require an `author` relationship"),
-        )
-    })?;
-
-    let rid = rel
-        .data
-        .as_ref()
-        .and_then(|d| {
-            if let RelationshipData::ToOne(Some(r)) = d {
-                Some(r)
-            } else {
-                None
-            }
-        })
+    let identity = resource
+        .relationships
+        .get("author")
+        .and_then(|r| r.to_one_identity())
         .ok_or_else(|| {
-            JsonApiError::from_api_error(
-                with_status(StatusCode::UNPROCESSABLE_ENTITY)
-                    .pointer("/data/relationships/author/data")
-                    .detail("author must be a to-one resource identifier"),
-            )
+            JsonApiError::unprocessable("article requires an `author` to-one relationship")
         })?;
 
-    match &rid.identity {
+    match identity {
         Identity::Id(id) => Ok(id.clone()),
         Identity::Lid(lid) => lid_map.get(lid).cloned().ok_or_else(|| {
-            JsonApiError::from_api_error(
-                with_status(StatusCode::UNPROCESSABLE_ENTITY)
-                    .pointer("/data/relationships/author/data/lid")
-                    .detail(format!(
-                        "lid `{lid}` in author relationship has not been resolved; \
-                         ensure the corresponding `add` operation appears earlier in the request"
-                    )),
-            )
+            JsonApiError::unprocessable(format!(
+                "unresolved author lid `{lid}`; \
+                 ensure the corresponding `add` operation appears earlier in the request"
+            ))
         }),
-        _ => Err(JsonApiError::from_api_error(
-            with_status(StatusCode::UNPROCESSABLE_ENTITY)
-                .detail("author identity must be an id or lid".to_string()),
+        _ => Err(JsonApiError::unprocessable(
+            "author identity must be an id or lid",
         )),
     }
 }
@@ -314,13 +291,12 @@ pub(super) fn resolve_target_id(
             // validate_lid_refs should have caught forward references, but
             // a lid that was introduced as an add but we can't resolve still
             // needs a clear message.
-            JsonApiError::from_api_error(with_status(StatusCode::UNPROCESSABLE_ENTITY).detail(
-                format!("lid `{lid}` in target ref could not be resolved to a server id"),
+            JsonApiError::unprocessable(format!(
+                "lid `{lid}` in target ref could not be resolved to a server id"
             ))
         }),
-        _ => Err(JsonApiError::from_api_error(
-            with_status(StatusCode::UNPROCESSABLE_ENTITY)
-                .detail("target ref identity must be an id or lid".to_string()),
+        _ => Err(JsonApiError::unprocessable(
+            "target ref identity must be an id or lid",
         )),
     }
 }

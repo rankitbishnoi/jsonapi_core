@@ -16,17 +16,11 @@ use crate::state::AppState;
 /// Read server-assigned ids from an incoming linkage payload, rejecting any
 /// `lid`-only identifier with a 400 — relationship endpoints operate on ids.
 fn client_ids(incoming: &[ResourceIdentifier]) -> Result<Vec<String>, JsonApiError> {
-    incoming
-        .iter()
-        .map(|r| {
-            r.identity.as_id().map(str::to_owned).ok_or_else(|| {
-                JsonApiError::from_api_error(
-                    with_status(StatusCode::BAD_REQUEST)
-                        .detail("relationship data must use a server-assigned `id`, not `lid`"),
-                )
-            })
-        })
-        .collect()
+    let mut ids = Vec::with_capacity(incoming.len());
+    for r in incoming {
+        ids.push(r.require_id().map_err(JsonApiError::from)?.to_owned());
+    }
+    Ok(ids)
 }
 
 // ── tags relationship ─────────────────────────────────────────────────────────
@@ -126,11 +120,7 @@ pub async fn set_author(
             with_status(StatusCode::BAD_REQUEST).detail("author linkage required"),
         )
     })?;
-    let author_id = rid.identity.as_id().ok_or_else(|| {
-        JsonApiError::from_api_error(
-            with_status(StatusCode::BAD_REQUEST).detail("author id must be a server-assigned id"),
-        )
-    })?;
+    let author_id = rid.require_id().map_err(JsonApiError::from)?;
     article_repo::set_author(&state.pool, &id, author_id).await?;
     let l = links::relationship_links(&state.base_url.0, "articles", &id, "author");
     Ok(

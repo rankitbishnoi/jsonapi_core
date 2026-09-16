@@ -5,8 +5,8 @@ use axum::response::IntoResponse;
 use jsonapi_axum::{
     ApiErrorExt, CURSOR_PAGINATION_PROFILE, ClientIdPolicy, CursorLinks, CursorPage,
     DocumentBuilder, JsonApi, JsonApiError, JsonApiQuery, JsonApiQueryValidated, JsonApiResponse,
-    NegotiatedMediaType, OffsetPage, PageNumberPage, SortField, from_validation_errors,
-    pagination_links_with_base, resolve_includes, with_status,
+    NegotiatedMediaType, OffsetPage, PageNumberPage, SortField, pagination_links_with_base,
+    resolve_includes, with_status,
 };
 use jsonapi_core::{JsonApiMediaType, Link, PageStrategy, Resource, links};
 use validator::Validate;
@@ -58,20 +58,14 @@ pub async fn list(
     uri: Uri,
     JsonApiQueryValidated { query, .. }: JsonApiQueryValidated<ArticleResource>,
 ) -> Result<impl IntoResponse, JsonApiError> {
-    let page = PageNumberPage::from_query(&query)?;
-
-    let number = page.number.max(1);
-    let size = page.size.unwrap_or(5).clamp(1, 50);
+    let w = PageNumberPage::from_query(&query)?.resolve(5, 50);
 
     let sort = sorts_from_query(&query.sort)?;
     let author_id = author_filter(&query);
 
     let opts = ArticleQuery {
-        limit: size as i64,
-        offset: number
-            .saturating_sub(1)
-            .saturating_mul(size)
-            .min(i64::MAX as u64) as i64,
+        limit: w.limit as i64,
+        offset: w.offset as i64,
         sort,
         author_id: author_id.clone(),
     };
@@ -87,7 +81,10 @@ pub async fn list(
     let l = pagination_links_with_base(
         &state.base_url.0,
         &uri,
-        PageStrategy::PageNumber { number, size },
+        PageStrategy::PageNumber {
+            number: w.number,
+            size: w.limit,
+        },
         Some(total as u64),
     );
 
@@ -102,14 +99,11 @@ pub async fn list_offset(
     uri: Uri,
     JsonApiQuery(query): JsonApiQuery,
 ) -> Result<impl IntoResponse, JsonApiError> {
-    let page = OffsetPage::from_query(&query)?;
-
-    let offset = page.offset;
-    let limit = page.limit.unwrap_or(5).clamp(1, 50);
+    let w = OffsetPage::from_query(&query)?.resolve(5, 50);
 
     let opts = ArticleQuery {
-        limit: limit as i64,
-        offset: offset.min(i64::MAX as u64) as i64,
+        limit: w.limit as i64,
+        offset: w.offset as i64,
         sort: vec![ArticleSort::CreatedAt(SortDir::Asc)],
         author_id: None,
     };
@@ -125,7 +119,10 @@ pub async fn list_offset(
     let l = pagination_links_with_base(
         &state.base_url.0,
         &uri,
-        PageStrategy::Offset { offset, limit },
+        PageStrategy::Offset {
+            offset: w.offset,
+            limit: w.limit,
+        },
         Some(total as u64),
     );
 
@@ -224,9 +221,9 @@ pub async fn create(
     let new_res = document.0.into_single()?;
 
     // Validate before any DB write; aggregate all field errors into one 422 response.
-    if let Err(errs) = new_res.validate() {
-        return Err(JsonApiError::from_api_errors(from_validation_errors(&errs)));
-    }
+    new_res
+        .validate()
+        .map_err(|e| JsonApiError::from_validation_errors(&e))?;
 
     let author_id = new_res
         .author
