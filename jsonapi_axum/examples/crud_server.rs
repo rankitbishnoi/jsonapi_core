@@ -172,17 +172,25 @@ async fn list_articles(
     uri: Uri,
     JsonApiQuery(query): JsonApiQuery,
 ) -> Result<impl IntoResponse, JsonApiError> {
-    let page = PageNumberPage::from_query(&query).map_err(|err| JsonApiError::from_core(&err))?;
-    let number = page.number.max(1);
-    let size = page.size.unwrap_or(2).max(1);
+    let page = PageNumberPage::from_query(&query)?;
+    // Apply the server's page-size policy in one call: default 2, hard cap 100
+    // (so a client can't request an unbounded page). Gives a clamped
+    // offset/limit window plus the 1-based number for links.
+    let window = page.resolve(2, 100);
 
     let all: Vec<Article> = state.articles.lock().unwrap().values().cloned().collect();
     let total = all.len() as u64;
     // Slicing the page is the consumer's job; the library only represents it.
-    let start = ((number - 1) * size) as usize;
-    let items: Vec<Article> = all.into_iter().skip(start).take(size as usize).collect();
+    let items: Vec<Article> = all
+        .into_iter()
+        .skip(window.offset as usize)
+        .take(window.limit as usize)
+        .collect();
 
-    let strategy = PageStrategy::PageNumber { number, size };
+    let strategy = PageStrategy::PageNumber {
+        number: window.number,
+        size: window.limit,
+    };
     let links = pagination_links(&uri, strategy, Some(total));
 
     Ok(

@@ -104,13 +104,19 @@ async fn list(
 ) -> Result<impl IntoResponse, JsonApiError> {
     // `?` converts jsonapi_core::Error into JsonApiError via its `From` impl.
     let page = PageNumberPage::from_query(&query)?;
-    let number = page.number.max(1);
-    let size = page.size.unwrap_or(2).max(1);
+    let window = page.resolve(2, 100); // default size 2, hard cap 100
     let all: Vec<Article> = state.articles.lock().unwrap().values().cloned().collect();
     let total = all.len() as u64;
-    let start = ((number - 1) * size) as usize;
-    let items: Vec<Article> = all.into_iter().skip(start).take(size as usize).collect();
-    let l = pagination_links(&uri, PageStrategy::PageNumber { number, size }, Some(total));
+    let items: Vec<Article> = all
+        .into_iter()
+        .skip(window.offset as usize)
+        .take(window.limit as usize)
+        .collect();
+    let strategy = PageStrategy::PageNumber {
+        number: window.number,
+        size: window.limit,
+    };
+    let l = pagination_links(&uri, strategy, Some(total));
     Ok(JsonApiResponse::new(
         DocumentBuilder::collection(items).links(l).build(),
     ))
