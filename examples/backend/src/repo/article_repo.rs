@@ -1,6 +1,6 @@
 use sqlx::SqlitePool;
 
-use crate::domain::Article;
+use crate::domain::{Article, ArticlePatch, NewArticle};
 
 #[derive(Debug, Clone, Copy)]
 pub enum SortDir {
@@ -98,6 +98,63 @@ pub async fn get(pool: &SqlitePool, id: &str) -> Result<Article, sqlx::Error> {
     .bind(id)
     .fetch_one(pool)
     .await
+}
+
+pub async fn create(
+    pool: &SqlitePool,
+    article: &NewArticle,
+    now: &str,
+) -> Result<Article, sqlx::Error> {
+    let id = article.id.clone().unwrap_or_default();
+    sqlx::query(
+        "INSERT INTO articles (id, title, body, author_id, created_at, updated_at) \
+         VALUES (?, ?, ?, ?, ?, ?)",
+    )
+    .bind(&id)
+    .bind(&article.title)
+    .bind(&article.body)
+    .bind(&article.author_id)
+    .bind(now)
+    .bind(now)
+    .execute(pool)
+    .await?;
+
+    get(pool, &id).await
+}
+
+pub async fn patch(
+    pool: &SqlitePool,
+    id: &str,
+    patch: &ArticlePatch,
+    now: &str,
+) -> Result<Article, sqlx::Error> {
+    // Only update columns that are explicitly Set.
+    if let Some(title) = patch.title.as_set() {
+        sqlx::query("UPDATE articles SET title = ?, updated_at = ? WHERE id = ?")
+            .bind(title)
+            .bind(now)
+            .bind(id)
+            .execute(pool)
+            .await?;
+    }
+    if let Some(body) = patch.body.as_set() {
+        sqlx::query("UPDATE articles SET body = ?, updated_at = ? WHERE id = ?")
+            .bind(body)
+            .bind(now)
+            .bind(id)
+            .execute(pool)
+            .await?;
+    }
+
+    get(pool, id).await
+}
+
+pub async fn delete(pool: &SqlitePool, id: &str) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query("DELETE FROM articles WHERE id = ?")
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(result.rows_affected() > 0)
 }
 
 pub async fn list_after(

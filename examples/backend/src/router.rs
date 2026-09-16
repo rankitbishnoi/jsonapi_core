@@ -9,10 +9,18 @@ use crate::state::AppState;
 pub fn build_router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(routes::health::health))
-        .route("/articles", get(routes::articles::list))
+        .route(
+            "/articles",
+            get(routes::articles::list).post(routes::articles::create),
+        )
         .route("/articles/offset", get(routes::articles::list_offset))
         .route("/articles/cursor", get(routes::articles::list_cursor))
-        .route("/articles/{id}", get(routes::articles::get))
+        .route(
+            "/articles/{id}",
+            get(routes::articles::get)
+                .patch(routes::articles::patch)
+                .delete(routes::articles::delete),
+        )
         .layer(JsonApiLayer::new())
         .with_state(state)
 }

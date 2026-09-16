@@ -1,4 +1,4 @@
-use jsonapi_core::{Relationship, ResourceIdentifier};
+use jsonapi_core::{Field, Relationship, ResourceIdentifier};
 
 use crate::domain::Article;
 use crate::resource::{AuthorResource, CommentResource, TagResource};
@@ -18,6 +18,30 @@ pub struct ArticleResource {
     pub tags: Relationship<TagResource>,
     #[jsonapi(relationship, type = "comments")]
     pub comments: Relationship<CommentResource>,
+}
+
+/// Write resource for creating a new article. `id` is optional so the client
+/// may omit it and let the server assign one.
+#[derive(Debug, Clone, jsonapi_core::JsonApi)]
+#[jsonapi(type = "articles", case = "camelCase")]
+pub struct NewArticleResource {
+    #[jsonapi(id)]
+    pub id: Option<String>,
+    pub title: String,
+    pub body: String,
+    #[jsonapi(relationship, type = "authors")]
+    pub author: Relationship<AuthorResource>,
+}
+
+/// Partial-update resource for PATCH. Every attribute is a tri-state [`Field`]
+/// so the handler can distinguish "absent" (leave unchanged) from "set".
+#[derive(Debug, Clone, jsonapi_core::JsonApi)]
+#[jsonapi(type = "articles", case = "camelCase")]
+pub struct ArticlePatchResource {
+    #[jsonapi(id)]
+    pub id: String,
+    pub title: Field<String>,
+    pub body: Field<String>,
 }
 
 impl ArticleResource {
