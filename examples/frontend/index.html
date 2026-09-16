@@ -5,9 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>JSON:API Showcase</title>
     <link data-trunk rel="css" href="style/main.css" />
-    <script>
+    <!--
+      Backend base URL resolution (see src/config.rs):
+        1. window.__SHOWCASE_CONFIG__.apiBase below, if set (runtime override)
+        2. the API_BASE env baked at `trunk build` time
+        3. the http://127.0.0.1:8080 default
+      Leave the override commented out so the build-time API_BASE (used by the
+      Docker image) is honoured. Uncomment and edit to retarget a prebuilt bundle
+      at a different backend origin without rebuilding.
+    -->
+    <!-- <script>
       window.__SHOWCASE_CONFIG__ = { apiBase: "http://127.0.0.1:8080" };
-    </script>
+    </script> -->
   </head>
   <body></body>
 </html>

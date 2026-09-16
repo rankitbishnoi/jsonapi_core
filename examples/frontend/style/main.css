@@ -24,7 +24,10 @@ body { margin: 0; font-family: system-ui, sans-serif; color: var(--ink); backgro
 /* Inspector */
 .inspector { background: #020617; border-left: 1px solid #33415580; display: flex; flex-direction: column; }
 .inspector-list { overflow-y: auto; max-height: 45%; border-bottom: 1px solid #33415580; }
-.inspector-row { display: flex; gap: 0.5rem; padding: 0.4rem 0.6rem; cursor: pointer; font-family: var(--mono); font-size: 0.8rem; }
+/* Rows are <button>s for keyboard access; reset the native button chrome. */
+.inspector-row { display: flex; gap: 0.5rem; width: 100%; text-align: left; border: 0; background: transparent; color: var(--ink); padding: 0.4rem 0.6rem; cursor: pointer; font-family: var(--mono); font-size: 0.8rem; }
+.inspector-row:hover { background: #33415533; }
+.inspector-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .inspector-row.selected { background: #0ea5e91a; }
 .inspector-detail { overflow-y: auto; padding: 0.6rem; font-family: var(--mono); font-size: 0.78rem; }
 .status-2 { color: var(--ok); } .status-4, .status-5 { color: var(--err); }

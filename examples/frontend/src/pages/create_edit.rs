@@ -60,8 +60,12 @@ pub fn CreateEditPage() -> impl IntoView {
             attrs.insert("body".into(), json!(patch_body.get()));
         }
         let id = patch_id.get();
+        // Raw id in the body; percent-encoded when placed in the URL path.
+        let id_seg = js_sys::encode_uri_component(&id)
+            .as_string()
+            .unwrap_or_default();
         let doc = json!({ "data": { "type": "articles", "id": id, "attributes": attrs } });
-        patch.dispatch_local((format!("/articles/{id}"), doc.to_string()));
+        patch.dispatch_local((format!("/articles/{id_seg}"), doc.to_string()));
     };
 
     let response: Signal<String> = body.into();

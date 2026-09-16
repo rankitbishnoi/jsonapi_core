@@ -3,8 +3,9 @@
 An axum-based JSON:API server backed by an embedded SQLite database. It exercises the full
 `jsonapi_core` / `jsonapi_axum` stack: compound documents, sparse fieldsets, sort/filter,
 three pagination strategies, `Field<T>`-aware partial updates, relationship endpoints, atomic
-operations, content-type negotiation, and per-request tracing IDs. A Leptos frontend is planned
-and will be added to the `examples/` workspace alongside this crate.
+operations, content-type negotiation, and per-request tracing IDs. A Leptos CSR frontend in
+`examples/frontend` drives every endpoint and captures the full HTTP exchange in a persistent
+inspector panel (see the "Frontend (Leptos CSR SPA)" section below).
 
 ## Running
 

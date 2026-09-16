@@ -40,12 +40,12 @@ pub fn InspectorPanel() -> impl IntoView {
                 let path = ex.url.clone();
                 let id = ex.id;
                 view! {
-                    <div class=cls on:click=move |_| store.select(id)>
+                    <button type="button" class=cls on:click=move |_| store.select(id)>
                         <span>{ex.method.clone()}</span>
                         <span class=sc>{ex.status}</span>
                         <span>{format!("{:.0}ms", ex.duration_ms)}</span>
                         <span>{path}</span>
-                    </div>
+                    </button>
                 }
             })
             .collect_view()

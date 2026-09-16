@@ -2,7 +2,6 @@ use wasm_bindgen::JsValue;
 
 /// Backend base URL. Precedence: runtime `window.__SHOWCASE_CONFIG__.apiBase`,
 /// then the compile-time `API_BASE` env, then the local default.
-#[allow(dead_code)] // used by the client in a later task
 pub fn api_base() -> String {
     if let Some(runtime) = runtime_override() {
         return runtime;

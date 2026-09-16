@@ -94,6 +94,10 @@ jobs:
         run: cargo install trunk --locked wasm-bindgen-cli
       - name: Frontend unit tests (native)
         run: cargo test -p jsonapi-showcase-frontend --lib
+      - name: Frontend wasm tests (node runner)
+        run: cargo test -p jsonapi-showcase-frontend --target wasm32-unknown-unknown --test frontend_wasm
+        env:
+          CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER: wasm-bindgen-test-runner
       - name: Trunk build
         run: cd frontend && trunk build
       - name: Clippy (wasm)

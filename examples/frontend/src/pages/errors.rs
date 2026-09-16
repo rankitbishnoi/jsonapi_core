@@ -2,9 +2,8 @@ use leptos::prelude::*;
 use serde_json::json;
 
 use crate::api::ApiClient;
+use crate::api::capture::MEDIA_TYPE;
 use crate::components::JsonView;
-
-const MEDIA: &str = "application/vnd.api+json";
 
 /// A deliberately-malformed call: caller-chosen method/path/headers/body used to
 /// provoke a specific JSON:API error status.
@@ -47,7 +46,7 @@ pub fn ErrorsPage() -> impl IntoView {
         raw.dispatch_local(RawCall {
             method: "POST".into(),
             path: "/articles".into(),
-            accept: MEDIA.into(),
+            accept: MEDIA_TYPE.into(),
             content_type: "application/json".into(),
             body: Some(json!({"data":{"type":"articles"}}).to_string()),
         });
@@ -57,7 +56,7 @@ pub fn ErrorsPage() -> impl IntoView {
             method: "GET".into(),
             path: "/articles/art-01".into(),
             accept: "text/html".into(),
-            content_type: MEDIA.into(),
+            content_type: MEDIA_TYPE.into(),
             body: None,
         });
     };
@@ -65,8 +64,8 @@ pub fn ErrorsPage() -> impl IntoView {
         raw.dispatch_local(RawCall {
             method: "GET".into(),
             path: "/articles/does-not-exist".into(),
-            accept: MEDIA.into(),
-            content_type: MEDIA.into(),
+            accept: MEDIA_TYPE.into(),
+            content_type: MEDIA_TYPE.into(),
             body: None,
         });
     };
@@ -81,8 +80,8 @@ pub fn ErrorsPage() -> impl IntoView {
         raw.dispatch_local(RawCall {
             method: "POST".into(),
             path: "/articles".into(),
-            accept: MEDIA.into(),
-            content_type: MEDIA.into(),
+            accept: MEDIA_TYPE.into(),
+            content_type: MEDIA_TYPE.into(),
             body: Some(doc.to_string()),
         });
     };

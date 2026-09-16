@@ -22,22 +22,29 @@ pub fn RelationshipsPage() -> impl IntoView {
         }
     });
 
+    // Encode the free-text article id before putting it in the URL path.
+    let article_seg = move || {
+        js_sys::encode_uri_component(&article.get())
+            .as_string()
+            .unwrap_or_default()
+    };
+
     let get_tags = move |_| {
-        let path = format!("/articles/{}/relationships/tags", article.get());
+        let path = format!("/articles/{}/relationships/tags", article_seg());
         call.dispatch_local(("GET".into(), path, None));
     };
     let patch_author = move |_| {
-        let path = format!("/articles/{}/relationships/author", article.get());
+        let path = format!("/articles/{}/relationships/author", article_seg());
         let doc = json!({ "data": { "type": "authors", "id": new_author.get() } });
         call.dispatch_local(("PATCH".into(), path, Some(doc.to_string())));
     };
     let add_tag = move |_| {
-        let path = format!("/articles/{}/relationships/tags", article.get());
+        let path = format!("/articles/{}/relationships/tags", article_seg());
         let doc = json!({ "data": [{ "type": "tags", "id": tag.get() }] });
         call.dispatch_local(("POST".into(), path, Some(doc.to_string())));
     };
     let remove_tag = move |_| {
-        let path = format!("/articles/{}/relationships/tags", article.get());
+        let path = format!("/articles/{}/relationships/tags", article_seg());
         let doc = json!({ "data": [{ "type": "tags", "id": tag.get() }] });
         call.dispatch_local(("DELETE".into(), path, Some(doc.to_string())));
     };
