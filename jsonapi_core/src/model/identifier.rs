@@ -52,6 +52,41 @@ pub struct ResourceIdentifier {
     pub meta: Option<Meta>,
 }
 
+impl ResourceIdentifier {
+    /// Build a resource identifier for a server-assigned `id`.
+    ///
+    /// ```
+    /// # use jsonapi_core::{ResourceIdentifier, Identity};
+    /// let rid = ResourceIdentifier::new("authors", "42");
+    /// assert_eq!(rid.r#type, "authors");
+    /// assert_eq!(rid.identity, Identity::Id("42".into()));
+    /// ```
+    #[must_use]
+    pub fn new(r#type: impl Into<String>, id: impl Into<String>) -> Self {
+        Self {
+            r#type: r#type.into(),
+            identity: Identity::Id(id.into()),
+            meta: None,
+        }
+    }
+
+    /// Build a resource identifier for a client-local `lid` (JSON:API 1.1).
+    ///
+    /// ```
+    /// # use jsonapi_core::{ResourceIdentifier, Identity};
+    /// let rid = ResourceIdentifier::with_lid("authors", "local-1");
+    /// assert_eq!(rid.identity, Identity::Lid("local-1".into()));
+    /// ```
+    #[must_use]
+    pub fn with_lid(r#type: impl Into<String>, lid: impl Into<String>) -> Self {
+        Self {
+            r#type: r#type.into(),
+            identity: Identity::Lid(lid.into()),
+            meta: None,
+        }
+    }
+}
+
 /// Borrowing representation used for serialization.
 #[derive(Serialize)]
 struct ResourceIdentifierSerRepr<'a> {
@@ -135,6 +170,30 @@ mod tests {
         let lid = Identity::Lid("local-1".into());
         assert_eq!(lid.as_id(), None);
         assert_eq!(lid.as_lid(), Some("local-1"));
+    }
+
+    #[test]
+    fn test_resource_identifier_new_builds_id() {
+        let rid = ResourceIdentifier::new("people", "1");
+        assert_eq!(rid.r#type, "people");
+        assert_eq!(rid.identity, Identity::Id("1".into()));
+        assert_eq!(rid.meta, None);
+        assert_eq!(
+            serde_json::to_string(&rid).unwrap(),
+            r#"{"type":"people","id":"1"}"#
+        );
+    }
+
+    #[test]
+    fn test_resource_identifier_with_lid_builds_lid() {
+        let rid = ResourceIdentifier::with_lid("people", "local-1");
+        assert_eq!(rid.r#type, "people");
+        assert_eq!(rid.identity, Identity::Lid("local-1".into()));
+        assert_eq!(rid.meta, None);
+        assert_eq!(
+            serde_json::to_string(&rid).unwrap(),
+            r#"{"type":"people","lid":"local-1"}"#
+        );
     }
 
     #[test]
