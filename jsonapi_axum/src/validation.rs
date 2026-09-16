@@ -10,6 +10,18 @@ use jsonapi_core::ApiError;
 use jsonapi_http::{ApiErrorExt, with_status};
 use validator::ValidationErrors;
 
+use crate::JsonApiError;
+
+impl JsonApiError {
+    /// One-step: aggregate `validator` field violations into a single 422
+    /// JSON:API error document. Shorthand for
+    /// `JsonApiError::from_api_errors(from_validation_errors(errors))`.
+    #[must_use]
+    pub fn from_validation_errors(errors: &ValidationErrors) -> Self {
+        Self::from_api_errors(from_validation_errors(errors))
+    }
+}
+
 /// Convert field-level [`validator::ValidationErrors`] into JSON:API
 /// [`ApiError`]s.
 ///
@@ -82,5 +94,17 @@ mod tests {
             Some("/data/attributes/title")
         );
         assert_eq!(api[1].detail.as_deref(), Some("must not be empty"));
+    }
+
+    #[test]
+    fn json_api_error_from_validation_errors_aggregates_into_one_document() {
+        let mut errors = ValidationErrors::new();
+        errors.add("title", field_error("length", Some("must not be empty")));
+        errors.add("age", field_error("range", None));
+
+        use axum::response::IntoResponse;
+        let err = JsonApiError::from_validation_errors(&errors);
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
     }
 }
