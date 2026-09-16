@@ -134,7 +134,9 @@ impl AppState {
 /// A `404` JSON:API error document for a missing article, built with the fluent
 /// [`with_status`] + [`ApiErrorExt`] builder instead of a raw struct literal.
 fn not_found(id: &str) -> JsonApiError {
-    JsonApiError::from_api_error(with_status(404).detail(format!("article `{id}` does not exist")))
+    JsonApiError::from_api_error(
+        with_status(StatusCode::NOT_FOUND).detail(format!("article `{id}` does not exist")),
+    )
 }
 
 /// A domain-level validation error. Implementing [`IntoJsonApiError`] lets a
@@ -145,7 +147,7 @@ struct BlankTitle;
 impl IntoJsonApiError for BlankTitle {
     fn into_json_api_error(self) -> JsonApiError {
         JsonApiError::from_api_error(
-            with_status(422)
+            with_status(StatusCode::UNPROCESSABLE_ENTITY)
                 .pointer("/data/attributes/title")
                 .detail("title must not be empty"),
         )

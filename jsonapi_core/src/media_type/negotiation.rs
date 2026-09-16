@@ -97,6 +97,26 @@ impl JsonApiMediaType {
         }
     }
 
+    /// Construct an `application/vnd.api+json` media type declaring one or
+    /// more profile URIs.
+    ///
+    /// ```
+    /// # use jsonapi_core::{JsonApiMediaType, CURSOR_PAGINATION_PROFILE};
+    /// let mt = JsonApiMediaType::with_profile([CURSOR_PAGINATION_PROFILE]);
+    /// assert_eq!(mt.profile, vec![CURSOR_PAGINATION_PROFILE.to_string()]);
+    /// ```
+    #[must_use]
+    pub fn with_profile<S, I>(profile: I) -> Self
+    where
+        S: Into<String>,
+        I: IntoIterator<Item = S>,
+    {
+        Self {
+            ext: Vec::new(),
+            profile: profile.into_iter().map(Into::into).collect(),
+        }
+    }
+
     /// Format as a header value string (usable for both Content-Type and Accept).
     ///
     /// Equivalent to the [`Display`](std::fmt::Display) impl; kept as a named,
@@ -682,6 +702,21 @@ mod tests {
     #[test]
     fn with_ext_round_trips_through_header_value() {
         let original = JsonApiMediaType::with_ext(["https://jsonapi.org/ext/atomic"]);
+        let header = original.to_header_value();
+        let parsed = JsonApiMediaType::parse(&header).unwrap();
+        assert_eq!(parsed, original);
+    }
+
+    #[test]
+    fn with_profile_single_uri() {
+        let mt = JsonApiMediaType::with_profile(["https://example.com/profiles/cursor"]);
+        assert_eq!(mt.profile, vec!["https://example.com/profiles/cursor"]);
+        assert!(mt.ext.is_empty());
+    }
+
+    #[test]
+    fn with_profile_round_trips_through_header_value() {
+        let original = JsonApiMediaType::with_profile(["https://example.com/profiles/cursor"]);
         let header = original.to_header_value();
         let parsed = JsonApiMediaType::parse(&header).unwrap();
         assert_eq!(parsed, original);

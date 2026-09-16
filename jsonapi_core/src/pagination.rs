@@ -51,9 +51,15 @@ impl CursorPage {
 /// Builds `first`/`prev`/`next`/`last` pagination [`Link`]s for a cursor-paginated
 /// collection, preserving caller-provided query parameters.
 ///
+/// Set which links to emit fluently, then finish with [`links`](Self::links):
+///
 /// ```
 /// use jsonapi_core::CursorLinks;
-/// let links = CursorLinks::new("/articles").size(10).build(true, None, Some("cur"), None);
+/// let links = CursorLinks::new("/articles")
+///     .size(10)
+///     .first()
+///     .next("cur")
+///     .links();
 /// assert!(links.contains("next"));
 /// ```
 #[derive(Debug, Clone)]
@@ -61,6 +67,10 @@ pub struct CursorLinks<'a> {
     base_path: &'a str,
     preserved: Vec<(String, String)>,
     size: Option<u64>,
+    include_first: bool,
+    prev_cursor: Option<String>,
+    next_cursor: Option<String>,
+    last_cursor: Option<String>,
 }
 
 impl<'a> CursorLinks<'a> {
@@ -71,6 +81,10 @@ impl<'a> CursorLinks<'a> {
             base_path,
             preserved: Vec::new(),
             size: None,
+            include_first: false,
+            prev_cursor: None,
+            next_cursor: None,
+            last_cursor: None,
         }
     }
 
@@ -93,9 +107,63 @@ impl<'a> CursorLinks<'a> {
         self
     }
 
-    /// Build the links. `first` (bool) emits a cursor-less first-page link;
-    /// `prev`/`next`/`last` emit `page[before]`/`page[after]`/`page[before]`
-    /// links respectively when `Some`.
+    /// Emit a cursor-less `first` link.
+    #[must_use]
+    pub fn first(mut self) -> Self {
+        self.include_first = true;
+        self
+    }
+
+    /// Emit a `prev` link at the given `page[before]` cursor.
+    #[must_use]
+    pub fn prev(mut self, cursor: impl Into<String>) -> Self {
+        self.prev_cursor = Some(cursor.into());
+        self
+    }
+
+    /// Emit a `next` link at the given `page[after]` cursor.
+    #[must_use]
+    pub fn next(mut self, cursor: impl Into<String>) -> Self {
+        self.next_cursor = Some(cursor.into());
+        self
+    }
+
+    /// Emit a `last` link at the given `page[before]` end-boundary cursor.
+    #[must_use]
+    pub fn last(mut self, cursor: impl Into<String>) -> Self {
+        self.last_cursor = Some(cursor.into());
+        self
+    }
+
+    /// Finish and build the configured links.
+    #[must_use]
+    pub fn links(&self) -> Links {
+        let mut links = Links::new();
+        if self.include_first {
+            links.insert("first", Some(Link::String(self.url(None))));
+        }
+        if let Some(cur) = self.prev_cursor.as_deref() {
+            links.insert("prev", Some(Link::String(self.url(Some(("before", cur))))));
+        }
+        if let Some(cur) = self.next_cursor.as_deref() {
+            links.insert("next", Some(Link::String(self.url(Some(("after", cur))))));
+        }
+        if let Some(cur) = self.last_cursor.as_deref() {
+            // `last` uses page[before]: the cursor marking the end boundary.
+            links.insert("last", Some(Link::String(self.url(Some(("before", cur))))));
+        }
+        links
+    }
+
+    /// Build the links from positional arguments.
+    ///
+    /// Superseded by the fluent [`first`](Self::first)/[`prev`](Self::prev)/
+    /// [`next`](Self::next)/[`last`](Self::last) setters + [`links`](Self::links),
+    /// which read more clearly at the call site.
+    #[deprecated(
+        since = "0.5.0",
+        note = "use the fluent .first()/.prev()/.next()/.last().links() builder instead"
+    )]
     #[must_use]
     pub fn build(
         &self,
@@ -427,7 +495,10 @@ mod tests {
         let links = CursorLinks::new("/articles")
             .preserve(&[("filter[status]", "published")])
             .size(10)
-            .build(true, Some("prevcur"), Some("nextcur"), None);
+            .first()
+            .prev("prevcur")
+            .next("nextcur")
+            .links();
 
         assert!(links.contains("first"));
         assert!(links.contains("prev"));
@@ -452,7 +523,7 @@ mod tests {
 
     #[test]
     fn cursor_links_first_has_no_cursor() {
-        let links = CursorLinks::new("/a").size(5).build(true, None, None, None);
+        let links = CursorLinks::new("/a").size(5).first().links();
         let first = match links.get("first").unwrap() {
             crate::Link::String(s) => s.clone(),
             _ => panic!(),
@@ -466,7 +537,8 @@ mod tests {
     fn cursor_links_build_emits_last_link_with_before_cursor() {
         let links = CursorLinks::new("/articles")
             .size(10)
-            .build(false, None, None, Some("endcur"));
+            .last("endcur")
+            .links();
 
         assert!(links.contains("last"));
         assert!(!links.contains("first"));
@@ -480,6 +552,16 @@ mod tests {
         assert!(last.contains("page[before]=endcur"));
         assert!(!last.contains("page[after]"));
         assert!(last.contains("page[size]=10"));
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn cursor_links_deprecated_build_matches_fluent() {
+        let base = CursorLinks::new("/articles").size(10);
+        let positional = base.clone().build(true, None, Some("nextcur"), None);
+        let fluent = base.first().next("nextcur").links();
+        assert_eq!(positional.get("next"), fluent.get("next"));
+        assert_eq!(positional.get("first"), fluent.get("first"));
     }
 
     // --- Offset & page-number typed views + link builders (G7) ---

@@ -40,7 +40,7 @@ pub mod validation;
 pub use error::{IntoJsonApiError, JsonApiError, ResultExt};
 pub use extract::{BaseUrl, JsonApi, JsonApiQuery, JsonApiQueryValidated, NegotiatedMediaType};
 pub use normalize::{NormalizeErrorsLayer, NormalizeErrorsService, not_found};
-pub use pagination::pagination_links;
+pub use pagination::{pagination_links, pagination_links_with_base};
 pub use relationship::{JsonApiToMany, JsonApiToOne, RelationshipResponse};
 pub use request_id::{RequestId, RequestIdLayer, RequestIdService};
 pub use response::JsonApiResponse;
@@ -74,7 +74,8 @@ pub use jsonapi_http::{IncludeResolver, resolve_includes};
 /// crate. Only the runtime types are re-exported here.
 pub use jsonapi_core::{
     ApiError, CURSOR_PAGINATION_PROFILE, CursorLinks, CursorPage, Document, DocumentBuilder, Field,
-    JsonApiMediaType, Query, Relationship, Resource, SortField, TypeRegistry,
+    JsonApiMediaType, OffsetPage, PageNumberPage, Query, Relationship, Resource, SortField,
+    TypeRegistry,
 };
 
 /// The full [`jsonapi_core`] crate, for any type not re-exported above.

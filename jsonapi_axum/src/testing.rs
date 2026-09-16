@@ -167,6 +167,28 @@ impl RouterTestExt for Router {
     }
 }
 
+/// Lets the status assertions accept either a bare `u16` or a typed
+/// [`StatusCode`], so `assert_status(404)` and `assert_status(StatusCode::NOT_FOUND)`
+/// both work. (`u16` only implements `TryFrom<StatusCode>`, not `Into`, hence the
+/// dedicated trait.)
+pub trait IntoStatusCode {
+    /// Convert into a [`StatusCode`], panicking only if a `u16` is out of the
+    /// valid `100..=999` range — a test-authoring mistake, surfaced eagerly.
+    fn into_status_code(self) -> StatusCode;
+}
+
+impl IntoStatusCode for StatusCode {
+    fn into_status_code(self) -> StatusCode {
+        self
+    }
+}
+
+impl IntoStatusCode for u16 {
+    fn into_status_code(self) -> StatusCode {
+        StatusCode::from_u16(self).expect("invalid HTTP status code in test assertion")
+    }
+}
+
 /// A collected response: status, headers, and the parsed JSON body (`None` for
 /// an empty body such as a `204`, or a non-JSON body).
 #[derive(Debug, Clone)]
@@ -198,8 +220,9 @@ impl JsonApiTestResponse {
         }
     }
 
-    /// Assert the response status.
-    pub fn assert_status(self, expected: StatusCode) -> Self {
+    /// Assert the response status. Accepts a `u16` or a [`StatusCode`].
+    pub fn assert_status(self, expected: impl IntoStatusCode) -> Self {
+        let expected = expected.into_status_code();
         assert_eq!(
             self.status, expected,
             "expected status {expected}, got {} (body: {:?})",
@@ -224,13 +247,15 @@ impl JsonApiTestResponse {
     }
 
     /// Assert `errors[0].status` equals `status` (compared as the JSON:API
-    /// string it is serialized as).
-    pub fn assert_error(self, status: u16) -> Self {
+    /// string it is serialized as). Accepts a `u16` or a [`StatusCode`].
+    pub fn assert_error(self, status: impl IntoStatusCode) -> Self {
+        let status = status.into_status_code();
+        let expected = status.as_u16().to_string();
         let got = self.first_error().get("status").and_then(Value::as_str);
         assert_eq!(
             got,
-            Some(status.to_string().as_str()),
-            "expected errors[0].status {status:?}, got {got:?}"
+            Some(expected.as_str()),
+            "expected errors[0].status {expected:?}, got {got:?}"
         );
         self
     }
@@ -334,7 +359,7 @@ mod tests {
         }
         async fn boom() -> crate::JsonApiError {
             crate::JsonApiError::from_api_error(
-                crate::with_status(422)
+                crate::with_status(StatusCode::UNPROCESSABLE_ENTITY)
                     .pointer("/data/attributes/title")
                     .detail("must not be empty"),
             )
@@ -395,6 +420,24 @@ mod tests {
                 .assert_error_count(1)
                 .assert_error(422)
                 .assert_error_pointer("/data/attributes/title");
+        });
+    }
+
+    #[test]
+    fn status_assertions_accept_both_u16_and_statuscode() {
+        pollster::block_on(async {
+            // `assert_status`/`assert_error` accept a bare u16 ...
+            app()
+                .send(TestRequest::post("/boom").body_json(&json!({})).build())
+                .await
+                .assert_status(422u16)
+                .assert_error(422u16);
+            // ... and a typed StatusCode, interchangeably.
+            app()
+                .send(TestRequest::post("/boom").body_json(&json!({})).build())
+                .await
+                .assert_status(StatusCode::UNPROCESSABLE_ENTITY)
+                .assert_error(StatusCode::UNPROCESSABLE_ENTITY);
         });
     }
 

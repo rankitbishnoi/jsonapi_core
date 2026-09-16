@@ -31,7 +31,9 @@ use jsonapi_core::CursorLinks;
 let links = CursorLinks::new("/articles")
     .preserve(&[("filter[status]", "published")])
     .size(20)
-    .build(/* first */ true, /* prev */ None, /* next */ Some("cursor99"), /* last */ None);
+    .first()
+    .next("cursor99")
+    .links();
 
 // next → /articles?filter[status]=published&page[size]=20&page[after]=cursor99
 assert!(links.contains("next"));

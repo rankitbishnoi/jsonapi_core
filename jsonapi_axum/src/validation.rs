@@ -5,6 +5,7 @@
 //! `source.pointer` set to `/data/attributes/<field>` — so a failed request-body
 //! validation renders as a single spec-shaped errors document.
 
+use http::StatusCode;
 use jsonapi_core::ApiError;
 use jsonapi_http::{ApiErrorExt, with_status};
 use validator::ValidationErrors;
@@ -34,7 +35,7 @@ pub fn from_validation_errors(errors: &ValidationErrors) -> Vec<ApiError> {
                 .as_ref()
                 .map_or_else(|| violation.code.to_string(), |m| m.to_string());
             api_errors.push(
-                with_status(422)
+                with_status(StatusCode::UNPROCESSABLE_ENTITY)
                     .pointer(format!("/data/attributes/{field}"))
                     .code(violation.code.to_string())
                     .detail(detail),

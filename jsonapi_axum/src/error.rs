@@ -71,13 +71,13 @@ impl JsonApiError {
     /// Build a **404 Not Found** JSON:API error with a human-readable `detail`.
     #[must_use]
     pub fn not_found(detail: impl Into<String>) -> Self {
-        Self::from_api_error(with_status(404).detail(detail))
+        Self::from_api_error(with_status(StatusCode::NOT_FOUND).detail(detail))
     }
 
     /// Build a **403 Forbidden** JSON:API error with a human-readable `detail`.
     #[must_use]
     pub fn forbidden(detail: impl Into<String>) -> Self {
-        Self::from_api_error(with_status(403).detail(detail))
+        Self::from_api_error(with_status(StatusCode::FORBIDDEN).detail(detail))
     }
 
     /// Build a **500 Internal Server Error** JSON:API error.
@@ -91,7 +91,7 @@ impl JsonApiError {
     #[must_use]
     pub fn internal(detail: impl Into<String>) -> Self {
         let _detail = detail.into();
-        let error = with_status(500);
+        let error = with_status(StatusCode::INTERNAL_SERVER_ERROR);
         #[cfg(feature = "debug-errors")]
         let error = error.detail(_detail);
         Self::from_api_error(error)
@@ -102,6 +102,36 @@ impl JsonApiError {
 ///
 /// Implement this for your own error types to map them to a JSON:API response,
 /// then use [`ResultExt::or_json_api`] for a clean `?` in handlers.
+///
+/// The idiomatic impl builds an [`ApiError`] with [`with_status`] (adding
+/// `detail`, `source`, etc. via [`ApiErrorExt`](crate::ApiErrorExt)), then wraps
+/// it with [`JsonApiError::from_api_error`]:
+///
+/// ```
+/// use jsonapi_axum::{ApiError, ApiErrorExt, IntoJsonApiError, JsonApiError, with_status};
+/// use http::StatusCode;
+///
+/// enum AppError {
+///     NotFound(String),
+///     Invalid { field: String },
+/// }
+///
+/// impl IntoJsonApiError for AppError {
+///     fn into_json_api_error(self) -> JsonApiError {
+///         let error: ApiError = match self {
+///             AppError::NotFound(what) => {
+///                 with_status(StatusCode::NOT_FOUND).detail(format!("no such {what}"))
+///             }
+///             AppError::Invalid { field } => with_status(StatusCode::UNPROCESSABLE_ENTITY)
+///                 .detail("invalid field")
+///                 .pointer(format!("/data/attributes/{field}")),
+///         };
+///         JsonApiError::from_api_error(error)
+///     }
+/// }
+///
+/// // In a handler: `repo.load(id).or_json_api()?` yields a `JsonApiError` on the error arm.
+/// ```
 ///
 /// # Why not a blanket `From` impl?
 ///

@@ -13,7 +13,9 @@ fn parse_then_build_next_link_round_trip() {
     let links = CursorLinks::new("/articles")
         .preserve(&[("filter[kind]", "news")])
         .size(cp.size.unwrap())
-        .build(true, None, Some("cursor99"), None);
+        .first()
+        .next("cursor99")
+        .links();
 
     let next = match links.get("next").unwrap() {
         jsonapi_core::Link::String(s) => s.clone(),

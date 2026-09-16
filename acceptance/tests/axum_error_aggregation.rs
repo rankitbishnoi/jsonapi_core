@@ -29,14 +29,14 @@ async fn create(JsonApi(document): JsonApi<NewArticle>) -> Result<impl IntoRespo
     let mut errors = ApiErrors::new();
     if new.title.trim().is_empty() {
         errors.push(
-            with_status(422)
+            with_status(StatusCode::UNPROCESSABLE_ENTITY)
                 .pointer("/data/attributes/title")
                 .detail("title must not be empty"),
         );
     }
     if new.body.trim().is_empty() {
         errors.push(
-            with_status(422)
+            with_status(StatusCode::UNPROCESSABLE_ENTITY)
                 .pointer("/data/attributes/body")
                 .detail("body must not be empty"),
         );
