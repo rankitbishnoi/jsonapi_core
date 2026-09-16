@@ -21,3 +21,4 @@ button { background: var(--accent); color: #04283b; border: 0; border-radius: 6p
 pre { white-space: pre-wrap; word-break: break-word; background: #0b1220; padding: 0.6rem; border-radius: 6px; }
 input, select, textarea { background: #0b1220; color: var(--ink); border: 1px solid #33415580; border-radius: 6px; padding: 0.35rem; }
 label { display: block; margin: 0.4rem 0 0.15rem; color: var(--muted); font-size: 0.85rem; }
+.caption { margin: 0.6rem 0 0.15rem; color: var(--muted); font-size: 0.85rem; }

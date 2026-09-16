@@ -1,12 +1,29 @@
 use leptos::prelude::*;
+use leptos_router::components::{Route, Router, Routes};
+use leptos_router::path;
+
+use crate::api::ApiClient;
+use crate::components::Nav;
+use crate::inspector::{InspectorPanel, InspectorStore};
+use crate::pages::ReadPage;
 
 #[component]
 pub fn App() -> impl IntoView {
+    let store = InspectorStore::new();
+    provide_context(store);
+    provide_context(ApiClient::new(store));
+
     view! {
-        <div class="app">
-            <nav class="nav"><strong>"JSON:API Showcase"</strong></nav>
-            <main class="demo"><h1>"Showcase"</h1><p>"Scaffold online."</p></main>
-            <aside class="inspector"><div class="inspector-detail">"Inspector"</div></aside>
-        </div>
+        <Router>
+            <div class="app">
+                <Nav/>
+                <main class="demo">
+                    <Routes fallback=|| view! { <p>"Not found"</p> }>
+                        <Route path=path!("/") view=ReadPage/>
+                    </Routes>
+                </main>
+                <InspectorPanel/>
+            </div>
+        </Router>
     }
 }

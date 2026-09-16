@@ -1,6 +1,4 @@
-mod app;
-
-use app::App;
+use jsonapi_showcase_frontend::app::App;
 
 fn main() {
     console_error_panic_hook::set_once();
