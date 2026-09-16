@@ -482,7 +482,7 @@ pub use model::{
 };
 pub use pagination::{
     CURSOR_PAGINATION_PROFILE, CursorLinks, CursorPage, OffsetPage, PageNumberPage, PageStrategy,
-    PaginationLinks,
+    PageWindow, PaginationLinks,
 };
 pub use query::{Query, QueryBuilder, SortField};
 pub use registry::{Registry, ResolveConfig};

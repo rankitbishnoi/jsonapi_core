@@ -234,6 +234,28 @@ impl OffsetPage {
             limit: parse_page_u64(query, "limit")?,
         })
     }
+
+    /// Normalize into a clamped [`PageWindow`]: `limit` defaults to
+    /// `default_limit` and is clamped to `1..=max_limit`; `offset` is preserved.
+    ///
+    /// Apply the server's page-size policy — including the upper bound that
+    /// prevents an unbounded `page[limit]` — in one call.
+    ///
+    /// ```
+    /// # use jsonapi_core::OffsetPage;
+    /// let page = OffsetPage { offset: 40, limit: Some(1_000) };
+    /// let w = page.resolve(20, 100); // default 20, cap 100
+    /// assert_eq!((w.offset, w.limit), (40, 100));
+    /// ```
+    #[must_use]
+    pub fn resolve(&self, default_limit: u64, max_limit: u64) -> PageWindow {
+        let limit = clamp_limit(self.limit.unwrap_or(default_limit), max_limit);
+        PageWindow {
+            number: self.offset / limit + 1,
+            offset: self.offset,
+            limit,
+        }
+    }
 }
 
 /// A typed view over the generic `page` map for **page-number** pagination
@@ -268,6 +290,50 @@ impl PageNumberPage {
             size: parse_page_u64(query, "size")?,
         })
     }
+
+    /// Normalize into a clamped [`PageWindow`]: `size` defaults to `default_size`
+    /// and is clamped to `1..=max_size`; `number` is forced to at least `1` and
+    /// the row `offset` is computed as `(number - 1) * size` (saturating).
+    ///
+    /// ```
+    /// # use jsonapi_core::PageNumberPage;
+    /// let page = PageNumberPage { number: 3, size: Some(1_000) };
+    /// let w = page.resolve(20, 100); // default 20, cap 100
+    /// assert_eq!((w.number, w.offset, w.limit), (3, 200, 100));
+    /// ```
+    #[must_use]
+    pub fn resolve(&self, default_size: u64, max_size: u64) -> PageWindow {
+        let limit = clamp_limit(self.size.unwrap_or(default_size), max_size);
+        let number = self.number.max(1);
+        PageWindow {
+            number,
+            offset: (number - 1).saturating_mul(limit),
+            limit,
+        }
+    }
+}
+
+/// A clamped, datastore-ready pagination window produced by
+/// [`PageNumberPage::resolve`] / [`OffsetPage::resolve`].
+///
+/// `limit` is clamped to `1..=max`, closing the unbounded-`page[size]` footgun,
+/// and `offset` is precomputed for a `LIMIT ? OFFSET ?` query or a
+/// `.skip(offset).take(limit)` slice. `number` is the 1-based page the window
+/// falls on, for building `page[number]` links.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PageWindow {
+    /// 1-based page number the window falls on.
+    pub number: u64,
+    /// Rows to skip before the page (`OFFSET`).
+    pub offset: u64,
+    /// Rows in the page, clamped to `1..=max` (`LIMIT` / `page[size]`).
+    pub limit: u64,
+}
+
+/// Clamp a requested page size into `1..=max`, treating a `0` `max` as `1` so
+/// the bound is always valid (never panics on a degenerate ceiling).
+fn clamp_limit(requested: u64, max: u64) -> u64 {
+    requested.clamp(1, max.max(1))
 }
 
 /// Parse a `page[key]` value as a `u64`, mapping a bad value to a
@@ -587,6 +653,62 @@ mod tests {
         let pn = PageNumberPage::from_query(&q).unwrap();
         assert_eq!(pn.number, 1);
         assert_eq!(pn.size, Some(20));
+    }
+
+    #[test]
+    fn page_number_resolve_defaults_clamps_and_computes_offset() {
+        // Absent size → default; number preserved; offset = (number-1)*size.
+        let w = PageNumberPage {
+            number: 3,
+            size: None,
+        }
+        .resolve(20, 100);
+        assert_eq!((w.number, w.offset, w.limit), (3, 40, 20));
+
+        // Oversized size is capped at max_size (the DoS bound).
+        let w = PageNumberPage {
+            number: 2,
+            size: Some(1_000_000),
+        }
+        .resolve(20, 100);
+        assert_eq!((w.number, w.offset, w.limit), (2, 100, 100));
+
+        // number 0 is floored to 1 (offset 0); size 0 floored to 1.
+        let w = PageNumberPage {
+            number: 0,
+            size: Some(0),
+        }
+        .resolve(20, 100);
+        assert_eq!((w.number, w.offset, w.limit), (1, 0, 1));
+    }
+
+    #[test]
+    fn offset_page_resolve_defaults_and_clamps_limit() {
+        let w = OffsetPage {
+            offset: 40,
+            limit: None,
+        }
+        .resolve(20, 100);
+        assert_eq!((w.number, w.offset, w.limit), (3, 40, 20));
+
+        let w = OffsetPage {
+            offset: 50,
+            limit: Some(1_000),
+        }
+        .resolve(20, 100);
+        // limit capped to 100; number = floor(50/100)+1 = 1.
+        assert_eq!((w.number, w.offset, w.limit), (1, 50, 100));
+    }
+
+    #[test]
+    fn resolve_tolerates_zero_max_without_panicking() {
+        // A degenerate ceiling of 0 must not panic clamp(1, 0); floored to 1.
+        let w = PageNumberPage {
+            number: 1,
+            size: Some(5),
+        }
+        .resolve(20, 0);
+        assert_eq!(w.limit, 1);
     }
 
     #[test]
