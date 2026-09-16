@@ -12,11 +12,11 @@ pub struct ArticleResource {
     pub body: String,
     pub created_at: String,
     pub updated_at: String,
-    #[jsonapi(relationship, type = "authors")]
+    #[jsonapi(relationship)]
     pub author: Relationship<AuthorResource>,
-    #[jsonapi(relationship, type = "tags")]
+    #[jsonapi(relationship)]
     pub tags: Relationship<TagResource>,
-    #[jsonapi(relationship, type = "comments")]
+    #[jsonapi(relationship)]
     pub comments: Relationship<CommentResource>,
 }
 
@@ -29,7 +29,7 @@ pub struct NewArticleResource {
     pub id: Option<String>,
     pub title: String,
     pub body: String,
-    #[jsonapi(relationship, type = "authors")]
+    #[jsonapi(relationship)]
     pub author: Relationship<AuthorResource>,
 }
 
@@ -53,16 +53,11 @@ impl ArticleResource {
             created_at: a.created_at,
             updated_at: a.updated_at,
             author: Relationship::to_one_id("authors", a.author_id),
-            tags: Relationship::to_many(
-                tag_ids
-                    .iter()
-                    .map(|id| ResourceIdentifier::new("tags", id.clone())),
-            ),
-            comments: Relationship::to_many(
-                comment_ids
-                    .iter()
-                    .map(|id| ResourceIdentifier::new("comments", id.clone())),
-            ),
+            tags: Relationship::to_many(ResourceIdentifier::many("tags", tag_ids.iter().cloned())),
+            comments: Relationship::to_many(ResourceIdentifier::many(
+                "comments",
+                comment_ids.iter().cloned(),
+            )),
         }
     }
 }

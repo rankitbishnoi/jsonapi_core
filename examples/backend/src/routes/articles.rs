@@ -57,7 +57,6 @@ fn mint_id() -> String {
 
 /// Map `query.sort` fields to the whitelisted [`ArticleSort`] enum, or return a
 /// 400 error for any unrecognised field name.
-#[allow(clippy::result_large_err)]
 fn sorts_from_query(sort: &[SortField]) -> Result<Vec<ArticleSort>, JsonApiError> {
     if sort.is_empty() {
         return Ok(vec![ArticleSort::CreatedAt(SortDir::Asc)]);
@@ -74,7 +73,8 @@ fn sorts_from_query(sort: &[SortField]) -> Result<Vec<ArticleSort>, JsonApiError
                 "title" => Ok(ArticleSort::Title(dir)),
                 other => Err(JsonApiError::from_api_error(
                     with_status(StatusCode::BAD_REQUEST)
-                        .detail(format!("cannot sort by `{other}`")),
+                        .detail(format!("cannot sort by `{other}`"))
+                        .parameter("sort"),
                 )),
             }
         })
@@ -254,10 +254,7 @@ pub async fn create(
     // Server assigns id when the client omits it; accept a client-supplied one.
     document.check_client_id(ClientIdPolicy::Assign)?;
 
-    let new_res = document
-        .0
-        .into_single()
-        .map_err(|e| JsonApiError::from_core(&e))?;
+    let new_res = document.0.into_single()?;
 
     let author_id = new_res
         .author
@@ -300,10 +297,7 @@ pub async fn patch(
 ) -> Result<impl IntoResponse, JsonApiError> {
     document.require_id(&id)?;
 
-    let patch_res = document
-        .0
-        .into_single()
-        .map_err(|e| JsonApiError::from_core(&e))?;
+    let patch_res = document.0.into_single()?;
 
     // Verify the article exists before patching.
     article_repo::get(&state.pool, &id).await?;

@@ -14,11 +14,6 @@ pub struct DbIncludeResolver<'a> {
 impl IncludeResolver for DbIncludeResolver<'_> {
     type Error = JsonApiError;
 
-    // `IncludeResolver::Error` is fixed to our `JsonApiError` (so a resolver error
-    // flows straight out of the handler via `?`). clippy flags that as a large Err
-    // variant, but the type is dictated by the trait + handler contract, not ours to
-    // shrink here. See CRATE_IMPROVEMENTS I-12 (IncludeResolver large-err friction).
-    #[allow(clippy::result_large_err)]
     fn load(
         &self,
         type_name: &str,

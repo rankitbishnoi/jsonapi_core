@@ -10,9 +10,9 @@ pub struct CommentResource {
     pub id: String,
     pub body: String,
     pub created_at: String,
-    #[jsonapi(relationship, type = "authors")]
+    #[jsonapi(relationship)]
     pub author: Relationship<AuthorResource>,
-    #[jsonapi(relationship, type = "articles")]
+    #[jsonapi(relationship)]
     pub article: Relationship<ArticleResource>,
 }
 
