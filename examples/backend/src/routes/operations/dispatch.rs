@@ -1,35 +1,25 @@
-//! Handler for `POST /operations` — JSON:API Atomic Operations extension.
+//! Per-type operation orchestration and request-parsing helpers.
 //!
-//! All operations in the request are executed inside a single SQLite transaction.
-//! If any operation fails the whole transaction is rolled back.
+//! Each function receives a live transaction connection and calls
+//! `crate::repo::atomic_repo` for the actual SQL. Nothing here touches the
+//! HTTP layer beyond constructing `JsonApiError` values.
 
 use std::collections::{BTreeMap, HashMap};
 
-use axum::extract::State;
-use axum::http::{HeaderValue, StatusCode, header};
-use axum::response::Response;
+use axum::http::StatusCode;
 use jsonapi_axum::{ApiErrorExt, JsonApiError, with_status};
-use jsonapi_core::atomic::{
-    ATOMIC_EXT_URI, AtomicOperation, AtomicRequest, AtomicResponse, AtomicResult,
-};
+use jsonapi_core::atomic::OperationRef;
 use jsonapi_core::{Identity, PrimaryData, RelationshipData, Resource, ResourceIdentifier};
 use serde_json::Value;
 
 use crate::repo::atomic_repo;
-use crate::state::AppState;
 use crate::util::{mint_id, now};
 
-/// Content-Type / Accept value for atomic operations responses.
-fn atomic_content_type() -> HeaderValue {
-    HeaderValue::from_str(&format!(
-        "application/vnd.api+json; ext=\"{ATOMIC_EXT_URI}\""
-    ))
-    .expect("static header value is valid")
-}
+use super::AtomicResult;
 
 // ── Per-type operation handlers ───────────────────────────────────────────────
 
-async fn add_author(
+pub(super) async fn add_author(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     resource: &Resource,
     lid_map: &mut HashMap<String, String>,
@@ -69,7 +59,7 @@ async fn add_author(
     })
 }
 
-async fn update_author(
+pub(super) async fn update_author(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     resource: &Resource,
     id: &str,
@@ -106,7 +96,7 @@ async fn update_author(
     })
 }
 
-async fn remove_author(
+pub(super) async fn remove_author(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     id: &str,
 ) -> Result<AtomicResult, JsonApiError> {
@@ -121,7 +111,7 @@ async fn remove_author(
     Ok(AtomicResult::default())
 }
 
-async fn add_article(
+pub(super) async fn add_article(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     resource: &Resource,
     lid_map: &mut HashMap<String, String>,
@@ -177,7 +167,7 @@ async fn add_article(
     })
 }
 
-async fn update_article(
+pub(super) async fn update_article(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     resource: &Resource,
     id: &str,
@@ -227,7 +217,7 @@ async fn update_article(
     })
 }
 
-async fn remove_article(
+pub(super) async fn remove_article(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     id: &str,
 ) -> Result<AtomicResult, JsonApiError> {
@@ -242,10 +232,14 @@ async fn remove_article(
     Ok(AtomicResult::default())
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Request-parsing helpers ───────────────────────────────────────────────────
 
 /// Extract a required string attribute from a `Resource`'s attributes `Value`.
-fn string_attr(attrs: &Value, key: &str, type_name: &str) -> Result<String, JsonApiError> {
+pub(super) fn string_attr(
+    attrs: &Value,
+    key: &str,
+    type_name: &str,
+) -> Result<String, JsonApiError> {
     attrs
         .get(key)
         .and_then(Value::as_str)
@@ -260,7 +254,7 @@ fn string_attr(attrs: &Value, key: &str, type_name: &str) -> Result<String, Json
 }
 
 /// Resolve the author id from an article's relationships, honouring lid -> id mapping.
-fn resolve_author_id(
+pub(super) fn resolve_author_id(
     resource: &Resource,
     lid_map: &HashMap<String, String>,
 ) -> Result<String, JsonApiError> {
@@ -309,9 +303,9 @@ fn resolve_author_id(
     }
 }
 
-/// Resolve the target id from an `OperationTarget`, checking both `id` and `lid`.
-fn resolve_target_id(
-    op_ref: &jsonapi_core::atomic::OperationRef,
+/// Resolve the target id from an `OperationRef`, checking both `id` and `lid`.
+pub(super) fn resolve_target_id(
+    op_ref: &OperationRef,
     lid_map: &HashMap<String, String>,
 ) -> Result<String, JsonApiError> {
     match &op_ref.identity {
@@ -332,9 +326,9 @@ fn resolve_target_id(
 }
 
 /// Validate a client-supplied resource type string as a JSON:API member name.
-/// Returns a 400 if the name is syntactically invalid (distinct from the 422 for
-/// an unsupported-but-valid type).
-fn validate_resource_type(type_str: &str, idx: usize) -> Result<(), JsonApiError> {
+/// Returns 400 when the name is syntactically invalid — distinct from the 422
+/// returned for a valid-but-unsupported type.
+pub(super) fn validate_resource_type(type_str: &str, idx: usize) -> Result<(), JsonApiError> {
     jsonapi_core::validate_member_name(type_str).map_err(|_| {
         JsonApiError::from_api_error(
             with_status(StatusCode::BAD_REQUEST)
@@ -347,202 +341,7 @@ fn validate_resource_type(type_str: &str, idx: usize) -> Result<(), JsonApiError
     Ok(())
 }
 
-/// Map a sqlx error to a JSON:API error: `RowNotFound` → 404, all others → 500
-/// (message scrubbed from the response body).
-fn sqlx_err(e: sqlx::Error) -> JsonApiError {
+/// Map a sqlx error to a JSON:API error: `RowNotFound` → 404, all others → 500.
+pub(super) fn sqlx_err(e: sqlx::Error) -> JsonApiError {
     JsonApiError::from(e)
-}
-
-// ── Main handler ─────────────────────────────────────────────────────────────
-
-pub async fn operations(
-    State(state): State<AppState>,
-    body: axum::body::Bytes,
-) -> Result<Response, JsonApiError> {
-    // 1. Parse.
-    let request: AtomicRequest = serde_json::from_slice(&body).map_err(|e| {
-        JsonApiError::from_api_error(with_status(StatusCode::BAD_REQUEST).detail(e.to_string()))
-    })?;
-
-    // 2. Validate lid ref ordering (forward references, duplicates, etc.).
-    request.validate_lid_refs().map_err(JsonApiError::from)?;
-
-    // 3. Begin transaction.
-    let mut tx = state.pool.begin().await.map_err(JsonApiError::from)?;
-
-    let mut lid_map: HashMap<String, String> = HashMap::new();
-    let mut results: Vec<AtomicResult> = Vec::with_capacity(request.operations.len());
-
-    for (idx, op) in request.operations.iter().enumerate() {
-        let result = execute_op(&mut tx, op, &mut lid_map, idx).await;
-
-        match result {
-            Ok(atomic_result) => results.push(atomic_result),
-            Err(err) => {
-                // Roll back and surface the error.
-                let _ = tx.rollback().await;
-                return Err(err);
-            }
-        }
-    }
-
-    // 4. Commit.
-    tx.commit().await.map_err(JsonApiError::from)?;
-
-    // 5. Serialize response.
-    let response_body = AtomicResponse {
-        results,
-        ..Default::default()
-    };
-    let bytes =
-        serde_json::to_vec(&response_body).map_err(|e| JsonApiError::internal(e.to_string()))?;
-
-    let mut response = Response::new(axum::body::Body::from(bytes));
-    *response.status_mut() = StatusCode::OK;
-    response
-        .headers_mut()
-        .insert(header::CONTENT_TYPE, atomic_content_type());
-
-    Ok(response)
-}
-
-/// Execute a single atomic operation on the transaction connection.
-async fn execute_op(
-    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
-    op: &AtomicOperation,
-    lid_map: &mut HashMap<String, String>,
-    idx: usize,
-) -> Result<AtomicResult, JsonApiError> {
-    match op {
-        AtomicOperation::Add { target, data } => {
-            // We only support top-level creation (no target.ref and no target.href).
-            if target.r#ref.is_some() {
-                return Err(JsonApiError::from_api_error(
-                    with_status(StatusCode::UNPROCESSABLE_ENTITY).detail(format!(
-                        "operation {idx}: `add` to a relationship target is not supported; \
-                             only top-level resource creation (empty target) is supported"
-                    )),
-                ));
-            }
-            if target.href.is_some() {
-                return Err(JsonApiError::from_api_error(
-                    with_status(StatusCode::UNPROCESSABLE_ENTITY)
-                        .detail(format!("operation {idx}: `href` targets are not supported")),
-                ));
-            }
-
-            let resource = match data {
-                PrimaryData::Single(r) => r.as_ref(),
-                _ => {
-                    return Err(JsonApiError::from_api_error(
-                        with_status(StatusCode::UNPROCESSABLE_ENTITY).detail(format!(
-                            "operation {idx}: `add` data must be a single resource"
-                        )),
-                    ));
-                }
-            };
-
-            // Validate the resource type string before dispatching.
-            validate_resource_type(&resource.r#type, idx)?;
-
-            match resource.r#type.as_str() {
-                "authors" => add_author(tx, resource, lid_map).await,
-                "articles" => add_article(tx, resource, lid_map).await,
-                other => Err(JsonApiError::from_api_error(
-                    with_status(StatusCode::UNPROCESSABLE_ENTITY).detail(format!(
-                        "operation {idx}: unsupported resource type `{other}` for `add`"
-                    )),
-                )),
-            }
-        }
-
-        AtomicOperation::Update { target, data } => {
-            let op_ref = target.r#ref.as_ref().ok_or_else(|| {
-                JsonApiError::from_api_error(
-                    with_status(StatusCode::UNPROCESSABLE_ENTITY)
-                        .detail(format!("operation {idx}: `update` requires a `ref` target")),
-                )
-            })?;
-
-            if op_ref.relationship.is_some() {
-                return Err(JsonApiError::from_api_error(
-                    with_status(StatusCode::UNPROCESSABLE_ENTITY).detail(format!(
-                        "operation {idx}: `update` targeting a relationship is not supported"
-                    )),
-                ));
-            }
-
-            let id = resolve_target_id(op_ref, lid_map)?;
-
-            let resource = match data {
-                PrimaryData::Single(r) => r.as_ref(),
-                _ => {
-                    return Err(JsonApiError::from_api_error(
-                        with_status(StatusCode::UNPROCESSABLE_ENTITY).detail(format!(
-                            "operation {idx}: `update` data must be a single resource"
-                        )),
-                    ));
-                }
-            };
-
-            // Validate the ref type string before dispatching.
-            validate_resource_type(&op_ref.r#type, idx)?;
-
-            match op_ref.r#type.as_str() {
-                "authors" => update_author(tx, resource, &id).await,
-                "articles" => update_article(tx, resource, &id).await,
-                other => Err(JsonApiError::from_api_error(
-                    with_status(StatusCode::UNPROCESSABLE_ENTITY).detail(format!(
-                        "operation {idx}: unsupported resource type `{other}` for `update`"
-                    )),
-                )),
-            }
-        }
-
-        AtomicOperation::Remove { target } => {
-            let op_ref = target.r#ref.as_ref().ok_or_else(|| {
-                if target.href.is_some() {
-                    JsonApiError::from_api_error(
-                        with_status(StatusCode::UNPROCESSABLE_ENTITY).detail(format!(
-                            "operation {idx}: `remove` with `href` target is not supported"
-                        )),
-                    )
-                } else {
-                    JsonApiError::from_api_error(
-                        with_status(StatusCode::UNPROCESSABLE_ENTITY)
-                            .detail(format!("operation {idx}: `remove` requires a `ref` target")),
-                    )
-                }
-            })?;
-
-            if op_ref.relationship.is_some() {
-                return Err(JsonApiError::from_api_error(
-                    with_status(StatusCode::UNPROCESSABLE_ENTITY).detail(format!(
-                        "operation {idx}: `remove` targeting a relationship is not supported"
-                    )),
-                ));
-            }
-
-            let id = resolve_target_id(op_ref, lid_map)?;
-
-            // Validate the ref type string before dispatching.
-            validate_resource_type(&op_ref.r#type, idx)?;
-
-            match op_ref.r#type.as_str() {
-                "authors" => remove_author(tx, &id).await,
-                "articles" => remove_article(tx, &id).await,
-                other => Err(JsonApiError::from_api_error(
-                    with_status(StatusCode::UNPROCESSABLE_ENTITY).detail(format!(
-                        "operation {idx}: unsupported resource type `{other}` for `remove`"
-                    )),
-                )),
-            }
-        }
-
-        // AtomicOperation is #[non_exhaustive]; future variants fall through here.
-        _ => Err(JsonApiError::from_api_error(
-            with_status(StatusCode::UNPROCESSABLE_ENTITY)
-                .detail(format!("operation {idx}: unsupported operation type")),
-        )),
-    }
 }
