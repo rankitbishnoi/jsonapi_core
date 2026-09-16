@@ -63,8 +63,16 @@ fn build_cors(origins: &[String]) -> CorsLayer {
             .allow_methods(tower_http::cors::Any)
             .allow_headers(tower_http::cors::Any)
     } else {
-        let parsed: Vec<axum::http::HeaderValue> =
-            origins.iter().filter_map(|o| o.parse().ok()).collect();
+        let parsed: Vec<axum::http::HeaderValue> = origins
+            .iter()
+            .filter_map(|o| match o.parse() {
+                Ok(v) => Some(v),
+                Err(_) => {
+                    tracing::warn!(origin = %o, "ignoring unparseable CORS origin");
+                    None
+                }
+            })
+            .collect();
         CorsLayer::new()
             .allow_origin(parsed)
             .allow_methods(tower_http::cors::Any)
