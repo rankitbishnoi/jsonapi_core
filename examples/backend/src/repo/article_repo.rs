@@ -103,14 +103,14 @@ pub async fn get(pool: &SqlitePool, id: &str) -> Result<Article, sqlx::Error> {
 pub async fn create(
     pool: &SqlitePool,
     article: &NewArticle,
+    id: &str,
     now: &str,
 ) -> Result<Article, sqlx::Error> {
-    let id = article.id.clone().unwrap_or_default();
     sqlx::query(
         "INSERT INTO articles (id, title, body, author_id, created_at, updated_at) \
          VALUES (?, ?, ?, ?, ?, ?)",
     )
-    .bind(&id)
+    .bind(id)
     .bind(&article.title)
     .bind(&article.body)
     .bind(&article.author_id)
@@ -119,7 +119,7 @@ pub async fn create(
     .execute(pool)
     .await?;
 
-    get(pool, &id).await
+    get(pool, id).await
 }
 
 pub async fn patch(
@@ -129,6 +129,7 @@ pub async fn patch(
     now: &str,
 ) -> Result<Article, sqlx::Error> {
     // Only update columns that are explicitly Set.
+    // Field::Null is treated as Absent here; clearing a NOT NULL column is out of scope.
     if let Some(title) = patch.title.as_set() {
         sqlx::query("UPDATE articles SET title = ?, updated_at = ? WHERE id = ?")
             .bind(title)

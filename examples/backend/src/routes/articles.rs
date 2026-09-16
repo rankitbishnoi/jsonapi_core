@@ -281,7 +281,7 @@ pub async fn create(
         author_id,
     };
 
-    let article = article_repo::create(&state.pool, &new_article, &ts).await?;
+    let article = article_repo::create(&state.pool, &new_article, &id, &ts).await?;
     let resource = ArticleResource::from_parts(article, &[], &[]);
     let self_link = links::resource_self(&state.base_url.0, "articles", &id);
 
