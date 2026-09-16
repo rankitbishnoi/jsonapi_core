@@ -17,15 +17,21 @@ pub struct AppState {
     pub pool: SqlitePool,
     pub base_url: BaseUrl,
     pub type_registry: Arc<TypeRegistry>,
+    pub cors_origins: Vec<String>,
 }
 
 impl AppState {
-    async fn init(pool: SqlitePool, base_url: impl Into<String>) -> anyhow::Result<Self> {
+    async fn init(
+        pool: SqlitePool,
+        base_url: impl Into<String>,
+        cors_origins: Vec<String>,
+    ) -> anyhow::Result<Self> {
         MIGRATOR.run(&pool).await?;
         Ok(Self {
             pool,
             base_url: BaseUrl(base_url.into()),
             type_registry: Arc::new(crate::resource::type_registry()),
+            cors_origins,
         })
     }
 
@@ -40,7 +46,7 @@ impl AppState {
             .max_connections(1)
             .connect_with(opts)
             .await?;
-        Self::init(pool, "http://api.test").await
+        Self::init(pool, "http://api.test", Vec::new()).await
     }
 
     /// Build state from a [`Config`].
@@ -50,7 +56,7 @@ impl AppState {
             .max_connections(5)
             .connect_with(opts)
             .await?;
-        let state = Self::init(pool, &config.base_url).await?;
+        let state = Self::init(pool, &config.base_url, config.cors_origins.clone()).await?;
         if config.seed {
             crate::repo::seed::seed(&state.pool).await?;
         }
