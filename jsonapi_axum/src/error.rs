@@ -103,6 +103,36 @@ impl JsonApiError {
 /// Implement this for your own error types to map them to a JSON:API response,
 /// then use [`ResultExt::or_json_api`] for a clean `?` in handlers.
 ///
+/// The idiomatic impl builds an [`ApiError`] with [`with_status`] (adding
+/// `detail`, `source`, etc. via [`ApiErrorExt`](crate::ApiErrorExt)), then wraps
+/// it with [`JsonApiError::from_api_error`]:
+///
+/// ```
+/// use jsonapi_axum::{ApiError, ApiErrorExt, IntoJsonApiError, JsonApiError, with_status};
+/// use http::StatusCode;
+///
+/// enum AppError {
+///     NotFound(String),
+///     Invalid { field: String },
+/// }
+///
+/// impl IntoJsonApiError for AppError {
+///     fn into_json_api_error(self) -> JsonApiError {
+///         let error: ApiError = match self {
+///             AppError::NotFound(what) => {
+///                 with_status(StatusCode::NOT_FOUND).detail(format!("no such {what}"))
+///             }
+///             AppError::Invalid { field } => with_status(StatusCode::UNPROCESSABLE_ENTITY)
+///                 .detail("invalid field")
+///                 .pointer(format!("/data/attributes/{field}")),
+///         };
+///         JsonApiError::from_api_error(error)
+///     }
+/// }
+///
+/// // In a handler: `repo.load(id).or_json_api()?` yields a `JsonApiError` on the error arm.
+/// ```
+///
 /// # Why not a blanket `From` impl?
 ///
 /// A blanket `impl<E: IntoJsonApiError> From<E> for JsonApiError` would overlap
