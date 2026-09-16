@@ -71,13 +71,13 @@ impl JsonApiError {
     /// Build a **404 Not Found** JSON:API error with a human-readable `detail`.
     #[must_use]
     pub fn not_found(detail: impl Into<String>) -> Self {
-        Self::from_api_error(with_status(404).detail(detail))
+        Self::from_api_error(with_status(StatusCode::NOT_FOUND).detail(detail))
     }
 
     /// Build a **403 Forbidden** JSON:API error with a human-readable `detail`.
     #[must_use]
     pub fn forbidden(detail: impl Into<String>) -> Self {
-        Self::from_api_error(with_status(403).detail(detail))
+        Self::from_api_error(with_status(StatusCode::FORBIDDEN).detail(detail))
     }
 
     /// Build a **500 Internal Server Error** JSON:API error.
@@ -91,7 +91,7 @@ impl JsonApiError {
     #[must_use]
     pub fn internal(detail: impl Into<String>) -> Self {
         let _detail = detail.into();
-        let error = with_status(500);
+        let error = with_status(StatusCode::INTERNAL_SERVER_ERROR);
         #[cfg(feature = "debug-errors")]
         let error = error.detail(_detail);
         Self::from_api_error(error)

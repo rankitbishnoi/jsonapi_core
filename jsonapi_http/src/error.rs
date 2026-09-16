@@ -214,9 +214,13 @@ pub fn error_response_for_status(status: StatusCode, detail: Option<String>) -> 
 /// This is the fluent counterpart to [`api_error_for_status`]: prefer it when
 /// hand-building an error in a handler.
 ///
+/// Taking a typed [`StatusCode`] (rather than a bare `u16`) makes it impossible
+/// to build an error for a nonsense code like `99` or `1000`.
+///
 /// ```
 /// use jsonapi_http::{with_status, ApiErrorExt};
-/// let err = with_status(422)
+/// use http::StatusCode;
+/// let err = with_status(StatusCode::UNPROCESSABLE_ENTITY)
 ///     .pointer("/data/attributes/title")
 ///     .detail("must not be empty");
 /// assert_eq!(err.status.as_deref(), Some("422"));
@@ -227,13 +231,10 @@ pub fn error_response_for_status(status: StatusCode, detail: Option<String>) -> 
 /// );
 /// ```
 #[must_use]
-pub fn with_status(status: u16) -> ApiError {
+pub fn with_status(status: StatusCode) -> ApiError {
     ApiError {
-        status: Some(status.to_string()),
-        title: StatusCode::from_u16(status)
-            .ok()
-            .and_then(|s| s.canonical_reason())
-            .map(str::to_string),
+        status: Some(status.as_u16().to_string()),
+        title: status.canonical_reason().map(str::to_string),
         ..Default::default()
     }
 }
@@ -764,7 +765,7 @@ mod tests {
 
     #[test]
     fn with_status_sets_numeric_status_and_canonical_title() {
-        let err = with_status(422);
+        let err = with_status(StatusCode::UNPROCESSABLE_ENTITY);
         assert_eq!(err.status.as_deref(), Some("422"));
         assert_eq!(err.title.as_deref(), Some("Unprocessable Entity"));
         assert!(err.source.is_none());
@@ -772,7 +773,7 @@ mod tests {
 
     #[test]
     fn with_status_leaves_title_absent_for_unknown_code() {
-        let err = with_status(799);
+        let err = with_status(StatusCode::from_u16(799).unwrap());
         assert_eq!(err.status.as_deref(), Some("799"));
         assert!(err.title.is_none());
     }
@@ -781,7 +782,7 @@ mod tests {
     fn ext_setters_populate_expected_fields() {
         let mut meta = Meta::new();
         meta.insert("trace".into(), serde_json::json!("abc"));
-        let err = with_status(422)
+        let err = with_status(StatusCode::UNPROCESSABLE_ENTITY)
             .pointer("/data/attributes/title")
             .detail("must not be empty")
             .code("blank")
@@ -815,7 +816,7 @@ mod tests {
         assert!(errors.is_empty());
         for field in ["title", "body", "author"] {
             errors.push(
-                with_status(422)
+                with_status(StatusCode::UNPROCESSABLE_ENTITY)
                     .pointer(format!("/data/attributes/{field}"))
                     .detail(format!("{field} is required")),
             );

@@ -158,9 +158,10 @@ use the convenience constructors (`not_found`, `forbidden`, `conflict`, `interna
 
 ```rust,ignore
 use jsonapi_axum::{with_status, ApiErrorExt, JsonApiError};
+use http::StatusCode;
 
 let err = JsonApiError::from_api_error(
-    with_status(422)
+    with_status(StatusCode::UNPROCESSABLE_ENTITY)
         .pointer("/data/attributes/title")
         .detail("must not be empty"),
 );
@@ -204,10 +205,12 @@ becomes the top-level HTTP status):
 
 ```rust,ignore
 use jsonapi_axum::{with_status, ApiErrorExt, ApiErrors, JsonApiError};
+use http::StatusCode;
 
 let mut errors = ApiErrors::new();
-errors.push(with_status(422).pointer("/data/attributes/title").detail("required"));
-errors.push(with_status(422).pointer("/data/attributes/body").detail("required"));
+let unprocessable = StatusCode::UNPROCESSABLE_ENTITY;
+errors.push(with_status(unprocessable).pointer("/data/attributes/title").detail("required"));
+errors.push(with_status(unprocessable).pointer("/data/attributes/body").detail("required"));
 let response: JsonApiError = errors.into(); // one 422 document, two members
 ```
 

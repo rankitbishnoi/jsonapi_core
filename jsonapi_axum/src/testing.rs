@@ -334,7 +334,7 @@ mod tests {
         }
         async fn boom() -> crate::JsonApiError {
             crate::JsonApiError::from_api_error(
-                crate::with_status(422)
+                crate::with_status(StatusCode::UNPROCESSABLE_ENTITY)
                     .pointer("/data/attributes/title")
                     .detail("must not be empty"),
             )
