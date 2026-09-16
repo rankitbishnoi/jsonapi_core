@@ -114,10 +114,16 @@ impl ResourceIdentifier {
     /// datastore ids and must reject `lid`-only members rather than skip them.
     ///
     /// # Errors
-    /// [`Error::LidNotIndexed`](crate::Error::LidNotIndexed) when the identity is
-    /// a `lid`.
+    /// [`Error::LidNotAllowed`](crate::Error::LidNotAllowed) — naming the type
+    /// and offending `lid` — when the identity is a client-local `lid`.
     pub fn require_id(&self) -> crate::Result<&str> {
-        self.identity.as_id().ok_or(crate::Error::LidNotIndexed)
+        match self.identity.as_id() {
+            Some(id) => Ok(id),
+            None => Err(crate::Error::LidNotAllowed {
+                r#type: self.r#type.clone(),
+                lid: self.identity.as_lid().unwrap_or_default().to_string(),
+            }),
+        }
     }
 }
 
@@ -247,7 +253,13 @@ mod tests {
     #[test]
     fn test_resource_identifier_require_id_errors_for_lid() {
         let rid = ResourceIdentifier::with_lid("people", "local-1");
-        assert!(matches!(rid.require_id(), Err(crate::Error::LidNotIndexed)));
+        match rid.require_id() {
+            Err(crate::Error::LidNotAllowed { r#type, lid }) => {
+                assert_eq!(r#type, "people");
+                assert_eq!(lid, "local-1");
+            }
+            other => panic!("expected LidNotAllowed, got {other:?}"),
+        }
     }
 
     #[test]

@@ -43,9 +43,11 @@ pub fn status_for(err: &Error) -> StatusCode {
         | Error::MalformedRelationship { .. }
         | Error::IncludedRefMissing { .. }
         | Error::UnexpectedDocumentShape { .. }
-        // A `lid` in client-supplied linkage that resolves to no resource is a
-        // bad reference in the request, not a server fault.
+        // A `lid` in client-supplied linkage that resolves to no resource, or is
+        // used where a server `id` is required, is a bad reference in the
+        // request, not a server fault.
         | Error::LidNotIndexed
+        | Error::LidNotAllowed { .. }
         | Error::MediaTypeParse(_) => StatusCode::BAD_REQUEST,
 
         // --- Semantic validation ---
@@ -503,6 +505,13 @@ mod tests {
                 StatusCode::CONFLICT,
             ),
             (Error::LidNotIndexed, StatusCode::BAD_REQUEST),
+            (
+                Error::LidNotAllowed {
+                    r#type: "people".into(),
+                    lid: "tmp-1".into(),
+                },
+                StatusCode::BAD_REQUEST,
+            ),
             (
                 Error::MediaTypeMismatch {
                     expected: "application/vnd.api+json".into(),

@@ -360,13 +360,11 @@ impl<T> Relationship<T> {
     /// the compiler to remind you to handle the null and to-many cases:
     ///
     /// - [`crate::Error::NullRelationship`] for `ToOne(None)`.
-    /// - [`crate::Error::LidNotIndexed`] for `ToOne(Some(lid-only))`.
+    /// - [`crate::Error::LidNotAllowed`] for `ToOne(Some(lid-only))`.
     /// - [`crate::Error::RelationshipCardinalityMismatch`] for `ToMany`.
     pub fn single_id(&self) -> crate::Result<&str> {
         match &self.data {
-            RelationshipData::ToOne(Some(rid)) => {
-                rid.identity.as_id().ok_or(crate::Error::LidNotIndexed)
-            }
+            RelationshipData::ToOne(Some(rid)) => rid.require_id(),
             RelationshipData::ToOne(None) => Err(crate::Error::NullRelationship),
             RelationshipData::ToMany(_) => Err(crate::Error::RelationshipCardinalityMismatch {
                 expected: crate::Cardinality::ToOne,
@@ -724,7 +722,13 @@ mod tests {
         let rel: Relationship<Target> =
             Relationship::new(RelationshipData::ToOne(Some(lid_rid("tags", "local-a"))));
         let err = rel.single_id().unwrap_err();
-        assert!(matches!(err, crate::Error::LidNotIndexed));
+        match err {
+            crate::Error::LidNotAllowed { r#type, lid } => {
+                assert_eq!(r#type, "tags");
+                assert_eq!(lid, "local-a");
+            }
+            other => panic!("expected LidNotAllowed, got {other:?}"),
+        }
     }
 
     #[test]

@@ -64,6 +64,19 @@ pub enum Error {
     #[error("registry does not index by lid")]
     LidNotIndexed,
 
+    /// A relationship linkage referenced a client-local `lid` where a
+    /// server-assigned `id` is required (e.g. a relationship endpoint mapping
+    /// linkage to datastore ids).
+    #[error(
+        "relationship linkage for type `{type}` used a client `lid` (`{lid}`); a server-assigned `id` is required"
+    )]
+    LidNotAllowed {
+        /// The JSON:API type string of the offending identifier.
+        r#type: String,
+        /// The client-local `lid` that was supplied.
+        lid: String,
+    },
+
     /// Base media type does not match `application/vnd.api+json`.
     #[error("media type mismatch: expected {expected}, got {got}")]
     MediaTypeMismatch {
