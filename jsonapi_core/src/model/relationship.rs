@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use serde::de;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use super::{Links, Meta, ResourceIdentifier};
+use super::{Identity, Links, Meta, ResourceIdentifier};
 
 /// Resource linkage inside a relationship.
 #[non_exhaustive]
@@ -136,6 +136,46 @@ impl ResourceRelationship {
     pub fn with_meta(mut self, meta: Meta) -> Self {
         self.meta = Some(meta);
         self
+    }
+
+    /// Unified slice of every identifier in the linkage, regardless of
+    /// cardinality. Empty for no `data`, a null to-one, or an empty to-many.
+    #[must_use]
+    pub fn identifiers(&self) -> &[ResourceIdentifier] {
+        match &self.data {
+            Some(RelationshipData::ToOne(Some(rid))) => std::slice::from_ref(rid),
+            Some(RelationshipData::ToMany(rids)) => rids.as_slice(),
+            _ => &[],
+        }
+    }
+
+    /// The [`Identity`] of a to-one linkage, or `None` when there is no `data`,
+    /// the to-one is null, or the relationship is to-many. Mirrors the typed
+    /// [`Relationship::single_id`] path for the dynamic [`Resource`](crate::Resource).
+    #[must_use]
+    pub fn to_one_identity(&self) -> Option<&Identity> {
+        match &self.data {
+            Some(RelationshipData::ToOne(Some(rid))) => Some(&rid.identity),
+            _ => None,
+        }
+    }
+
+    /// The first server-assigned `id` in the linkage, or `None` for a null
+    /// to-one, empty to-many, or `lid`-only identifiers.
+    #[must_use]
+    pub fn first_id(&self) -> Option<&str> {
+        self.identifiers()
+            .iter()
+            .find_map(|rid| rid.identity.as_id())
+    }
+
+    /// The first identifier — server `id` or client `lid` — as a `&str`, or
+    /// `None` when the linkage carries no identifier.
+    #[must_use]
+    pub fn first_id_or_lid(&self) -> Option<&str> {
+        self.identifiers()
+            .first()
+            .and_then(|rid| rid.identity.as_id().or_else(|| rid.identity.as_lid()))
     }
 
     /// Parse a relationship object from an already-buffered JSON object.
@@ -411,6 +451,46 @@ mod tests {
         assert!(matches!(rel.data, Some(RelationshipData::ToOne(Some(_)))));
         assert!(rel.meta.is_some());
         assert!(rel.links.is_none());
+    }
+
+    #[test]
+    fn resource_relationship_to_one_identity_and_ids() {
+        let rel = ResourceRelationship::new(RelationshipData::ToOne(Some(rid("people", "9"))));
+        assert_eq!(rel.to_one_identity(), Some(&Identity::Id("9".into())));
+        assert_eq!(rel.first_id(), Some("9"));
+        assert_eq!(rel.first_id_or_lid(), Some("9"));
+    }
+
+    #[test]
+    fn resource_relationship_lid_only_to_one() {
+        let rel = ResourceRelationship::new(RelationshipData::ToOne(Some(lid_rid("tags", "t1"))));
+        assert_eq!(rel.first_id(), None);
+        assert_eq!(rel.first_id_or_lid(), Some("t1"));
+        assert!(matches!(rel.to_one_identity(), Some(Identity::Lid(_))));
+    }
+
+    #[test]
+    fn resource_relationship_no_data_and_null_to_one_have_no_identity() {
+        let links_only = ResourceRelationship::from_meta(serde_json::Map::new());
+        assert_eq!(links_only.to_one_identity(), None);
+        assert_eq!(links_only.first_id_or_lid(), None);
+        assert!(links_only.identifiers().is_empty());
+
+        let null_to_one = ResourceRelationship::new(RelationshipData::ToOne(None));
+        assert_eq!(null_to_one.to_one_identity(), None);
+        assert!(null_to_one.identifiers().is_empty());
+    }
+
+    #[test]
+    fn resource_relationship_to_many_identifiers_and_first() {
+        let rel = ResourceRelationship::new(RelationshipData::ToMany(vec![
+            rid("tags", "1"),
+            rid("tags", "2"),
+        ]));
+        assert_eq!(rel.identifiers().len(), 2);
+        assert_eq!(rel.first_id(), Some("1"));
+        // to-many has no single to-one identity.
+        assert_eq!(rel.to_one_identity(), None);
     }
 
     #[test]
