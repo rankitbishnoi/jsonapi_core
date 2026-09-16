@@ -33,6 +33,10 @@ pub fn build_router(state: AppState) -> Router {
             get(routes::article_relationships::get_author)
                 .patch(routes::article_relationships::set_author),
         )
-        .layer(JsonApiLayer::new())
+        .route(
+            "/operations",
+            axum::routing::post(routes::operations::operations),
+        )
+        .layer(JsonApiLayer::new().ext([jsonapi_core::atomic::ATOMIC_EXT_URI]))
         .with_state(state)
 }
