@@ -23,7 +23,7 @@ fn author_serializes_with_camelcase_and_type() {
 #[test]
 fn article_serializes_to_many_tags_linkage() {
     use jsonapi_showcase_backend::domain::Article;
-    use jsonapi_showcase_backend::resource::ArticleResource;
+    use jsonapi_showcase_backend::resource::conv::article_resource_from_parts;
     let a = Article {
         id: "art-01".into(),
         title: "T".into(),
@@ -32,7 +32,7 @@ fn article_serializes_to_many_tags_linkage() {
         created_at: "t".into(),
         updated_at: "t".into(),
     };
-    let res = ArticleResource::from_parts(
+    let res = article_resource_from_parts(
         a,
         &["t-rust".to_string(), "t-web".to_string()],
         &["c1".to_string()],

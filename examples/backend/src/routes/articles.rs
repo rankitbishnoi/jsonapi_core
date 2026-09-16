@@ -15,6 +15,7 @@ use crate::domain::{ArticlePatch, NewArticle};
 use crate::include_resolver::DbIncludeResolver;
 use crate::repo::article_repo::{self, ArticleQuery, ArticleSort, SortDir};
 use crate::repo::{comment_repo, tag_repo};
+use crate::resource::conv::article_resource_from_parts;
 use crate::resource::{ArticlePatchResource, ArticleResource, NewArticleResource};
 use crate::state::AppState;
 use crate::util::{mint_id, now};
@@ -75,7 +76,7 @@ pub async fn list(
 
     let resources: Vec<ArticleResource> = rows
         .into_iter()
-        .map(|a| ArticleResource::from_parts(a, &[], &[]))
+        .map(|a| article_resource_from_parts(a, &[], &[]))
         .collect();
 
     let l = pagination_links_with_base(
@@ -113,7 +114,7 @@ pub async fn list_offset(
 
     let resources: Vec<ArticleResource> = rows
         .into_iter()
-        .map(|a| ArticleResource::from_parts(a, &[], &[]))
+        .map(|a| article_resource_from_parts(a, &[], &[]))
         .collect();
 
     let l = pagination_links_with_base(
@@ -151,7 +152,7 @@ pub async fn list_cursor(
 
     let resources: Vec<ArticleResource> = rows
         .into_iter()
-        .map(|a| ArticleResource::from_parts(a, &[], &[]))
+        .map(|a| article_resource_from_parts(a, &[], &[]))
         .collect();
 
     let mut cursor_links = CursorLinks::new("/articles/cursor").size(size).first();
@@ -180,7 +181,7 @@ pub async fn get(
     let tag_ids = tag_repo::ids_for_article(&state.pool, &article.id).await?;
     let comment_ids = comment_repo::ids_for_article(&state.pool, &article.id).await?;
 
-    let resource = ArticleResource::from_parts(article, &tag_ids, &comment_ids);
+    let resource = article_resource_from_parts(article, &tag_ids, &comment_ids);
 
     // Clone the fieldset config before consuming `query` so we can use the
     // `include` list independently.
@@ -248,7 +249,7 @@ pub async fn create(
     };
 
     let article = article_repo::create(&state.pool, &new_article, &id, &ts).await?;
-    let resource = ArticleResource::from_parts(article, &[], &[]);
+    let resource = article_resource_from_parts(article, &[], &[]);
     let self_link = links::resource_self(&state.base_url.0, "articles", &id);
 
     Ok(JsonApiResponse::new(
@@ -280,7 +281,7 @@ pub async fn patch(
     let article = article_repo::patch(&state.pool, &id, &patch, &ts).await?;
     let tag_ids = tag_repo::ids_for_article(&state.pool, &article.id).await?;
     let comment_ids = comment_repo::ids_for_article(&state.pool, &article.id).await?;
-    let resource = ArticleResource::from_parts(article, &tag_ids, &comment_ids);
+    let resource = article_resource_from_parts(article, &tag_ids, &comment_ids);
     let self_link = links::resource_self(&state.base_url.0, "articles", &id);
 
     Ok(JsonApiResponse::new(

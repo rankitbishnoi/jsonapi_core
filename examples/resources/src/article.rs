@@ -1,7 +1,8 @@
-use jsonapi_core::{Field, Relationship, ResourceIdentifier};
+use jsonapi_core::{Field, Relationship};
 
-use crate::domain::Article;
-use crate::resource::{AuthorResource, CommentResource, TagResource};
+use crate::author::AuthorResource;
+use crate::comment::CommentResource;
+use crate::tag::TagResource;
 
 #[derive(Debug, Clone, jsonapi_core::JsonApi)]
 #[jsonapi(type = "articles", case = "camelCase")]
@@ -44,22 +45,4 @@ pub struct ArticlePatchResource {
     pub id: String,
     pub title: Field<String>,
     pub body: Field<String>,
-}
-
-impl ArticleResource {
-    pub fn from_parts(a: Article, tag_ids: &[String], comment_ids: &[String]) -> Self {
-        Self {
-            id: a.id,
-            title: a.title,
-            body: a.body,
-            created_at: a.created_at,
-            updated_at: a.updated_at,
-            author: Relationship::to_one_id("authors", a.author_id),
-            tags: Relationship::to_many(ResourceIdentifier::many("tags", tag_ids.iter().cloned())),
-            comments: Relationship::to_many(ResourceIdentifier::many(
-                "comments",
-                comment_ids.iter().cloned(),
-            )),
-        }
-    }
 }

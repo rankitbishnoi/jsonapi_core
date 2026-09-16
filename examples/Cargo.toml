@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["backend"]
+members = ["resources", "backend"]
 
 [workspace.package]
 edition = "2024"
