@@ -3,9 +3,10 @@ use axum::extract::{Path, State};
 use axum::http::Uri;
 use axum::response::IntoResponse;
 use jsonapi_axum::{
-    DocumentBuilder, IntoJsonApiError, JsonApiError, JsonApiQuery, JsonApiResponse, pagination_links,
+    CURSOR_PAGINATION_PROFILE, CursorLinks, CursorPage, DocumentBuilder, IntoJsonApiError,
+    JsonApiError, JsonApiQuery, JsonApiResponse, pagination_links,
 };
-use jsonapi_core::{Link, PageNumberPage, PageStrategy, links};
+use jsonapi_core::{JsonApiMediaType, Link, OffsetPage, PageNumberPage, PageStrategy, links};
 
 use crate::error::AppError;
 use crate::repo::article_repo::{self, ArticleQuery, ArticleSort, SortDir};
@@ -47,6 +48,77 @@ pub async fn list(
     Ok(JsonApiResponse::new(
         DocumentBuilder::collection(resources).links(l).build(),
     ))
+}
+
+pub async fn list_offset(
+    State(state): State<AppState>,
+    uri: Uri,
+    JsonApiQuery(query): JsonApiQuery,
+) -> Result<impl IntoResponse, JsonApiError> {
+    let page = OffsetPage::from_query(&query)
+        .map_err(|e| AppError::BadQuery(e.to_string()).into_json_api_error())?;
+
+    let offset = page.offset;
+    let limit = page.limit.unwrap_or(5).clamp(1, 50);
+
+    let opts = ArticleQuery {
+        limit: limit as i64,
+        offset: offset as i64,
+        sort: vec![ArticleSort::CreatedAt(SortDir::Asc)],
+        author_id: None,
+    };
+
+    let rows = article_repo::list(&state.pool, &opts).await?;
+    let total = article_repo::count(&state.pool, None).await?;
+
+    let resources: Vec<ArticleResource> = rows
+        .into_iter()
+        .map(|a| ArticleResource::from_parts(a, &[], &[]))
+        .collect();
+
+    let l = pagination_links(
+        &uri,
+        PageStrategy::Offset { offset, limit },
+        Some(total as u64),
+    );
+
+    Ok(JsonApiResponse::new(
+        DocumentBuilder::collection(resources).links(l).build(),
+    ))
+}
+
+pub async fn list_cursor(
+    State(state): State<AppState>,
+    JsonApiQuery(query): JsonApiQuery,
+) -> Result<impl IntoResponse, JsonApiError> {
+    let page = CursorPage::from_query(&query)
+        .map_err(|e| AppError::BadQuery(e.to_string()).into_json_api_error())?;
+
+    let size = page.size.unwrap_or(5).clamp(1, 50);
+
+    let rows = article_repo::list_after(&state.pool, page.after.as_deref(), size as i64).await?;
+
+    let next_cursor = rows.last().map(|a| a.id.clone());
+
+    let resources: Vec<ArticleResource> = rows
+        .into_iter()
+        .map(|a| ArticleResource::from_parts(a, &[], &[]))
+        .collect();
+
+    let links = CursorLinks::new("/articles/cursor")
+        .size(size)
+        .build(true, None, next_cursor.as_deref(), None);
+
+    let header = format!(
+        "application/vnd.api+json; profile=\"{CURSOR_PAGINATION_PROFILE}\""
+    );
+    let media_type = JsonApiMediaType::parse(&header)
+        .unwrap_or_else(|_| JsonApiMediaType::plain());
+
+    Ok(JsonApiResponse::new(
+        DocumentBuilder::collection(resources).links(links).build(),
+    )
+    .media_type(media_type))
 }
 
 pub async fn get(
