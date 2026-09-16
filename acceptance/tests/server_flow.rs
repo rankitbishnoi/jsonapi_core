@@ -27,7 +27,9 @@ fn parse_query_then_build_paginated_response() {
     // 3. Build a paginated compound response carrying the cursor-pagination profile.
     let links = CursorLinks::new("/articles")
         .size(cursor.size.unwrap())
-        .build(true, None, Some("nextcur"), None);
+        .first()
+        .next("nextcur")
+        .links();
     let doc = DocumentBuilder::collection(page)
         .links(links)
         .profile(CURSOR_PAGINATION_PROFILE)
