@@ -91,6 +91,22 @@ impl JsonApiError {
         Self::from_api_error(with_status(StatusCode::UNPROCESSABLE_ENTITY).detail(detail))
     }
 
+    /// Build a **422 Unprocessable Entity** error carrying both a `detail` and a
+    /// `source.pointer` (an RFC 6901 JSON pointer to the offending member, e.g.
+    /// `/data/relationships/author`) — the common shape for a failed
+    /// attribute/relationship validation.
+    #[must_use]
+    pub fn unprocessable_with_pointer(
+        pointer: impl Into<String>,
+        detail: impl Into<String>,
+    ) -> Self {
+        Self::from_api_error(
+            with_status(StatusCode::UNPROCESSABLE_ENTITY)
+                .pointer(pointer)
+                .detail(detail),
+        )
+    }
+
     /// Build a **500 Internal Server Error** JSON:API error.
     ///
     /// The `detail` you pass is treated as internal, potentially sensitive text:
@@ -364,6 +380,23 @@ mod tests {
             read(JsonApiError::unprocessable("title must not be empty").into_response());
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
         assert_eq!(json["errors"][0]["detail"], "title must not be empty");
+    }
+
+    #[test]
+    fn unprocessable_with_pointer_builds_422_with_pointer_and_detail() {
+        let (status, json) = read(
+            JsonApiError::unprocessable_with_pointer(
+                "/data/relationships/author",
+                "author is required",
+            )
+            .into_response(),
+        );
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(json["errors"][0]["detail"], "author is required");
+        assert_eq!(
+            json["errors"][0]["source"]["pointer"],
+            "/data/relationships/author"
+        );
     }
 
     #[cfg(feature = "anyhow")]
