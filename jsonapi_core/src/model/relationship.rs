@@ -294,6 +294,9 @@ impl<T> Relationship<T> {
     /// The first server-assigned ID in the relationship, or `None` if the
     /// relationship is null-to-one, empty-to-many, or contains only local
     /// identifiers.
+    ///
+    /// For a required to-one where absence should be an error rather than
+    /// `None`, use [`single_id`](Self::single_id), which returns a `Result`.
     #[must_use]
     pub fn first_id(&self) -> Option<&str> {
         self.ids().next()
