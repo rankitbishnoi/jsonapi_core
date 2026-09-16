@@ -12,11 +12,11 @@ pub struct ArticleResource {
     pub body: String,
     pub created_at: String,
     pub updated_at: String,
-    #[jsonapi(relationship)]
+    #[jsonapi(relationship, type = "authors")]
     pub author: Relationship<AuthorResource>,
-    #[jsonapi(relationship)]
+    #[jsonapi(relationship, type = "tags")]
     pub tags: Relationship<TagResource>,
-    #[jsonapi(relationship)]
+    #[jsonapi(relationship, type = "comments")]
     pub comments: Relationship<CommentResource>,
 }
 

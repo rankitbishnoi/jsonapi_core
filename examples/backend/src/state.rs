@@ -25,7 +25,7 @@ impl AppState {
         Ok(Self {
             pool,
             base_url: BaseUrl(base_url.into()),
-            type_registry: Arc::new(TypeRegistry::new()),
+            type_registry: Arc::new(crate::resource::type_registry()),
         })
     }
 
