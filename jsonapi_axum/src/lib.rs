@@ -74,7 +74,8 @@ pub use jsonapi_http::{IncludeResolver, resolve_includes};
 /// crate. Only the runtime types are re-exported here.
 pub use jsonapi_core::{
     ApiError, CURSOR_PAGINATION_PROFILE, CursorLinks, CursorPage, Document, DocumentBuilder, Field,
-    JsonApiMediaType, Query, Relationship, Resource, SortField, TypeRegistry,
+    JsonApiMediaType, OffsetPage, PageNumberPage, Query, Relationship, Resource, SortField,
+    TypeRegistry,
 };
 
 /// The full [`jsonapi_core`] crate, for any type not re-exported above.
