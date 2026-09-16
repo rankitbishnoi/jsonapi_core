@@ -122,10 +122,6 @@ impl<T: ResourceObject> JsonApi<T> {
     ///
     /// # Errors
     /// A 409 [`JsonApiError`] when a present body id differs from `path_id`.
-    // The `Err` is the crate's standard by-value rejection so handlers can `?`
-    // it straight into their own `Result<_, JsonApiError>`; boxing it would break
-    // that ergonomic, so the large-err lint is intentionally allowed here.
-    #[allow(clippy::result_large_err)]
     pub fn require_id(&self, path_id: &str) -> Result<(), JsonApiError> {
         check_id_matches(self.body_id(), path_id).map_err(JsonApiError::from)
     }
@@ -137,7 +133,6 @@ impl<T: ResourceObject> JsonApi<T> {
     ///
     /// # Errors
     /// A 403 [`JsonApiError`] when `policy` is `Forbid` and the body carries an id.
-    #[allow(clippy::result_large_err)] // by-value rejection for `?`; see `require_id`
     pub fn check_client_id(&self, policy: ClientIdPolicy) -> Result<(), JsonApiError> {
         check_client_id(policy, self.body_id()).map_err(JsonApiError::from)
     }

@@ -20,7 +20,11 @@ use jsonapi_http::{
 /// as an [`IntoResponse`] error returned from a handler.
 #[derive(Debug, Clone)]
 pub struct JsonApiError {
-    response: http::Response<Bytes>,
+    // Boxed so `JsonApiError` stays pointer-sized: `http::Response<Bytes>` is large
+    // (its `HeaderMap` alone is well over the `clippy::result_large_err` threshold),
+    // and this type is routinely used as a `Result<_, JsonApiError>` Err arm and as
+    // an `IncludeResolver::Error`. Boxing keeps those results cheap to move.
+    response: Box<http::Response<Bytes>>,
 }
 
 impl JsonApiError {
@@ -29,7 +33,7 @@ impl JsonApiError {
     #[must_use]
     pub fn from_core(error: &Error) -> Self {
         Self {
-            response: error_response_for(error),
+            response: Box::new(error_response_for(error)),
         }
     }
 
@@ -37,7 +41,7 @@ impl JsonApiError {
     #[must_use]
     pub fn from_api_errors(errors: impl IntoIterator<Item = ApiError>) -> Self {
         Self {
-            response: error_response(errors),
+            response: Box::new(error_response(errors)),
         }
     }
 
@@ -56,7 +60,7 @@ impl JsonApiError {
     #[must_use]
     pub fn from_status(status: StatusCode, detail: Option<String>) -> Self {
         Self {
-            response: error_response_for_status(status, detail),
+            response: Box::new(error_response_for_status(status, detail)),
         }
     }
 
@@ -153,14 +157,10 @@ pub trait ResultExt<T> {
     ///
     /// # Errors
     /// Propagates the original error, converted to a [`JsonApiError`].
-    // by-value rejection so it flows into a handler's `Result<_, JsonApiError>`
-    // via `?`; boxing would break that path (see `JsonApi::require_id`).
-    #[allow(clippy::result_large_err)]
     fn or_json_api(self) -> Result<T, JsonApiError>;
 }
 
 impl<T, E: IntoJsonApiError> ResultExt<T> for Result<T, E> {
-    #[allow(clippy::result_large_err)]
     fn or_json_api(self) -> Result<T, JsonApiError> {
         self.map_err(IntoJsonApiError::into_json_api_error)
     }
@@ -191,7 +191,7 @@ impl From<sqlx::Error> for JsonApiError {
 
 impl IntoResponse for JsonApiError {
     fn into_response(self) -> Response {
-        self.response.map(Body::from)
+        (*self.response).map(Body::from)
     }
 }
 
@@ -333,7 +333,6 @@ mod tests {
             }
         }
 
-        #[allow(clippy::result_large_err)]
         fn handler() -> Result<(), JsonApiError> {
             Err(Forbidden).or_json_api()?;
             Ok(())
