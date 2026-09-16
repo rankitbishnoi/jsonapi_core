@@ -1,6 +1,4 @@
 //! Pure, framework-free exchange log. No Leptos, no wasm — unit-testable.
-// consumed by the reactive store, client, and panel in later tasks
-#![allow(dead_code)]
 
 /// One captured HTTP header.
 #[derive(Clone, Debug, PartialEq, Eq)]
