@@ -1,0 +1,18 @@
+# A frontend service (Leptos) will be added here once the frontend plan is implemented.
+services:
+  backend:
+    build:
+      context: ../..
+      dockerfile: examples/docker/backend.Dockerfile
+    environment:
+      APP_BIND: 0.0.0.0:8080
+      APP_BASE_URL: http://localhost:8080
+      APP_CORS_ORIGINS: http://localhost:8081
+      DATABASE_URL: sqlite:///data/showcase.db?mode=rwc
+    volumes:
+      - backend-data:/data
+    ports:
+      - "8080:8080"
+
+volumes:
+  backend-data:

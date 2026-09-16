@@ -1,0 +1,16 @@
+# Run the backend against an on-disk SQLite db (seeds on first run).
+run-backend:
+    DATABASE_URL="sqlite://showcase.db?mode=rwc" cargo run --manifest-path backend/Cargo.toml
+
+# Run all backend tests (in-memory db, no external services).
+test:
+    cargo test -p jsonapi-showcase-backend
+
+# Lint: clippy with warnings denied + rustfmt check.
+lint:
+    cargo clippy -p jsonapi-showcase-backend --all-targets -- -D warnings
+    cargo fmt --check
+
+# Format the code.
+fmt:
+    cargo fmt
