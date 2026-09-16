@@ -51,23 +51,19 @@ pub async fn seed(pool: &SqlitePool) -> anyhow::Result<()> {
         .await?;
 
         // Every article gets "t-rust"
-        sqlx::query(
-            "INSERT OR IGNORE INTO article_tags (article_id, tag_id) VALUES (?, ?)",
-        )
-        .bind(&article_id)
-        .bind("t-rust")
-        .execute(pool)
-        .await?;
+        sqlx::query("INSERT OR IGNORE INTO article_tags (article_id, tag_id) VALUES (?, ?)")
+            .bind(&article_id)
+            .bind("t-rust")
+            .execute(pool)
+            .await?;
 
         // Even articles also get "t-web"; odd articles get "t-api"
         let second_tag = if i % 2 == 0 { "t-web" } else { "t-api" };
-        sqlx::query(
-            "INSERT OR IGNORE INTO article_tags (article_id, tag_id) VALUES (?, ?)",
-        )
-        .bind(&article_id)
-        .bind(second_tag)
-        .execute(pool)
-        .await?;
+        sqlx::query("INSERT OR IGNORE INTO article_tags (article_id, tag_id) VALUES (?, ?)")
+            .bind(&article_id)
+            .bind(second_tag)
+            .execute(pool)
+            .await?;
     }
 
     // Comments on art-01

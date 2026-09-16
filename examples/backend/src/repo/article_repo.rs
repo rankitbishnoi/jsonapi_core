@@ -47,12 +47,10 @@ impl Default for ArticleQuery {
 pub async fn count(pool: &SqlitePool, author_id: Option<&str>) -> Result<i64, sqlx::Error> {
     match author_id {
         Some(id) => {
-            sqlx::query_scalar::<_, i64>(
-                "SELECT COUNT(*) FROM articles WHERE author_id = ?",
-            )
-            .bind(id)
-            .fetch_one(pool)
-            .await
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM articles WHERE author_id = ?")
+                .bind(id)
+                .fetch_one(pool)
+                .await
         }
         None => {
             sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM articles")
@@ -108,20 +106,24 @@ pub async fn list_after(
     limit: i64,
 ) -> Result<Vec<Article>, sqlx::Error> {
     match after {
-        Some(cursor) => sqlx::query_as::<_, Article>(
-            "SELECT id, title, body, author_id, created_at, updated_at \
+        Some(cursor) => {
+            sqlx::query_as::<_, Article>(
+                "SELECT id, title, body, author_id, created_at, updated_at \
              FROM articles WHERE id > ? ORDER BY id ASC LIMIT ?",
-        )
-        .bind(cursor)
-        .bind(limit)
-        .fetch_all(pool)
-        .await,
-        None => sqlx::query_as::<_, Article>(
-            "SELECT id, title, body, author_id, created_at, updated_at \
+            )
+            .bind(cursor)
+            .bind(limit)
+            .fetch_all(pool)
+            .await
+        }
+        None => {
+            sqlx::query_as::<_, Article>(
+                "SELECT id, title, body, author_id, created_at, updated_at \
              FROM articles ORDER BY id ASC LIMIT ?",
-        )
-        .bind(limit)
-        .fetch_all(pool)
-        .await,
+            )
+            .bind(limit)
+            .fetch_all(pool)
+            .await
+        }
     }
 }

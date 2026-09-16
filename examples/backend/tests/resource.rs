@@ -13,7 +13,10 @@ fn author_serializes_with_camelcase_and_type() {
     let value = serde_json::to_value(&doc).unwrap();
     assert_eq!(value["data"]["type"], "authors");
     assert_eq!(value["data"]["id"], "a1");
-    assert_eq!(value["data"]["attributes"]["createdAt"], "2026-01-01T00:00:00Z");
+    assert_eq!(
+        value["data"]["attributes"]["createdAt"],
+        "2026-01-01T00:00:00Z"
+    );
     assert!(value["data"]["attributes"].get("created_at").is_none());
 }
 
@@ -34,8 +37,7 @@ fn article_serializes_to_many_tags_linkage() {
         &["t-rust".to_string(), "t-web".to_string()],
         &["c1".to_string()],
     );
-    let value =
-        serde_json::to_value(jsonapi_axum::DocumentBuilder::single(res).build()).unwrap();
+    let value = serde_json::to_value(jsonapi_axum::DocumentBuilder::single(res).build()).unwrap();
     assert_eq!(value["data"]["relationships"]["author"]["data"]["id"], "a1");
     assert_eq!(
         value["data"]["relationships"]["author"]["data"]["type"],
@@ -85,5 +87,8 @@ fn comment_serializes_to_one_relationships() {
         value["data"]["relationships"]["article"]["data"]["id"],
         "art-01"
     );
-    assert_eq!(value["data"]["attributes"]["createdAt"], "2026-01-01T00:00:00Z");
+    assert_eq!(
+        value["data"]["attributes"]["createdAt"],
+        "2026-01-01T00:00:00Z"
+    );
 }

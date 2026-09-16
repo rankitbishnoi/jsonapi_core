@@ -1,4 +1,4 @@
-use jsonapi_core::{Identity, Relationship, RelationshipData, ResourceIdentifier};
+use jsonapi_core::Relationship;
 
 use crate::domain::Comment;
 use crate::resource::{ArticleResource, AuthorResource};
@@ -18,22 +18,12 @@ pub struct CommentResource {
 
 impl From<Comment> for CommentResource {
     fn from(c: Comment) -> Self {
-        let author = Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier {
-            r#type: "authors".to_string(),
-            identity: Identity::Id(c.author_id),
-            meta: None,
-        })));
-        let article = Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier {
-            r#type: "articles".to_string(),
-            identity: Identity::Id(c.article_id),
-            meta: None,
-        })));
         Self {
             id: c.id,
             body: c.body,
             created_at: c.created_at,
-            author,
-            article,
+            author: Relationship::to_one_id("authors", c.author_id),
+            article: Relationship::to_one_id("articles", c.article_id),
         }
     }
 }

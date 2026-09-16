@@ -14,8 +14,7 @@ impl Config {
         let bind = std::env::var("APP_BIND").unwrap_or_else(|_| "127.0.0.1:8080".to_string());
         let database_url = std::env::var("DATABASE_URL")
             .unwrap_or_else(|_| "sqlite://showcase.db?mode=rwc".to_string());
-        let base_url = std::env::var("APP_BASE_URL")
-            .unwrap_or_else(|_| format!("http://{bind}"));
+        let base_url = std::env::var("APP_BASE_URL").unwrap_or_else(|_| format!("http://{bind}"));
         let cors_origins = std::env::var("APP_CORS_ORIGINS")
             .unwrap_or_else(|_| "http://127.0.0.1:8081".to_string())
             .split(',')

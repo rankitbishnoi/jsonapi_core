@@ -47,7 +47,9 @@ async fn cursor_pagination_advances_and_sets_profile() {
         )
         .await;
     let first = first.assert_status(StatusCode::OK);
-    let ct = first.header("content-type").expect("content-type header must be present");
+    let ct = first
+        .header("content-type")
+        .expect("content-type header must be present");
     assert!(
         ct.contains("ethanresnick/cursor-pagination"),
         "content-type was {ct}"
