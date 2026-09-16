@@ -23,6 +23,9 @@
 //! `jsonapi_axum` alone.
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+#[cfg(feature = "atomic-ops")]
+#[cfg_attr(docsrs, doc(cfg(feature = "atomic-ops")))]
+pub mod atomic;
 pub mod error;
 pub mod extract;
 pub mod normalize;
@@ -37,6 +40,9 @@ pub mod testing;
 #[cfg_attr(docsrs, doc(cfg(feature = "validator")))]
 pub mod validation;
 
+#[cfg(feature = "atomic-ops")]
+#[cfg_attr(docsrs, doc(cfg(feature = "atomic-ops")))]
+pub use atomic::AtomicJsonApiResponse;
 pub use error::{IntoJsonApiError, JsonApiError, ResultExt};
 pub use extract::{BaseUrl, JsonApi, JsonApiQuery, JsonApiQueryValidated, NegotiatedMediaType};
 pub use normalize::{NormalizeErrorsLayer, NormalizeErrorsService, not_found};

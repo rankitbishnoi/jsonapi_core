@@ -56,6 +56,9 @@ sqlx = ["dep:sqlx"]
 debug-errors = []
 # Let `RequestIdLayer::generate` mint a UUID when no upstream request id exists (G13).
 uuid = ["dep:uuid"]
+# Atomic Operations extension responder (`AtomicJsonApiResponse`); forwards to
+# jsonapi_core's atomic types.
+atomic-ops = ["jsonapi_core/atomic-ops"]
 # In-process test utilities (`jsonapi_axum::testing`, G17). Off by default so the
 # default build stays lean; enable in your `[dev-dependencies]`. Pulls in tower's
 # `util` (for `oneshot`) on top of the always-present `serde_json`.
