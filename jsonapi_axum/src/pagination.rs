@@ -23,6 +23,12 @@ use jsonapi_core::{Links, PageStrategy, PaginationLinks};
 /// [`jsonapi_core::PaginationLinks`] for which links are emitted (and when
 /// `prev`/`next`/`last` are omitted).
 ///
+/// The generated links use `uri.path()` (relative) as their base, so behind a
+/// reverse proxy they carry the *internal* host. When the document's other links
+/// (e.g. `self`) are built from an app-configured base via
+/// [`links::resource_self`](jsonapi_core::links::resource_self), use
+/// [`pagination_links_with_base`] instead so every link agrees on host.
+///
 /// ```no_run
 /// use http::Uri;
 /// use jsonapi_axum::pagination_links;
@@ -34,13 +40,54 @@ use jsonapi_core::{Links, PageStrategy, PaginationLinks};
 /// ```
 #[must_use]
 pub fn pagination_links(uri: &Uri, strategy: PageStrategy, total: Option<u64>) -> Links {
+    build_links(uri.path(), uri, strategy, total)
+}
+
+/// Like [`pagination_links`], but prefixes the app-configured `base` (e.g. from
+/// [`BaseUrl`](crate::BaseUrl)) so the generated `first`/`prev`/`next`/`last`
+/// links carry the same host as [`resource_self`](jsonapi_core::links::resource_self).
+///
+/// The link base becomes `{base}{path}` (a trailing slash on `base` is trimmed,
+/// matching `links::resource_self`). Query parameters are preserved exactly as in
+/// [`pagination_links`].
+///
+/// ```no_run
+/// use http::Uri;
+/// use jsonapi_axum::pagination_links_with_base;
+/// use jsonapi_core::PageStrategy;
+///
+/// let uri: Uri = "/articles?page[number]=2&page[size]=10".parse().unwrap();
+/// let links = pagination_links_with_base(
+///     "https://api.example.com",
+///     &uri,
+///     PageStrategy::PageNumber { number: 2, size: 10 },
+///     Some(35),
+/// );
+/// // next → https://api.example.com/articles?page[number]=3&page[size]=10
+/// assert!(links.contains("next"));
+/// ```
+#[must_use]
+pub fn pagination_links_with_base(
+    base: &str,
+    uri: &Uri,
+    strategy: PageStrategy,
+    total: Option<u64>,
+) -> Links {
+    let base = base.strip_suffix('/').unwrap_or(base);
+    let full_base = format!("{base}{}", uri.path());
+    build_links(&full_base, uri, strategy, total)
+}
+
+/// Shared body: build the links off `base_path`, preserving `uri`'s non-`page`
+/// query parameters.
+fn build_links(base_path: &str, uri: &Uri, strategy: PageStrategy, total: Option<u64>) -> Links {
     let preserved = preserved_params(uri.query().unwrap_or(""));
     let preserved_refs: Vec<(&str, &str)> = preserved
         .iter()
         .map(|(k, v)| (k.as_str(), v.as_str()))
         .collect();
 
-    let mut builder = PaginationLinks::new(uri.path(), strategy).preserve(&preserved_refs);
+    let mut builder = PaginationLinks::new(base_path, strategy).preserve(&preserved_refs);
     if let Some(total) = total {
         builder = builder.total(total);
     }
@@ -124,6 +171,51 @@ mod tests {
         assert!(link_str(&links, "next").contains("page[offset]=10"));
         // last offset = floor((25-1)/10)*10 = 20.
         assert!(link_str(&links, "last").contains("page[offset]=20"));
+    }
+
+    #[test]
+    fn with_base_prefixes_configured_host_on_every_link() {
+        let uri: Uri = "/articles?sort=-created&page[number]=2&page[size]=10"
+            .parse()
+            .unwrap();
+        let links = pagination_links_with_base(
+            "https://api.example.com",
+            &uri,
+            PageStrategy::PageNumber {
+                number: 2,
+                size: 10,
+            },
+            Some(35),
+        );
+
+        for rel in ["first", "prev", "next", "self"] {
+            let link = link_str(&links, rel);
+            assert!(
+                link.starts_with("https://api.example.com/articles?"),
+                "{rel}: {link}"
+            );
+        }
+        let next = link_str(&links, "next");
+        assert!(next.contains("sort=-created"), "{next}");
+        assert!(next.contains("page[number]=3"), "{next}");
+    }
+
+    #[test]
+    fn with_base_trims_trailing_slash() {
+        let uri: Uri = "/articles".parse().unwrap();
+        let links = pagination_links_with_base(
+            "https://api.example.com/",
+            &uri,
+            PageStrategy::Offset {
+                offset: 0,
+                limit: 5,
+            },
+            None,
+        );
+        assert!(
+            link_str(&links, "self").starts_with("https://api.example.com/articles?"),
+            "no double slash before path"
+        );
     }
 
     #[test]

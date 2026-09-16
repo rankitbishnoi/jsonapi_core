@@ -40,7 +40,7 @@ pub mod validation;
 pub use error::{IntoJsonApiError, JsonApiError, ResultExt};
 pub use extract::{BaseUrl, JsonApi, JsonApiQuery, JsonApiQueryValidated, NegotiatedMediaType};
 pub use normalize::{NormalizeErrorsLayer, NormalizeErrorsService, not_found};
-pub use pagination::pagination_links;
+pub use pagination::{pagination_links, pagination_links_with_base};
 pub use relationship::{JsonApiToMany, JsonApiToOne, RelationshipResponse};
 pub use request_id::{RequestId, RequestIdLayer, RequestIdService};
 pub use response::JsonApiResponse;
