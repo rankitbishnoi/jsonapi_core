@@ -2,10 +2,13 @@ use std::sync::Arc;
 
 use axum::extract::FromRef;
 use sqlx::SqlitePool;
+use sqlx::sqlite::SqlitePoolOptions;
 
 use jsonapi_axum::{BaseUrl, TypeRegistry};
 
 use crate::config::Config;
+
+static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 
 /// Shared application state threaded through the router.
 #[derive(Clone)]
@@ -16,19 +19,37 @@ pub struct AppState {
 }
 
 impl AppState {
-    /// Connect to an in-memory SQLite database. Used in tests.
-    pub async fn in_memory() -> anyhow::Result<Self> {
-        let pool = SqlitePool::connect("sqlite::memory:").await?;
+    async fn init(pool: SqlitePool, base_url: impl Into<String>) -> anyhow::Result<Self> {
+        MIGRATOR.run(&pool).await?;
         Ok(Self {
             pool,
-            base_url: BaseUrl("http://api.test".to_string()),
+            base_url: BaseUrl(base_url.into()),
             type_registry: Arc::new(TypeRegistry::new()),
         })
     }
 
-    /// Build state from a [`Config`]. For Task 1, delegates to in-memory.
-    pub async fn from_config(_config: &Config) -> anyhow::Result<Self> {
-        Self::in_memory().await
+    /// Connect to an in-memory SQLite database. Used in tests.
+    ///
+    /// A single connection is required so the `:memory:` DB persists across queries.
+    pub async fn in_memory() -> anyhow::Result<Self> {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await?;
+        Self::init(pool, "http://api.test").await
+    }
+
+    /// Build state from a [`Config`].
+    pub async fn from_config(config: &Config) -> anyhow::Result<Self> {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(5)
+            .connect(&config.database_url)
+            .await?;
+        let state = Self::init(pool, &config.base_url).await?;
+        if config.seed {
+            crate::repo::seed::seed(&state.pool).await?;
+        }
+        Ok(state)
     }
 }
 
