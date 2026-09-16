@@ -84,3 +84,19 @@ On first startup (when `APP_SEED=true`) the database is populated deterministica
 
 The seed is idempotent — re-running the server against an existing database will not duplicate
 records.
+
+## Member Name Validation
+
+JSON:API member names (resource types, attribute keys, relationship names) are validated at two points:
+
+**Compile time** — the `#[derive(JsonApi)]` macro calls `validate_member_name` during macro
+expansion. Every `#[jsonapi(type = "...")]` value and every renamed field is checked before the
+binary is produced. An invalid name (e.g. one that starts or ends with a hyphen) is a compile
+error, not a runtime surprise.
+
+**Runtime** — client-supplied names that arrive in request bodies are validated with
+`jsonapi_core::validate_member_name` before any database work begins. In the atomic operations
+handler (`POST /operations`), the resource `type` string on each `add` and `update` operation is
+validated and rejected with `400 Bad Request` when it is not a valid JSON:API member name. This is
+distinct from the `422 Unprocessable Entity` returned for a syntactically valid but unsupported
+type such as `"widgets"`: a malformed name never reaches the dispatch table.

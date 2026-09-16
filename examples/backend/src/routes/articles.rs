@@ -5,8 +5,8 @@ use axum::response::IntoResponse;
 use jsonapi_axum::{
     ApiErrorExt, CURSOR_PAGINATION_PROFILE, ClientIdPolicy, CursorLinks, CursorPage,
     DocumentBuilder, JsonApi, JsonApiError, JsonApiQuery, JsonApiQueryValidated, JsonApiResponse,
-    OffsetPage, PageNumberPage, SortField, from_validation_errors, pagination_links_with_base,
-    resolve_includes, with_status,
+    NegotiatedMediaType, OffsetPage, PageNumberPage, SortField, from_validation_errors,
+    pagination_links_with_base, resolve_includes, with_status,
 };
 use jsonapi_core::{JsonApiMediaType, Link, PageStrategy, Resource, links};
 use validator::Validate;
@@ -174,6 +174,7 @@ pub async fn list_cursor(
 pub async fn get(
     State(state): State<AppState>,
     Path(id): Path<String>,
+    NegotiatedMediaType(media): NegotiatedMediaType,
     JsonApiQueryValidated { query, .. }: JsonApiQueryValidated<ArticleResource>,
 ) -> Result<impl IntoResponse, JsonApiError> {
     let article = article_repo::get(&state.pool, &id).await?;
@@ -194,6 +195,7 @@ pub async fn get(
                 .link("self", Link::String(self_link))
                 .build(),
         )
+        .media_type(media)
         .fields(fieldset));
     }
 
@@ -208,6 +210,7 @@ pub async fn get(
             .include_many(included)
             .build(),
     )
+    .media_type(media)
     .fields(fieldset))
 }
 

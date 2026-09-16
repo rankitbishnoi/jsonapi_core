@@ -276,3 +276,30 @@ async fn atomic_unsupported_type_returns_error() {
         res.status
     );
 }
+
+/// A syntactically invalid resource type (e.g. containing `!`) must be
+/// rejected with 400 **before** reaching the unsupported-type 422 branch,
+/// proving that `validate_member_name` runs on client-supplied input.
+#[tokio::test]
+async fn atomic_invalid_member_name_type_is_rejected_400() {
+    let app = support::app().await;
+    let res = app
+        .send(
+            TestRequest::post("/operations")
+                .header(header::CONTENT_TYPE, ATOMIC_CT)
+                .header(header::ACCEPT, ATOMIC_CT)
+                .body_json(&json!({ "atomic:operations": [
+                    { "op": "add", "data": { "type": "not a valid type!",
+                        "attributes": { "name": "X", "email": "x@example.com" } } }
+                ] }))
+                .build(),
+        )
+        .await;
+
+    assert_eq!(
+        res.status,
+        StatusCode::BAD_REQUEST,
+        "expected 400 for invalid member name, got {}",
+        res.status
+    );
+}

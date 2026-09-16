@@ -14,8 +14,8 @@ use jsonapi_core::atomic::{
 };
 use jsonapi_core::{Identity, PrimaryData, RelationshipData, Resource, ResourceIdentifier};
 use serde_json::Value;
-use sqlx::SqliteConnection;
 
+use crate::repo::atomic_repo;
 use crate::state::AppState;
 use crate::util::{mint_id, now};
 
@@ -27,10 +27,10 @@ fn atomic_content_type() -> HeaderValue {
     .expect("static header value is valid")
 }
 
-// ── Per-type operations on &mut SqliteConnection ─────────────────────────────
+// ── Per-type operation handlers ───────────────────────────────────────────────
 
 async fn add_author(
-    conn: &mut SqliteConnection,
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     resource: &Resource,
     lid_map: &mut HashMap<String, String>,
 ) -> Result<AtomicResult, JsonApiError> {
@@ -40,29 +40,24 @@ async fn add_author(
     let id = mint_id();
     let ts = now();
 
-    sqlx::query("INSERT INTO authors (id, name, email, created_at) VALUES (?, ?, ?, ?)")
-        .bind(&id)
-        .bind(&name)
-        .bind(&email)
-        .bind(&ts)
-        .execute(&mut *conn)
+    let author = atomic_repo::create_author(tx, &id, &name, &email, &ts)
         .await
         .map_err(sqlx_err)?;
 
     // Record lid -> real id so later ops can reference it.
     if let Some(lid) = &resource.lid {
-        lid_map.insert(lid.clone(), id.clone());
+        lid_map.insert(lid.clone(), author.id.clone());
     }
 
     let mut attrs = serde_json::Map::new();
-    attrs.insert("name".into(), Value::String(name));
-    attrs.insert("email".into(), Value::String(email));
-    attrs.insert("createdAt".into(), Value::String(ts));
+    attrs.insert("name".into(), Value::String(author.name));
+    attrs.insert("email".into(), Value::String(author.email));
+    attrs.insert("createdAt".into(), Value::String(author.created_at));
 
     Ok(AtomicResult {
         data: Some(PrimaryData::Single(Box::new(Resource {
             r#type: "authors".into(),
-            id: Some(id),
+            id: Some(author.id),
             lid: None,
             attributes: Value::Object(attrs),
             relationships: BTreeMap::new(),
@@ -75,50 +70,31 @@ async fn add_author(
 }
 
 async fn update_author(
-    conn: &mut SqliteConnection,
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     resource: &Resource,
     id: &str,
 ) -> Result<AtomicResult, JsonApiError> {
-    if let Some(name) = resource.attributes.get("name").and_then(Value::as_str) {
-        sqlx::query("UPDATE authors SET name = ? WHERE id = ?")
-            .bind(name)
-            .bind(id)
-            .execute(&mut *conn)
-            .await
-            .map_err(sqlx_err)?;
-    }
-    if let Some(email) = resource.attributes.get("email").and_then(Value::as_str) {
-        sqlx::query("UPDATE authors SET email = ? WHERE id = ?")
-            .bind(email)
-            .bind(id)
-            .execute(&mut *conn)
-            .await
-            .map_err(sqlx_err)?;
-    }
+    let name = resource.attributes.get("name").and_then(Value::as_str);
+    let email = resource.attributes.get("email").and_then(Value::as_str);
 
-    let updated = sqlx::query_as::<_, (String, String, String, String)>(
-        "SELECT id, name, email, created_at FROM authors WHERE id = ?",
-    )
-    .bind(id)
-    .fetch_optional(&mut *conn)
-    .await
-    .map_err(sqlx_err)?
-    .ok_or_else(|| {
-        JsonApiError::from_api_error(
-            with_status(StatusCode::NOT_FOUND).detail(format!("author `{id}` not found")),
-        )
-    })?;
+    let author = atomic_repo::update_author(tx, id, name, email)
+        .await
+        .map_err(|e| match e {
+            sqlx::Error::RowNotFound => JsonApiError::from_api_error(
+                with_status(StatusCode::NOT_FOUND).detail(format!("author `{id}` not found")),
+            ),
+            other => sqlx_err(other),
+        })?;
 
-    let (rid, name, email, created_at) = updated;
     let mut attrs = serde_json::Map::new();
-    attrs.insert("name".into(), Value::String(name));
-    attrs.insert("email".into(), Value::String(email));
-    attrs.insert("createdAt".into(), Value::String(created_at));
+    attrs.insert("name".into(), Value::String(author.name));
+    attrs.insert("email".into(), Value::String(author.email));
+    attrs.insert("createdAt".into(), Value::String(author.created_at));
 
     Ok(AtomicResult {
         data: Some(PrimaryData::Single(Box::new(Resource {
             r#type: "authors".into(),
-            id: Some(rid),
+            id: Some(author.id),
             lid: None,
             attributes: Value::Object(attrs),
             relationships: BTreeMap::new(),
@@ -131,25 +107,22 @@ async fn update_author(
 }
 
 async fn remove_author(
-    conn: &mut SqliteConnection,
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     id: &str,
 ) -> Result<AtomicResult, JsonApiError> {
-    let result = sqlx::query("DELETE FROM authors WHERE id = ?")
-        .bind(id)
-        .execute(&mut *conn)
+    atomic_repo::remove_author(tx, id)
         .await
-        .map_err(sqlx_err)?;
-
-    if result.rows_affected() == 0 {
-        return Err(JsonApiError::from_api_error(
-            with_status(StatusCode::NOT_FOUND).detail(format!("author `{id}` not found")),
-        ));
-    }
+        .map_err(|e| match e {
+            sqlx::Error::RowNotFound => JsonApiError::from_api_error(
+                with_status(StatusCode::NOT_FOUND).detail(format!("author `{id}` not found")),
+            ),
+            other => sqlx_err(other),
+        })?;
     Ok(AtomicResult::default())
 }
 
 async fn add_article(
-    conn: &mut SqliteConnection,
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     resource: &Resource,
     lid_map: &mut HashMap<String, String>,
 ) -> Result<AtomicResult, JsonApiError> {
@@ -163,34 +136,24 @@ async fn add_article(
     let id = resource.id.clone().unwrap_or_else(mint_id);
     let ts = now();
 
-    sqlx::query(
-        "INSERT INTO articles (id, title, body, author_id, created_at, updated_at) \
-         VALUES (?, ?, ?, ?, ?, ?)",
-    )
-    .bind(&id)
-    .bind(&title)
-    .bind(&body)
-    .bind(&author_id)
-    .bind(&ts)
-    .bind(&ts)
-    .execute(&mut *conn)
-    .await
-    .map_err(sqlx_err)?;
+    let article = atomic_repo::create_article(tx, &id, &title, &body, &author_id, &ts)
+        .await
+        .map_err(sqlx_err)?;
 
     if let Some(lid) = &resource.lid {
-        lid_map.insert(lid.clone(), id.clone());
+        lid_map.insert(lid.clone(), article.id.clone());
     }
 
     let mut attrs = serde_json::Map::new();
-    attrs.insert("title".into(), Value::String(title));
-    attrs.insert("body".into(), Value::String(body));
-    attrs.insert("createdAt".into(), Value::String(ts.clone()));
-    attrs.insert("updatedAt".into(), Value::String(ts));
+    attrs.insert("title".into(), Value::String(article.title));
+    attrs.insert("body".into(), Value::String(article.body));
+    attrs.insert("createdAt".into(), Value::String(article.created_at));
+    attrs.insert("updatedAt".into(), Value::String(article.updated_at));
 
     // Build author relationship linkage in the response.
     let author_rid = ResourceIdentifier {
         r#type: "authors".into(),
-        identity: Identity::Id(author_id),
+        identity: Identity::Id(article.author_id),
         meta: None,
     };
     let mut relationships = BTreeMap::new();
@@ -202,7 +165,7 @@ async fn add_article(
     Ok(AtomicResult {
         data: Some(PrimaryData::Single(Box::new(Resource {
             r#type: "articles".into(),
-            id: Some(id),
+            id: Some(article.id),
             lid: None,
             attributes: Value::Object(attrs),
             relationships,
@@ -215,54 +178,32 @@ async fn add_article(
 }
 
 async fn update_article(
-    conn: &mut SqliteConnection,
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     resource: &Resource,
     id: &str,
 ) -> Result<AtomicResult, JsonApiError> {
     let ts = now();
+    let title = resource.attributes.get("title").and_then(Value::as_str);
+    let body = resource.attributes.get("body").and_then(Value::as_str);
 
-    if let Some(title) = resource.attributes.get("title").and_then(Value::as_str) {
-        sqlx::query("UPDATE articles SET title = ?, updated_at = ? WHERE id = ?")
-            .bind(title)
-            .bind(&ts)
-            .bind(id)
-            .execute(&mut *conn)
-            .await
-            .map_err(sqlx_err)?;
-    }
-    if let Some(body) = resource.attributes.get("body").and_then(Value::as_str) {
-        sqlx::query("UPDATE articles SET body = ?, updated_at = ? WHERE id = ?")
-            .bind(body)
-            .bind(&ts)
-            .bind(id)
-            .execute(&mut *conn)
-            .await
-            .map_err(sqlx_err)?;
-    }
+    let article = atomic_repo::update_article(tx, id, title, body, &ts)
+        .await
+        .map_err(|e| match e {
+            sqlx::Error::RowNotFound => JsonApiError::from_api_error(
+                with_status(StatusCode::NOT_FOUND).detail(format!("article `{id}` not found")),
+            ),
+            other => sqlx_err(other),
+        })?;
 
-    let updated = sqlx::query_as::<_, (String, String, String, String, String, String)>(
-        "SELECT id, title, body, author_id, created_at, updated_at FROM articles WHERE id = ?",
-    )
-    .bind(id)
-    .fetch_optional(&mut *conn)
-    .await
-    .map_err(sqlx_err)?
-    .ok_or_else(|| {
-        JsonApiError::from_api_error(
-            with_status(StatusCode::NOT_FOUND).detail(format!("article `{id}` not found")),
-        )
-    })?;
-
-    let (rid, title, body, author_id, created_at, updated_at) = updated;
     let mut attrs = serde_json::Map::new();
-    attrs.insert("title".into(), Value::String(title));
-    attrs.insert("body".into(), Value::String(body));
-    attrs.insert("createdAt".into(), Value::String(created_at));
-    attrs.insert("updatedAt".into(), Value::String(updated_at));
+    attrs.insert("title".into(), Value::String(article.title));
+    attrs.insert("body".into(), Value::String(article.body));
+    attrs.insert("createdAt".into(), Value::String(article.created_at));
+    attrs.insert("updatedAt".into(), Value::String(article.updated_at));
 
     let author_rid = ResourceIdentifier {
         r#type: "authors".into(),
-        identity: Identity::Id(author_id),
+        identity: Identity::Id(article.author_id),
         meta: None,
     };
     let mut relationships = BTreeMap::new();
@@ -274,7 +215,7 @@ async fn update_article(
     Ok(AtomicResult {
         data: Some(PrimaryData::Single(Box::new(Resource {
             r#type: "articles".into(),
-            id: Some(rid),
+            id: Some(article.id),
             lid: None,
             attributes: Value::Object(attrs),
             relationships,
@@ -287,20 +228,17 @@ async fn update_article(
 }
 
 async fn remove_article(
-    conn: &mut SqliteConnection,
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     id: &str,
 ) -> Result<AtomicResult, JsonApiError> {
-    let result = sqlx::query("DELETE FROM articles WHERE id = ?")
-        .bind(id)
-        .execute(&mut *conn)
+    atomic_repo::remove_article(tx, id)
         .await
-        .map_err(sqlx_err)?;
-
-    if result.rows_affected() == 0 {
-        return Err(JsonApiError::from_api_error(
-            with_status(StatusCode::NOT_FOUND).detail(format!("article `{id}` not found")),
-        ));
-    }
+        .map_err(|e| match e {
+            sqlx::Error::RowNotFound => JsonApiError::from_api_error(
+                with_status(StatusCode::NOT_FOUND).detail(format!("article `{id}` not found")),
+            ),
+            other => sqlx_err(other),
+        })?;
     Ok(AtomicResult::default())
 }
 
@@ -391,6 +329,22 @@ fn resolve_target_id(
                 .detail("target ref identity must be an id or lid".to_string()),
         )),
     }
+}
+
+/// Validate a client-supplied resource type string as a JSON:API member name.
+/// Returns a 400 if the name is syntactically invalid (distinct from the 422 for
+/// an unsupported-but-valid type).
+fn validate_resource_type(type_str: &str, idx: usize) -> Result<(), JsonApiError> {
+    jsonapi_core::validate_member_name(type_str).map_err(|_| {
+        JsonApiError::from_api_error(
+            with_status(StatusCode::BAD_REQUEST)
+                .pointer("/data/type")
+                .detail(format!(
+                    "operation {idx}: `{type_str}` is not a valid JSON:API member name"
+                )),
+        )
+    })?;
+    Ok(())
 }
 
 /// Map a sqlx error to a JSON:API error: `RowNotFound` → 404, all others → 500
@@ -488,6 +442,9 @@ async fn execute_op(
                 }
             };
 
+            // Validate the resource type string before dispatching.
+            validate_resource_type(&resource.r#type, idx)?;
+
             match resource.r#type.as_str() {
                 "authors" => add_author(tx, resource, lid_map).await,
                 "articles" => add_article(tx, resource, lid_map).await,
@@ -528,6 +485,9 @@ async fn execute_op(
                 }
             };
 
+            // Validate the ref type string before dispatching.
+            validate_resource_type(&op_ref.r#type, idx)?;
+
             match op_ref.r#type.as_str() {
                 "authors" => update_author(tx, resource, &id).await,
                 "articles" => update_article(tx, resource, &id).await,
@@ -564,6 +524,9 @@ async fn execute_op(
             }
 
             let id = resolve_target_id(op_ref, lid_map)?;
+
+            // Validate the ref type string before dispatching.
+            validate_resource_type(&op_ref.r#type, idx)?;
 
             match op_ref.r#type.as_str() {
                 "authors" => remove_author(tx, &id).await,
