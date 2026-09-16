@@ -6,7 +6,9 @@ use axum::response::{IntoResponse, Response};
 use http::{HeaderValue, StatusCode, header};
 use serde::Serialize;
 
-use jsonapi_core::{Document, FieldsetConfig, JsonApiMediaType, Resource, ResourceObject};
+use jsonapi_core::{
+    Document, DocumentBuilder, FieldsetConfig, JsonApiMediaType, Resource, ResourceObject,
+};
 use jsonapi_http::{content_type_value, try_json_api_response, try_json_api_response_filtered};
 
 use crate::error::JsonApiError;
@@ -83,6 +85,23 @@ impl<P, I> JsonApiResponse<P, I> {
     #[must_use]
     pub fn created(self, self_link: impl Into<String>) -> Self {
         self.status(StatusCode::CREATED).location(self_link)
+    }
+}
+
+impl<P: ResourceObject> JsonApiResponse<P, Resource> {
+    /// Wrap a single primary resource as a `200 OK` data document — shorthand for
+    /// `JsonApiResponse::new(DocumentBuilder::single(primary).build())` for the
+    /// common no-includes handler.
+    #[must_use]
+    pub fn single(primary: P) -> Self {
+        Self::new(DocumentBuilder::single(primary).build())
+    }
+
+    /// Wrap a collection of primary resources as a `200 OK` data document —
+    /// shorthand for `JsonApiResponse::new(DocumentBuilder::collection(primary).build())`.
+    #[must_use]
+    pub fn collection(primary: Vec<P>) -> Self {
+        Self::new(DocumentBuilder::collection(primary).build())
     }
 }
 
@@ -182,6 +201,30 @@ mod tests {
     fn no_location_header_by_default() {
         let response = JsonApiResponse::new(sample_document()).into_response();
         assert!(response.headers().get(header::LOCATION).is_none());
+    }
+
+    fn sample_resource(id: &str) -> Resource {
+        serde_json::from_str(&format!(r#"{{"type":"articles","id":"{id}"}}"#)).unwrap()
+    }
+
+    #[test]
+    fn single_wraps_one_resource_as_ok_data_document() {
+        let response = JsonApiResponse::single(sample_resource("1")).into_response();
+        let (status, json) = read(response);
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(json["data"]["type"], "articles");
+        assert_eq!(json["data"]["id"], "1");
+    }
+
+    #[test]
+    fn collection_wraps_many_resources_as_ok_data_document() {
+        let response =
+            JsonApiResponse::collection(vec![sample_resource("1"), sample_resource("2")])
+                .into_response();
+        let (status, json) = read(response);
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(json["data"].as_array().unwrap().len(), 2);
+        assert_eq!(json["data"][1]["id"], "2");
     }
 
     #[test]
