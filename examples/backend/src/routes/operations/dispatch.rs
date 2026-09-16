@@ -263,18 +263,25 @@ pub(super) fn resolve_author_id(
         .get("author")
         .and_then(|r| r.to_one_identity())
         .ok_or_else(|| {
-            JsonApiError::unprocessable("article requires an `author` to-one relationship")
+            JsonApiError::unprocessable_with_pointer(
+                "/data/relationships/author",
+                "article requires an `author` to-one relationship",
+            )
         })?;
 
     match identity {
         Identity::Id(id) => Ok(id.clone()),
         Identity::Lid(lid) => lid_map.get(lid).cloned().ok_or_else(|| {
-            JsonApiError::unprocessable(format!(
-                "unresolved author lid `{lid}`; \
-                 ensure the corresponding `add` operation appears earlier in the request"
-            ))
+            JsonApiError::unprocessable_with_pointer(
+                "/data/relationships/author/data/lid",
+                format!(
+                    "unresolved author lid `{lid}`; \
+                     ensure the corresponding `add` operation appears earlier in the request"
+                ),
+            )
         }),
-        _ => Err(JsonApiError::unprocessable(
+        _ => Err(JsonApiError::unprocessable_with_pointer(
+            "/data/relationships/author/data",
             "author identity must be an id or lid",
         )),
     }

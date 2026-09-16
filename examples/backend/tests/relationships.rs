@@ -122,3 +122,27 @@ async fn set_author_rejects_null_data_400() {
         .await;
     res.assert_error(StatusCode::BAD_REQUEST);
 }
+
+// A relationship payload that uses a client `lid` where a server `id` is
+// required is rejected with a 400 whose detail names the offending lid, via
+// `ResourceIdentifier::require_id` (the richer `LidNotAllowed` error).
+#[tokio::test]
+async fn tag_relationship_rejects_lid_with_actionable_detail() {
+    let app = support::seeded_app().await;
+    let res = app
+        .send(
+            TestRequest::patch("/articles/art-01/relationships/tags")
+                .content_type_json_api()
+                .body_json(&json!({ "data": [{ "type": "tags", "lid": "local-tag" }] }))
+                .build(),
+        )
+        .await;
+    let res = res.assert_status(StatusCode::BAD_REQUEST);
+    let detail = res.errors().as_array().expect("errors array")[0]["detail"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(
+        detail.contains("local-tag"),
+        "lid-rejection detail should name the offending lid, got: {detail}"
+    );
+}

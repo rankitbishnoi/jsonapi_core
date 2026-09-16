@@ -303,3 +303,36 @@ async fn atomic_invalid_member_name_type_is_rejected_400() {
         res.status
     );
 }
+
+// An article `add` whose `author` linkage references a `lid` that no earlier
+// `add` introduced is not caught by `validate_lid_refs` (which only checks ref
+// targets); `resolve_author_id` rejects it with a 422 carrying the exact pointer.
+#[tokio::test]
+async fn atomic_article_with_unresolved_author_lid_is_422_with_pointer() {
+    let app = support::seeded_app().await;
+    let res = app
+        .send(
+            TestRequest::post("/operations")
+                .header(header::CONTENT_TYPE, ATOMIC_CT)
+                .header(header::ACCEPT, ATOMIC_CT)
+                .body_json(&json!({ "atomic:operations": [
+                    { "op": "add", "data": { "type": "articles",
+                        "attributes": { "title": "Orphan", "body": "no author" },
+                        "relationships": { "author": { "data": { "type": "authors", "lid": "never-added" } } } } }
+                ] }))
+                .build(),
+        )
+        .await;
+
+    assert_eq!(
+        res.status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "expected 422, got {}",
+        res.status
+    );
+    let errors = res.errors().as_array().expect("errors array");
+    assert_eq!(
+        errors[0]["source"]["pointer"],
+        "/data/relationships/author/data/lid"
+    );
+}
