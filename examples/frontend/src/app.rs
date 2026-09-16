@@ -5,7 +5,7 @@ use leptos_router::path;
 use crate::api::ApiClient;
 use crate::components::Nav;
 use crate::inspector::{InspectorPanel, InspectorStore};
-use crate::pages::ReadPage;
+use crate::pages::{IncludesPage, PaginationPage, ReadPage};
 
 #[component]
 pub fn App() -> impl IntoView {
@@ -20,6 +20,8 @@ pub fn App() -> impl IntoView {
                 <main class="demo">
                     <Routes fallback=|| view! { <p>"Not found"</p> }>
                         <Route path=path!("/") view=ReadPage/>
+                        <Route path=path!("/pagination") view=PaginationPage/>
+                        <Route path=path!("/includes") view=IncludesPage/>
                     </Routes>
                 </main>
                 <InspectorPanel/>
