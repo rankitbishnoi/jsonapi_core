@@ -50,8 +50,14 @@ jobs:
         run: cargo install cargo-audit --locked
       - name: Audit dependencies for known advisories
         run: cargo audit --deny warnings
-      - name: SemVer compliance (jsonapi_core)
+      - name: SemVer compliance (jsonapi_core, jsonapi_core_derive)
         uses: obi1kenobi/cargo-semver-checks-action@6b69fcf40e9b5fb17adeb57e4b6ecd020649a239 # v2
+        with:
+          # Only crates with a published crates.io baseline can be diffed.
+          # jsonapi_core_validation, jsonapi_http, and jsonapi_axum are first
+          # published in this release and have no baseline yet; add them here
+          # once they have a release on crates.io.
+          package: jsonapi_core, jsonapi_core_derive
       - name: Build docs (deny warnings)
         env:
           RUSTDOCFLAGS: "-D warnings"
