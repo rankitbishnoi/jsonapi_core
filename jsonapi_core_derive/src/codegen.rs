@@ -151,10 +151,9 @@ fn gen_resource_object(
             let wire = f.wire_name.as_deref()?;
             let target = if let Some(explicit) = f.rel_target_type.as_deref() {
                 quote! { #explicit }
-            } else if let Some(inner) = relationship_inner_type(&f.ty) {
-                quote! { <#inner as ::jsonapi_core::model::ResourceType>::TYPE }
             } else {
-                return None;
+                let inner = relationship_inner_type(&f.ty)?;
+                quote! { <#inner as ::jsonapi_core::model::ResourceType>::TYPE }
             };
             Some((wire, target))
         })

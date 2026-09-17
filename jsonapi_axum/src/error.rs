@@ -131,7 +131,7 @@ impl JsonApiError {
 /// then use [`ResultExt::or_json_api`] for a clean `?` in handlers.
 ///
 /// The idiomatic impl builds an [`ApiError`] with [`with_status`] (adding
-/// `detail`, `source`, etc. via [`ApiErrorExt`](crate::ApiErrorExt)), then wraps
+/// `detail`, `source`, etc. via [`ApiErrorExt`]), then wraps
 /// it with [`JsonApiError::from_api_error`]:
 ///
 /// ```
