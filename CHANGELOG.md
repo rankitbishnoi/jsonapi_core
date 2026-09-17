@@ -94,6 +94,35 @@ workspace version.
   `to_header_value` delegates to it).
 - `impl From<Links>` and `From<Meta>` for `ResourceRelationship`.
 - `Cardinality` enum (`ToOne` / `ToMany`), exported at the crate root.
+- **Ergonomic linkage constructors** — build identifiers and relationships without
+  struct literals: `ResourceIdentifier::new(type, id)` / `::with_lid(type, lid)` /
+  `::many(type, ids)`, and `Relationship::to_one(rid)` / `to_one_id(type, id)` /
+  `to_one_null()` / `to_many(rids)`. Read a to-one's id with
+  `ResourceRelationship::single_id` and a required identifier with
+  `ResourceIdentifier::require_id`.
+- **Relationship target inference in the derive** — a new `ResourceType` trait
+  (auto-implemented by `#[derive(JsonApi)]`, exposing `TYPE`) lets a bare
+  `#[jsonapi(relationship)] author: Relationship<AuthorResource>` infer its JSON:API
+  type from the target, so you no longer repeat `#[jsonapi(relationship, type = "…")]`.
+- `jsonapi_axum::pagination_links_with_base` — a pagination link builder that uses a
+  configured base URL, so the `self` link and `first`/`prev`/`next`/`last` all agree
+  on host (e.g. behind a reverse proxy) instead of reconstructing it from the
+  incoming request URI.
+- **Atomic Operations responder for axum**: `AtomicJsonApiResponse`, behind a new
+  `atomic-ops` feature on `jsonapi_axum`, serializes an `atomic:results` document.
+- `JsonApiError::unprocessable(detail)` and
+  `JsonApiError::unprocessable_with_pointer(pointer, detail)` shorthands for the
+  common `422` cases (the latter also sets `source.pointer`).
+- `Error::LidNotAllowed { r#type, lid }` — a client-facing error that names the
+  offending reference when a relationship supplies a client `lid` where a
+  server-assigned `id` is required (maps to `400`).
+- **New end-to-end example — a JSON:API showcase** (`examples/`). Run a complete
+  axum + SQLite JSON:API server together with a Leptos (WASM) single-page app that
+  drives every endpoint over real cross-origin HTTP, with a live, self-captured
+  inspector showing the exact `application/vnd.api+json` request/response for each
+  action — all three pagination strategies, compound documents, sparse fieldsets,
+  sort/filter, `Field<T>` PATCH, relationship endpoints, the error model, and atomic
+  operations (with `lid` references). See `examples/README.md` to run it locally.
 
 ### Changed
 
@@ -143,6 +172,15 @@ workspace version.
 - **Breaking:** `Error::RelationshipCardinalityMismatch`'s `expected` field is
   now a typed `Cardinality` enum instead of `&'static str`. Match on
   `Cardinality::ToOne` / `Cardinality::ToMany` instead of the string literals.
+- Client-origin error variants now map to `4xx` instead of `500`:
+  `Error::NullRelationship` → `422` and `Error::LidNotIndexed` → `400`, so malformed
+  client input surfaces as a client error rather than a server error.
+
+### Deprecated
+
+- `CursorLinks::build(...)` is deprecated in favour of the fluent
+  `CursorLinks::first()/.prev()/.next()/.last()` setters + `.links()`, which read
+  more clearly at the call site and are harder to pass positional booleans to wrong.
 
 ### Performance
 
