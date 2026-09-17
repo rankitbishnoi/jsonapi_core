@@ -15,8 +15,11 @@ impl Config {
         let database_url = std::env::var("DATABASE_URL")
             .unwrap_or_else(|_| "sqlite://showcase.db?mode=rwc".to_string());
         let base_url = std::env::var("APP_BASE_URL").unwrap_or_else(|_| format!("http://{bind}"));
+        // Allow both loopback spellings of the SPA origin by default: browsers
+        // treat `localhost` and `127.0.0.1` as distinct origins, and developers
+        // open either, so a single spelling would CORS-block half of them.
         let cors_origins = std::env::var("APP_CORS_ORIGINS")
-            .unwrap_or_else(|_| "http://127.0.0.1:8081".to_string())
+            .unwrap_or_else(|_| "http://127.0.0.1:8081,http://localhost:8081".to_string())
             .split(',')
             .map(|s| s.trim().to_string())
             .collect();
