@@ -1,4 +1,5 @@
-#![warn(missing_docs)]
+#![deny(missing_docs)]
+#![deny(rustdoc::broken_intra_doc_links)]
 //! Derive macro implementation for [`jsonapi_core`](https://docs.rs/jsonapi_core).
 //!
 //! This crate provides the `#[derive(JsonApi)]` procedural macro that generates
@@ -32,14 +33,24 @@ use syn::{DeriveInput, parse_macro_input};
 /// |-----------|-------------|
 /// | `#[jsonapi(id)]` | Marks the resource ID field. Required, exactly one per struct. Type: `String` or `Option<String>`. |
 /// | `#[jsonapi(lid)]` | Marks the local identifier field (JSON:API 1.1). At most one. Type: `Option<String>`. |
-/// | `#[jsonapi(relationship)]` | Field appears in `relationships`, not `attributes`. Must be `Relationship<T>` or `Vec<Relationship<T>>`. |
-/// | `#[jsonapi(relationship, type = "...")]` | Relationship with explicit target type for `TypeInfo`. |
+/// | `#[jsonapi(relationship)]` | Field appears in `relationships`, not `attributes`. Must be `Relationship<T>` or `Vec<Relationship<T>>`. The target type for `TypeInfo` / include validation is inferred from `T` (via `<T as ResourceType>::TYPE`). |
+/// | `#[jsonapi(relationship, type = "...")]` | Override the inferred target type — needed only for a heterogeneous `Relationship<Resource>` or a `T` that isn't a derived resource. |
 /// | `#[jsonapi(meta)]` | Maps to resource-level `meta`. At most one. Type: `Option<Meta>`. |
 /// | `#[jsonapi(links)]` | Maps to resource-level `links`. At most one. Type: `Option<Links>`. |
 /// | `#[jsonapi(rename = "...")]` | Override the wire name for this field. |
 /// | `#[jsonapi(skip)]` | Exclude from serialization and deserialization. |
 ///
 /// Unannotated fields are serialized as attributes.
+///
+/// # PATCH partial updates (`Field<T>`)
+///
+/// For JSON:API `PATCH`, declare an attribute or relationship as
+/// `jsonapi_core::Field<T>` to capture member presence: an absent wire
+/// key deserializes to `Field::Absent` (leave unchanged), an explicit `null` to
+/// `Field::Null` (clear), and a value to `Field::Set(v)`. A `Field<T>` attribute
+/// is never treated as required, so a PATCH body may omit it without triggering
+/// a `MissingAttribute` (422). Serialization mirrors this: `Absent` omits the
+/// key, `Null` emits `null`, `Set` emits the value.
 ///
 /// # Fuzzy Deserialization
 ///

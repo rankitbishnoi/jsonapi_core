@@ -26,5 +26,5 @@ pub use identifier::{Identity, ResourceIdentifier};
 pub use jsonapi_object::JsonApiObject;
 pub use link::{Hreflang, Link, LinkObject, Links};
 pub use meta::Meta;
-pub use relationship::{Relationship, RelationshipData};
-pub use resource::{Resource, ResourceObject};
+pub use relationship::{Relationship, RelationshipData, ResourceRelationship};
+pub use resource::{Resource, ResourceObject, ResourceType};

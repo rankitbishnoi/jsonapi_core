@@ -13,16 +13,23 @@ validation.
 `TypeInfo` holds compile-time metadata about a resource type:
 
 ```rust
+#[non_exhaustive]
 pub struct TypeInfo {
     pub type_name: &'static str,
     pub field_names: &'static [&'static str],
     pub relationships: &'static [(&'static str, &'static str)],
+    pub required_attribute_names: &'static [&'static str],
 }
 ```
 
 The derive macro generates a `TypeInfo` for every type it sees. The
 `relationships` array pairs each relationship name with its **target** type
-string — that's what makes graph traversal possible.
+string — that's what makes graph traversal possible. `required_attribute_names`
+lists the attributes the struct declared as required (non-`Option`, non-`Vec`)
+and drives the `MissingAttribute` check in `Document::parse` (see
+[Error Handling](./error-handling.md)). The struct is `#[non_exhaustive]`;
+construct one by hand with `TypeInfo::new(...)` (which leaves required attributes
+empty) rather than a struct literal.
 
 ## Registering types
 

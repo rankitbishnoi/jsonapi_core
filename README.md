@@ -1,5 +1,11 @@
 # jsonapi_core
 
+[![Crates.io](https://img.shields.io/crates/v/jsonapi_core.svg)](https://crates.io/crates/jsonapi_core)
+[![Documentation](https://docs.rs/jsonapi_core/badge.svg)](https://docs.rs/jsonapi_core)
+[![CI](https://github.com/rankitbishnoi/jsonapi_core/actions/workflows/ci.yml/badge.svg)](https://github.com/rankitbishnoi/jsonapi_core/actions/workflows/ci.yml)
+[![MSRV](https://img.shields.io/badge/MSRV-1.94.1-blue.svg)](https://github.com/rankitbishnoi/jsonapi_core)
+[![License](https://img.shields.io/crates/l/jsonapi_core.svg)](#license)
+
 A typed [JSON:API v1.1](https://jsonapi.org/format/) serialization library for Rust.
 
 ## Features
@@ -10,6 +16,9 @@ A typed [JSON:API v1.1](https://jsonapi.org/format/) serialization library for R
 - **Registry** — typed lookups from `included` arrays via `Relationship<T>` references
 - **Recursive resolver** — kitsu-core-style flattened output with cycle detection
 - **Query builder** — JSON:API-aware query strings with bracket encoding and RFC 3986 percent-encoding
+- **Query parsing** — server-side parsing of `sort`/`include`/`fields`/`page`/`filter` into a typed `Query`
+- **Cursor pagination** — the JSON:API cursor-pagination profile (`CursorPage`, `CursorLinks`)
+- **Response builder** — fluent `DocumentBuilder` for assembling compound documents, plus error/meta-only constructors
 - **Content negotiation** — `ext`/`profile` media-type parsing, `Content-Type` validation, `Accept` negotiation
 - **Sparse fieldsets** — typed and dynamic filtering paths
 - **Include path validation** — relationship graph walking with static type metadata
@@ -21,7 +30,7 @@ A typed [JSON:API v1.1](https://jsonapi.org/format/) serialization library for R
 cargo add jsonapi_core
 ```
 
-Requires Rust **1.88+** and the **2024 edition**.
+Requires Rust **1.94.1+** and the **2024 edition**.
 
 ## Quick Example
 
@@ -70,6 +79,17 @@ let author: Person = registry.get_by_id("people", "9").unwrap();
 assert_eq!(author.name, "Dan Gebhardt");
 ```
 
+## Building an HTTP server
+
+`jsonapi_core` is transport-agnostic. Two companion crates turn it into a server stack:
+
+- **[`jsonapi_axum`](https://docs.rs/jsonapi_axum)** — [axum](https://docs.rs/axum)
+  extractors (`JsonApi<T>`, `JsonApiQuery`), responders (`JsonApiResponse`), and
+  content-negotiation middleware (`JsonApiLayer`). Start here for an axum service.
+- **[`jsonapi_http`](https://docs.rs/jsonapi_http)** — the framework-agnostic layer the
+  adapters are built on (request parsing, response building, tower layers). Depend on it
+  directly to write an adapter for another framework.
+
 ## Feature Flags
 
 | Feature | Default | Description |
@@ -77,7 +97,7 @@ assert_eq!(author.name, "Dan Gebhardt");
 | `derive` | yes | Re-exports `#[derive(JsonApi)]` from `jsonapi_core_derive` |
 | `atomic-ops` | off | Atomic Operations extension types (`atomic` module) |
 
-See [`docs/feature-flags.md`](docs/feature-flags.md) for details.
+See [`docs/feature-flags.md`](https://github.com/rankitbishnoi/jsonapi_core/blob/main/docs/feature-flags.md) for details.
 
 ## Examples
 
@@ -94,10 +114,10 @@ cargo run --example atomic_operations     -p jsonapi_core --features atomic-ops
 
 ## Documentation
 
-- **[The jsonapi_core Guide](docs/SUMMARY.md)** — chapter-by-chapter walkthrough
+- **[The jsonapi_core Guide](https://github.com/rankitbishnoi/jsonapi_core/blob/main/docs/SUMMARY.md)** — chapter-by-chapter walkthrough
   covering documents, resources, relationships, the registry, the query builder,
-  sparse fieldsets, content negotiation, atomic operations, and a cookbook of
-  common recipes.
+  query parsing, sparse fieldsets, cursor pagination, building responses,
+  content negotiation, atomic operations, and a cookbook of common recipes.
 - **[API docs on docs.rs](https://docs.rs/jsonapi_core)** — type-level reference
   for every public item.
 
@@ -109,7 +129,7 @@ cargo install mdbook
 mdbook serve docs
 ```
 
-Or browse the markdown directly starting at [`docs/introduction.md`](docs/introduction.md).
+Or browse the markdown directly starting at [`docs/introduction.md`](https://github.com/rankitbishnoi/jsonapi_core/blob/main/docs/introduction.md).
 
 ## Repository layout
 
@@ -117,6 +137,8 @@ Or browse the markdown directly starting at [`docs/introduction.md`](docs/introd
 |------|----------|
 | `jsonapi_core/` | The library crate. |
 | `jsonapi_core_derive/` | The proc-macro crate (re-exported via the `derive` feature). |
+| `jsonapi_http/` | Framework-agnostic HTTP integration (request parsing, response building, tower layers). |
+| `jsonapi_axum/` | [axum](https://docs.rs/axum) adapter: JSON:API extractors, responders, and middleware. |
 | `acceptance/` | Spec-conformance integration tests. |
 | `docs/` | The guide book (this is what you're reading). |
 
@@ -126,10 +148,12 @@ Or browse the markdown directly starting at [`docs/introduction.md`](docs/introd
 
 ### Lockstep workspace versions
 
-The `jsonapi_core` and `jsonapi_core_derive` crates are versioned in lockstep
-via `workspace.package.version`. They are always released together. Pin only
-`jsonapi_core` in your `Cargo.toml`; the derive crate is re-exported via the
-`derive` feature.
+All five publishable crates — `jsonapi_core`, `jsonapi_core_derive`,
+`jsonapi_core_validation`, `jsonapi_http`, and `jsonapi_axum` — are versioned in
+lockstep via `workspace.package.version` and released together under one tag.
+Pin only the crates you depend on directly (e.g. `jsonapi_core` for the type
+model, `jsonapi_axum` for an axum service); `jsonapi_core_derive` is re-exported
+via the `derive` feature and `jsonapi_core_validation` is an internal detail.
 
 ### What is public API
 
@@ -137,11 +161,13 @@ The following are **public API** and changes to them are governed by SemVer:
 
 - All items re-exported at the `jsonapi_core` crate root (`Document`,
   `PrimaryData`, `Resource`, `ResourceObject`, `ResourceIdentifier`,
-  `Identity`, `Relationship`, `RelationshipData`, `Links`, `Link`,
+  `ResourceRelationship`, `Identity`, `Relationship`, `RelationshipData`, `Links`, `Link`,
   `LinkObject`, `Hreflang`, `Meta`, `JsonApiObject`, `ApiError`, `ErrorLinks`,
   `ErrorSource`, `Registry`, `ResolveConfig`, `TypeRegistry`, `TypeInfo`,
-  `QueryBuilder`, `FieldsetConfig`, `SparseSerializer`, `sparse_filter`,
-  `CaseConfig`, `CaseConvention`, `Error`, `Result`, `JsonApiMediaType`,
+  `QueryBuilder`, `Query`, `SortField`, `FieldsetConfig`, `SparseSerializer`,
+  `sparse_filter`, `DocumentBuilder`, `CursorPage`, `CursorLinks`,
+  `CURSOR_PAGINATION_PROFILE`,
+  `CaseConfig`, `CaseConvention`, `Error`, `Result`, `Cardinality`, `JsonApiMediaType`,
   `validate_content_type`, `negotiate_accept`, `validate_member_name`,
   `MemberNameKind`).
 - All items re-exported under the `atomic-ops` feature (`AtomicRequest`,
@@ -151,7 +177,7 @@ The following are **public API** and changes to them are governed by SemVer:
   `id`, `lid`, `relationship`, `meta`, `links`, `rename`, `skip`, and
   relationship `type` on fields.
 - Default behaviours documented in the crate-level rustdoc and the
-  [guide](docs/SUMMARY.md): the fuzzy-deserialization alias set, the
+  [guide](https://github.com/rankitbishnoi/jsonapi_core/blob/main/docs/SUMMARY.md): the fuzzy-deserialization alias set, the
   `Option::None` → omitted-on-serialize rule, the `null` → `None` deserialize
   fall-through, the registry's silent skip on shape mismatch, the resolver's
   cycle detection.
@@ -183,7 +209,7 @@ arms in consumer code must include a `_ =>` fall-through.
 
 The minimum supported Rust version is currently **1.94.1**. MSRV bumps require
 a minor-version release (≥ `0.x.0` while pre-1.0; ≥ `x.0.0` post-1.0) and
-will be called out in the [changelog](./CHANGELOG.md).
+will be called out in the [changelog](https://github.com/rankitbishnoi/jsonapi_core/blob/main/CHANGELOG.md).
 
 ### Pre-1.0 caveat
 
@@ -200,7 +226,7 @@ breaking changes land for two consecutive minor releases after this work,
 
 ### Changelog
 
-See [`CHANGELOG.md`](./CHANGELOG.md) for a release-by-release record.
+See [`CHANGELOG.md`](https://github.com/rankitbishnoi/jsonapi_core/blob/main/CHANGELOG.md) for a release-by-release record.
 
 ## License
 

@@ -11,15 +11,55 @@ pub fn generate(
     fields: &[ParsedField],
 ) -> TokenStream {
     let resource_object_impl = gen_resource_object(name, struct_attrs, fields);
+    let resource_type_impl = gen_resource_type(name, struct_attrs);
     let serialize_impl = gen_serialize(name, struct_attrs, fields);
     let deserialize_impl = gen_deserialize(name, struct_attrs, fields);
     let accessor_impls = gen_accessor_traits(name, fields);
 
     quote! {
         #resource_object_impl
+        #resource_type_impl
         #serialize_impl
         #deserialize_impl
         #accessor_impls
+    }
+}
+
+/// Emit `impl ResourceType for #name { const TYPE = "<type>"; }` so the resource's
+/// JSON:API type string is available statically — letting other resources infer
+/// this one as a relationship target from `Relationship<#name>`.
+fn gen_resource_type(name: &syn::Ident, struct_attrs: &StructAttrs) -> TokenStream {
+    let type_name = &struct_attrs.type_name;
+    quote! {
+        impl ::jsonapi_core::model::ResourceType for #name {
+            const TYPE: &'static str = #type_name;
+        }
+    }
+}
+
+/// Extract the target resource type `T` from a relationship field's type, so its
+/// `<T as ResourceType>::TYPE` can populate the relationship's target in
+/// `TypeInfo` without an explicit `type = "..."`. Handles `Relationship<T>` and a
+/// single `Vec<...>` / `Option<...>` wrapper (`Vec<Relationship<T>>`); returns
+/// `None` for anything else, so those relationships fall back to needing `type`.
+fn relationship_inner_type(ty: &syn::Type) -> Option<&syn::Type> {
+    let syn::Type::Path(type_path) = ty else {
+        return None;
+    };
+    let segment = type_path.path.segments.last()?;
+    let syn::PathArguments::AngleBracketed(args) = &segment.arguments else {
+        return None;
+    };
+    let first_ty = args.args.iter().find_map(|arg| match arg {
+        syn::GenericArgument::Type(inner) => Some(inner),
+        _ => None,
+    })?;
+    if segment.ident == "Relationship" {
+        Some(first_ty)
+    } else if segment.ident == "Vec" || segment.ident == "Option" {
+        relationship_inner_type(first_ty)
+    } else {
+        None
     }
 }
 
@@ -75,7 +115,7 @@ fn gen_resource_object(
     let id_field = fields
         .iter()
         .find(|f| matches!(f.kind, FieldKind::Id))
-        .unwrap();
+        .expect("codegen invariant: validate_fields guarantees exactly one #[jsonapi(id)] field");
     let id_ident = &id_field.ident;
     let id_expr = if id_field.is_option {
         quote! { self.#id_ident.as_deref() }
@@ -99,25 +139,38 @@ fn gen_resource_object(
         .filter_map(|f| f.wire_name.as_deref())
         .collect();
 
-    // Collect relationship (wire_name, target_type) pairs for type_info()
-    let rel_pairs: Vec<(&str, &str)> = fields
+    // Collect relationship (wire_name, target_type) pairs for type_info(). The
+    // target is the explicit `type = "..."` when given, otherwise inferred from
+    // the field's `Relationship<T>` via `<T as ResourceType>::TYPE` — so a bare
+    // `#[jsonapi(relationship)]` still registers a valid include-path target
+    // instead of silently dropping out of `TypeInfo.relationships`.
+    let rel_pairs: Vec<(&str, TokenStream)> = fields
         .iter()
         .filter(|f| matches!(f.kind, FieldKind::Relationship))
         .filter_map(|f| {
             let wire = f.wire_name.as_deref()?;
-            let target = f.rel_target_type.as_deref()?;
+            let target = if let Some(explicit) = f.rel_target_type.as_deref() {
+                quote! { #explicit }
+            } else {
+                let inner = relationship_inner_type(&f.ty)?;
+                quote! { <#inner as ::jsonapi_core::model::ResourceType>::TYPE }
+            };
             Some((wire, target))
         })
         .collect();
 
     let rel_name_tokens: Vec<&str> = rel_pairs.iter().map(|(n, _)| *n).collect();
-    let rel_target_tokens: Vec<&str> = rel_pairs.iter().map(|(_, t)| *t).collect();
+    let rel_target_tokens: Vec<&TokenStream> = rel_pairs.iter().map(|(_, t)| t).collect();
 
     // Wire names of attributes the consumer declared as required:
-    // attribute fields that are neither Option nor Vec.
+    // attribute fields that are neither Option, Vec, nor a `Field<T>` tri-state.
+    // A `Field<T>` carries presence (absent/null/set), so a PATCH may legitimately
+    // omit it — it must never trigger the `MissingAttribute` (422) pre-pass.
     let required_attr_strs: Vec<&str> = fields
         .iter()
-        .filter(|f| matches!(f.kind, FieldKind::Attribute) && !f.is_option && !f.is_vec)
+        .filter(|f| {
+            matches!(f.kind, FieldKind::Attribute) && !f.is_option && !f.is_vec && !f.is_field
+        })
         .filter_map(|f| f.wire_name.as_deref())
         .collect();
 
@@ -162,7 +215,7 @@ fn gen_serialize(
     let id_field = fields
         .iter()
         .find(|f| matches!(f.kind, FieldKind::Id))
-        .unwrap();
+        .expect("codegen invariant: validate_fields guarantees exactly one #[jsonapi(id)] field");
     let id_ident = &id_field.ident;
     let id_entry = if id_field.is_option {
         quote! {
@@ -201,32 +254,12 @@ fn gen_serialize(
     } else {
         let attr_inserts: Vec<TokenStream> = attr_fields
             .iter()
-            .map(|f| {
-                let ident = &f.ident;
-                let wire = f.wire_name.as_ref().unwrap();
-                if f.is_option {
-                    quote! {
-                        if let ::core::option::Option::Some(ref __val) = self.#ident {
-                            __attrs.insert(
-                                #wire.to_string(),
-                                ::serde_json::to_value(__val).map_err(::serde::ser::Error::custom)?,
-                            );
-                        }
-                    }
-                } else {
-                    quote! {
-                        __attrs.insert(
-                            #wire.to_string(),
-                            ::serde_json::to_value(&self.#ident).map_err(::serde::ser::Error::custom)?,
-                        );
-                    }
-                }
-            })
+            .map(|f| gen_field_serialize(f, "__attrs"))
             .collect();
 
         quote! {
             {
-                let mut __attrs = ::serde_json::Map::new();
+                let mut __attrs = ::jsonapi_core::__private::serde_json::Map::new();
                 #(#attr_inserts)*
                 if !__attrs.is_empty() {
                     __map.serialize_entry("attributes", &__attrs)?;
@@ -246,32 +279,12 @@ fn gen_serialize(
     } else {
         let rel_inserts: Vec<TokenStream> = rel_fields
             .iter()
-            .map(|f| {
-                let ident = &f.ident;
-                let wire = f.wire_name.as_ref().unwrap();
-                if f.is_option {
-                    quote! {
-                        if let ::core::option::Option::Some(ref __val) = self.#ident {
-                            __rels.insert(
-                                #wire.to_string(),
-                                ::serde_json::to_value(__val).map_err(::serde::ser::Error::custom)?,
-                            );
-                        }
-                    }
-                } else {
-                    quote! {
-                        __rels.insert(
-                            #wire.to_string(),
-                            ::serde_json::to_value(&self.#ident).map_err(::serde::ser::Error::custom)?,
-                        );
-                    }
-                }
-            })
+            .map(|f| gen_field_serialize(f, "__rels"))
             .collect();
 
         quote! {
             {
-                let mut __rels = ::serde_json::Map::new();
+                let mut __rels = ::jsonapi_core::__private::serde_json::Map::new();
                 #(#rel_inserts)*
                 if !__rels.is_empty() {
                     __map.serialize_entry("relationships", &__rels)?;
@@ -343,7 +356,7 @@ fn gen_deserialize(
     let id_field = fields
         .iter()
         .find(|f| matches!(f.kind, FieldKind::Id))
-        .unwrap();
+        .expect("codegen invariant: validate_fields guarantees exactly one #[jsonapi(id)] field");
     let id_ident = &id_field.ident;
     let id_extract = if id_field.is_option {
         quote! {
@@ -399,7 +412,7 @@ fn gen_deserialize(
             quote! {
                 let #ident = __obj
                     .get("links")
-                    .map(|v| ::serde_json::from_value(v.clone()).map_err(::serde::de::Error::custom))
+                    .map(|v| ::jsonapi_core::__private::serde_json::from_value(v.clone()).map_err(::serde::de::Error::custom))
                     .transpose()?;
             }
         });
@@ -413,7 +426,7 @@ fn gen_deserialize(
             quote! {
                 let #ident = __obj
                     .get("meta")
-                    .map(|v| ::serde_json::from_value(v.clone()).map_err(::serde::de::Error::custom))
+                    .map(|v| ::jsonapi_core::__private::serde_json::from_value(v.clone()).map_err(::serde::de::Error::custom))
                     .transpose()?;
             }
         });
@@ -436,7 +449,7 @@ fn gen_deserialize(
             fn deserialize<__D: ::serde::Deserializer<'de>>(
                 deserializer: __D,
             ) -> ::core::result::Result<Self, __D::Error> {
-                let __value = <::serde_json::Value as ::serde::Deserialize>::deserialize(deserializer)?;
+                let __value = <::jsonapi_core::__private::serde_json::Value as ::serde::Deserialize>::deserialize(deserializer)?;
                 let __obj = __value
                     .as_object()
                     .ok_or_else(|| ::serde::de::Error::custom("resource must be a JSON object"))?;
@@ -473,6 +486,53 @@ fn gen_deserialize(
     }
 }
 
+/// Generate the code that inserts a single attribute or relationship field into
+/// the wire map (`__attrs` or `__rels`) during serialization.
+fn gen_field_serialize(field: &ParsedField, target_var: &str) -> TokenStream {
+    let ident = &field.ident;
+    let wire = field
+        .wire_name
+        .as_ref()
+        .expect("codegen invariant: attribute/relationship fields always have a wire_name");
+    let target = format_ident!("{}", target_var);
+
+    if field.is_field {
+        // Tri-state PATCH member: omit the key when Absent, emit `null` for Null,
+        // emit the value for Set. This is what makes an outgoing patch document
+        // carry only the members the handler actually touched.
+        quote! {
+            match &self.#ident {
+                ::jsonapi_core::Field::Absent => {}
+                ::jsonapi_core::Field::Null => {
+                    #target.insert(#wire.to_string(), ::jsonapi_core::__private::serde_json::Value::Null);
+                }
+                ::jsonapi_core::Field::Set(__val) => {
+                    #target.insert(
+                        #wire.to_string(),
+                        ::jsonapi_core::__private::serde_json::to_value(__val).map_err(::serde::ser::Error::custom)?,
+                    );
+                }
+            }
+        }
+    } else if field.is_option {
+        quote! {
+            if let ::core::option::Option::Some(ref __val) = self.#ident {
+                #target.insert(
+                    #wire.to_string(),
+                    ::jsonapi_core::__private::serde_json::to_value(__val).map_err(::serde::ser::Error::custom)?,
+                );
+            }
+        }
+    } else {
+        quote! {
+            #target.insert(
+                #wire.to_string(),
+                ::jsonapi_core::__private::serde_json::to_value(&self.#ident).map_err(::serde::ser::Error::custom)?,
+            );
+        }
+    }
+}
+
 /// Generate the extraction code for a single attribute or relationship field.
 fn gen_field_extract(field: &ParsedField, source_var: &str) -> TokenStream {
     let ident = &field.ident;
@@ -482,7 +542,10 @@ fn gen_field_extract(field: &ParsedField, source_var: &str) -> TokenStream {
     // Build the lookup chain
     let lookup = if field.aliases.is_empty() {
         // Single lookup (no aliases, or renamed field)
-        let wire = field.wire_name.as_ref().unwrap();
+        let wire = field
+            .wire_name
+            .as_ref()
+            .expect("codegen invariant: attribute/relationship fields always have a wire_name");
         quote! { #source.and_then(|__s| __s.get(#wire)) }
     } else {
         // Fuzzy alias chain: try output case first, then alternatives
@@ -496,8 +559,28 @@ fn gen_field_extract(field: &ParsedField, source_var: &str) -> TokenStream {
         chain
     };
 
-    let wire = field.wire_name.as_ref().unwrap();
-    if field.is_option {
+    let wire = field
+        .wire_name
+        .as_ref()
+        .expect("codegen invariant: attribute/relationship fields always have a wire_name");
+    if field.is_field {
+        // Tri-state PATCH member: the wire key being ABSENT → Absent, an explicit
+        // `null` → Null, and any other value → Set(deserialized). This is the
+        // whole point of G4 — distinguishing "leave unchanged" from "clear".
+        quote! {
+            let #ident: #ty = match #lookup {
+                ::core::option::Option::None => ::jsonapi_core::Field::Absent,
+                ::core::option::Option::Some(__v) if __v.is_null() => ::jsonapi_core::Field::Null,
+                ::core::option::Option::Some(__v) => ::jsonapi_core::Field::Set(
+                    ::jsonapi_core::__private::serde_json::from_value(__v.clone()).map_err(|__err| {
+                        <__D::Error as ::serde::de::Error>::custom(
+                            ::std::format!("field `{}`: {}", #wire, __err),
+                        )
+                    })?,
+                ),
+            };
+        }
+    } else if field.is_option {
         // Preserve pass-through semantics for `Option<serde_json::Value>`: we
         // deserialize on the *inner* type (via inference through the Some
         // branch), so `Option<Value>` with wire `null` yields
@@ -508,7 +591,7 @@ fn gen_field_extract(field: &ParsedField, source_var: &str) -> TokenStream {
             let #ident: #ty = match #lookup {
                 ::core::option::Option::Some(__v) => {
                     let __is_null = __v.is_null();
-                    match ::serde_json::from_value(__v.clone()) {
+                    match ::jsonapi_core::__private::serde_json::from_value(__v.clone()) {
                         ::core::result::Result::Ok(__parsed) => {
                             ::core::option::Option::Some(__parsed)
                         }
@@ -532,7 +615,7 @@ fn gen_field_extract(field: &ParsedField, source_var: &str) -> TokenStream {
         quote! {
             let #ident: #ty = match #lookup {
                 ::core::option::Option::Some(v) => {
-                    ::serde_json::from_value(v.clone()).map_err(|__err| {
+                    ::jsonapi_core::__private::serde_json::from_value(v.clone()).map_err(|__err| {
                         <__D::Error as ::serde::de::Error>::custom(
                             ::std::format!("field `{}`: {}", #wire, __err),
                         )
@@ -546,7 +629,7 @@ fn gen_field_extract(field: &ParsedField, source_var: &str) -> TokenStream {
             let __raw = #lookup
                 .ok_or_else(|| <__D::Error as ::serde::de::Error>::missing_field(#wire))?
                 .clone();
-            let #ident: #ty = ::serde_json::from_value(__raw).map_err(|__err| {
+            let #ident: #ty = ::jsonapi_core::__private::serde_json::from_value(__raw).map_err(|__err| {
                 <__D::Error as ::serde::de::Error>::custom(
                     ::std::format!("field `{}`: {}", #wire, __err),
                 )

@@ -1,19 +1,22 @@
 # Documents and Resources
 
 Every JSON:API exchange — request or response — is a **document**. `jsonapi_core`
-models the document with the [`Document<T>`] enum and the resource(s) inside it
-with the [`PrimaryData<T>`] enum.
+models the document with the [`Document<P, I>`] enum and the resource(s) inside it
+with the [`PrimaryData<P>`] enum.
 
 ## The `Document` enum
 
-A JSON:API document is exactly one of three shapes, and `Document<T>` reflects that
-with three variants:
+A JSON:API document is exactly one of three shapes, and `Document<P, I>` reflects
+that with three variants. It has **two** type parameters: `P` is the primary
+resource type (`data`), and `I` is the type of the `included` resources — which
+defaults to the dynamic [`Resource`], because a compound document's `included`
+array is usually heterogeneous:
 
 ```rust
-pub enum Document<T> {
+pub enum Document<P, I = Resource> {
     Data {
-        data: PrimaryData<T>,
-        included: Vec<T>,
+        data: PrimaryData<P>,
+        included: Vec<I>,
         meta: Option<Meta>,
         jsonapi: Option<JsonApiObject>,
         links: Option<Links>,
@@ -52,18 +55,21 @@ pub enum PrimaryData<T> {
 `Single` is boxed because, in practice, you frequently store collection responses
 elsewhere and a `Box<T>` keeps the enum small.
 
-## The two flavours of `T`
+## Choosing the type parameters
 
-`Document<T>` is generic. There are two natural choices for `T`:
+`Document<P, I = Resource>` is generic over both the primary type `P` and the
+`included` type `I`. Common combinations:
 
 | Choice | When to use |
 |--------|-------------|
-| A struct deriving `JsonApi` (e.g. `Document<Article>`) | The shape is known at compile time and all `included` items share that shape. |
-| `Document<Resource>` | You don't know the shape, or `included` mixes types. |
+| `Document<Article>` (i.e. `Document<Article, Resource>`) | Primary data is a known struct; `included` is heterogeneous (the default). |
+| `Document<Resource>` | You don't know the primary shape either — everything stays dynamic. |
+| `Document<Article, Article>` | Primary data *and* `included` are all the same known type (a homogeneous compound document). |
 
 In practice, a typical client uses `Document<Resource>` for response parsing
 (because `included` is heterogeneous) and `Document<MyStruct>` for serialization
-(because the request body is uniform).
+(because the request body is uniform). Because `I` defaults to `Resource`, you
+rarely name it explicitly.
 
 ## The `Resource` fallback
 
@@ -76,7 +82,7 @@ pub struct Resource {
     pub id: Option<String>,
     pub lid: Option<String>,
     pub attributes: serde_json::Value,
-    pub relationships: BTreeMap<String, RelationshipData>,
+    pub relationships: BTreeMap<String, ResourceRelationship>,
     pub links: Option<Links>,
     pub meta: Option<Meta>,
 }
@@ -107,12 +113,13 @@ pub trait ResourceObject: Serialize + for<'de> Deserialize<'de> {
     fn resource_id(&self) -> Option<&str>;
     fn resource_lid(&self) -> Option<&str> { None }
     fn field_names() -> &'static [&'static str];
-    fn type_info() -> TypeInfo where Self: Sized { /* default panics */ }
+    fn type_info() -> TypeInfo where Self: Sized;
 }
 ```
 
-The derive macro generates this impl for you. A hand-written impl is supported and
-described in the [Derive Macro Reference](./derive-macro-reference.md).
+`type_info()` is a **required** method — omitting it from a manual impl is a
+compile error. `#[derive(JsonApi)]` generates it automatically. A hand-written
+impl is supported and described in the [Derive Macro Reference](./derive-macro-reference.md).
 
 ## Building a successful document
 

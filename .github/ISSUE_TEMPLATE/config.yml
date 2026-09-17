@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: API documentation
+    url: https://docs.rs/jsonapi_core
+    about: Type-level reference for every public item.
+  - name: The jsonapi_core Guide
+    url: https://github.com/rankitbishnoi/jsonapi_core/blob/main/docs/SUMMARY.md
+    about: Chapter-by-chapter walkthrough of the crate.
+  - name: Security report
+    url: https://github.com/rankitbishnoi/jsonapi_core/blob/main/SECURITY.md
+    about: Please report security vulnerabilities privately, not as a public issue.

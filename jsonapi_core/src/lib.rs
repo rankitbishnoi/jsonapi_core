@@ -1,4 +1,6 @@
-#![warn(missing_docs)]
+#![deny(missing_docs)]
+#![deny(rustdoc::broken_intra_doc_links)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 //! # jsonapi_core
 //!
 //! A typed [JSON:API v1.1](https://jsonapi.org/format/) serialization library for Rust.
@@ -139,8 +141,8 @@
 //! [`Error::UnexpectedDocumentShape`] when the shape is wrong:
 //!
 //! - [`Document::into_single`] / [`Document::into_many`] / [`Document::into_meta`] — consuming.
-//! - [`Document::as_single`] / [`Document::as_many`] / [`Document::primary`] / [`Document::included`] — borrowing.
-//! - [`Document::from_str`] / [`Document::from_slice`] / [`Document::from_value`] —
+//! - [`Document::try_as_single`] / [`Document::try_as_many`] / [`Document::primary`] / [`Document::included`] — borrowing.
+//! - [`Document::parse`] / [`Document::from_slice`] / [`Document::from_value`] —
 //!   parse with a structural pre-pass that surfaces
 //!   [`Error::TypeMismatch`], [`Error::MalformedRelationship`],
 //!   [`Error::MissingAttribute`], and [`Error::IncludedRefMissing`]
@@ -200,7 +202,7 @@
 //!
 //! When you don't know the schema at compile time, use [`Resource`] as an open-set
 //! fallback. It stores attributes as `serde_json::Value` and relationships as a
-//! `HashMap`.
+//! `BTreeMap<String, ResourceRelationship>` (preserving relationship-level links and meta).
 //!
 //! ```
 //! use jsonapi_core::{Document, PrimaryData, Resource, ResourceObject};
@@ -372,7 +374,8 @@
 //! let mt = validate_content_type("application/vnd.api+json").unwrap();
 //! assert!(mt.ext.is_empty());
 //!
-//! // Negotiate an Accept header (returns server capabilities)
+//! // Negotiate an Accept header (returns the client's requested ext/profile
+//! // filtered by server capabilities)
 //! let response = negotiate_accept(
 //!     "application/vnd.api+json, application/json",
 //!     &[],  // server extensions
@@ -448,38 +451,59 @@
 //! | `derive` | yes | Re-exports `#[derive(JsonApi)]` from `jsonapi_core_derive` |
 //! | `atomic-ops` | no | Atomic Operations extension types (`atomic` module) |
 
+pub mod builder;
 pub mod case;
 pub mod error;
+pub mod field;
 pub mod fieldset;
+pub mod links;
 pub mod media_type;
 pub mod model;
+pub mod pagination;
 pub mod query;
 pub mod registry;
 pub mod type_registry;
 pub mod validation;
 
 #[cfg(feature = "atomic-ops")]
+#[cfg_attr(docsrs, doc(cfg(feature = "atomic-ops")))]
 pub mod atomic;
 
+pub use builder::DocumentBuilder;
 pub use case::{CaseConfig, CaseConvention};
-pub use error::{Error, Result};
+pub use error::{Cardinality, Error, Result};
+pub use field::Field;
 pub use fieldset::{FieldsetConfig, SparseSerializer, sparse_filter};
 pub use media_type::{JsonApiMediaType, negotiate_accept, validate_content_type};
 pub use model::{
     ApiError, Document, ErrorLinks, ErrorSource, HasLinks, HasMeta, Hreflang, Identity,
     JsonApiObject, Link, LinkObject, Links, Meta, PrimaryData, Relationship, RelationshipData,
-    Resource, ResourceIdentifier, ResourceObject,
+    Resource, ResourceIdentifier, ResourceObject, ResourceRelationship, ResourceType,
 };
-pub use query::QueryBuilder;
+pub use pagination::{
+    CURSOR_PAGINATION_PROFILE, CursorLinks, CursorPage, OffsetPage, PageNumberPage, PageStrategy,
+    PageWindow, PaginationLinks,
+};
+pub use query::{Query, QueryBuilder, SortField};
 pub use registry::{Registry, ResolveConfig};
 pub use type_registry::{TypeInfo, TypeRegistry};
 pub use validation::{MemberNameKind, validate_member_name};
 
 #[cfg(feature = "atomic-ops")]
+#[cfg_attr(docsrs, doc(cfg(feature = "atomic-ops")))]
 pub use atomic::{
     ATOMIC_EXT_URI, AtomicOperation, AtomicRequest, AtomicResponse, AtomicResult, OperationRef,
     OperationTarget,
 };
 
 #[cfg(feature = "derive")]
+#[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 pub use jsonapi_core_derive::JsonApi;
+
+#[doc(hidden)]
+pub mod __private {
+    //! Not public API. Re-exports referenced by `#[derive(JsonApi)]`-generated
+    //! code so a `jsonapi_core` dependency alone suffices — downstream crates
+    //! that only derive `JsonApi` need not also declare `serde_json` themselves.
+    pub use serde_json;
+}

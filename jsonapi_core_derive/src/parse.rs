@@ -67,6 +67,10 @@ pub struct ParsedField {
     pub aliases: Vec<String>,
     pub is_option: bool,
     pub is_vec: bool,
+    /// Whether the field is a `Field<T>` tri-state (JSON:API `PATCH` member).
+    /// Such fields carry presence (absent / null / set) and are therefore never
+    /// treated as required.
+    pub is_field: bool,
     pub rel_target_type: Option<String>,
 }
 
@@ -143,6 +147,7 @@ fn parse_fields(input: &DeriveInput, struct_attrs: &StructAttrs) -> syn::Result<
         let ty = field.ty.clone();
         let is_option = is_option_type(&ty);
         let is_vec = is_vec_type(&ty);
+        let is_field = is_field_type(&ty);
 
         let mut kind = FieldKind::Attribute;
         let mut rename: Option<String> = None;
@@ -231,6 +236,7 @@ fn parse_fields(input: &DeriveInput, struct_attrs: &StructAttrs) -> syn::Result<
             aliases,
             is_option,
             is_vec,
+            is_field,
             rel_target_type,
         });
     }
@@ -356,6 +362,22 @@ fn is_vec_type(ty: &Type) -> bool {
         type_path.qself.is_none()
             && type_path.path.segments.len() == 1
             && type_path.path.segments[0].ident == "Vec"
+    } else {
+        false
+    }
+}
+
+/// Whether `ty` is the tri-state `Field<T>` (matched by the last path segment,
+/// so both `Field<T>` and `jsonapi_core::Field<T>` are recognized). Type aliases
+/// are not resolved.
+fn is_field_type(ty: &Type) -> bool {
+    if let Type::Path(type_path) = ty {
+        type_path.qself.is_none()
+            && type_path
+                .path
+                .segments
+                .last()
+                .is_some_and(|segment| segment.ident == "Field")
     } else {
         false
     }

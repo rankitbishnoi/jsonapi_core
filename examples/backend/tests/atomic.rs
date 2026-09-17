@@ -1,0 +1,338 @@
+#[path = "support.rs"]
+mod support;
+use axum::http::StatusCode;
+use axum::http::header;
+use jsonapi_axum::testing::{RouterTestExt, TestRequest};
+use serde_json::json;
+
+const ATOMIC_CT: &str = "application/vnd.api+json; ext=\"https://jsonapi.org/ext/atomic\"";
+
+#[tokio::test]
+async fn atomic_add_author_then_article_referencing_lid() {
+    let app = support::seeded_app().await;
+    let res = app
+        .send(
+            TestRequest::post("/operations")
+                .header(header::CONTENT_TYPE, ATOMIC_CT)
+                .header(header::ACCEPT, ATOMIC_CT)
+                .body_json(&json!({ "atomic:operations": [
+                    { "op": "add", "data": { "type": "authors", "lid": "auth-1",
+                        "attributes": { "name": "Grace Hopper", "email": "grace@example.com" } } },
+                    { "op": "add", "data": { "type": "articles",
+                        "attributes": { "title": "Atomic", "body": "Made atomically" },
+                        "relationships": { "author": { "data": { "type": "authors", "lid": "auth-1" } } } } }
+                ] }))
+                .build(),
+        )
+        .await;
+
+    let res = res.assert_status(StatusCode::OK);
+    let body = res.json();
+    let results = body["atomic:results"]
+        .as_array()
+        .expect("atomic:results array");
+    assert_eq!(results.len(), 2);
+    assert_eq!(results[0]["data"]["type"], "authors");
+    assert_eq!(results[0]["data"]["attributes"]["name"], "Grace Hopper");
+    assert_eq!(results[1]["data"]["type"], "articles");
+    assert_eq!(results[1]["data"]["attributes"]["title"], "Atomic");
+
+    // The created article's author id must equal the created author's id (lid resolved).
+    let author_id = results[0]["data"]["id"].as_str().expect("author id");
+    assert_eq!(
+        results[1]["data"]["relationships"]["author"]["data"]["id"],
+        author_id
+    );
+}
+
+#[tokio::test]
+async fn atomic_unresolvable_lid_is_rejected() {
+    let app = support::seeded_app().await;
+    let res = app
+        .send(
+            TestRequest::post("/operations")
+                .header(header::CONTENT_TYPE, ATOMIC_CT)
+                .header(header::ACCEPT, ATOMIC_CT)
+                .body_json(&json!({ "atomic:operations": [
+                    { "op": "update", "ref": { "type": "authors", "lid": "ghost" },
+                      "data": { "type": "authors", "lid": "ghost", "attributes": { "name": "X" } } }
+                ] }))
+                .build(),
+        )
+        .await;
+
+    // validate_lid_refs rejects a ref lid never introduced (400 Bad Request).
+    assert!(
+        res.status == StatusCode::BAD_REQUEST || res.status == StatusCode::UNPROCESSABLE_ENTITY,
+        "expected 400 or 422, got {}",
+        res.status
+    );
+}
+
+#[tokio::test]
+async fn atomic_rolls_back_on_failure() {
+    let app = support::seeded_app().await;
+
+    // Op 0: add an article with a known client-supplied id.
+    // Op 1: remove a non-existent article -> fails with 404.
+    // Expected: the whole transaction rolls back, so "rollback-art" must not exist.
+    let res = app
+        .clone()
+        .send(
+            TestRequest::post("/operations")
+                .header(header::CONTENT_TYPE, ATOMIC_CT)
+                .header(header::ACCEPT, ATOMIC_CT)
+                .body_json(&json!({ "atomic:operations": [
+                    { "op": "add", "data": { "type": "articles", "id": "rollback-art",
+                        "attributes": { "title": "Doomed", "body": "rolled back" },
+                        "relationships": { "author": { "data": { "type": "authors", "id": "a1" } } } } },
+                    { "op": "remove", "ref": { "type": "articles", "id": "does-not-exist" } }
+                ] }))
+                .build(),
+        )
+        .await;
+
+    assert!(
+        res.status.as_u16() >= 400,
+        "expected failure status, got {}",
+        res.status
+    );
+
+    // Prove rollback: the article from op 0 must NOT be present.
+    let get = app
+        .send(
+            TestRequest::get("/articles/rollback-art")
+                .accept_json_api()
+                .build(),
+        )
+        .await;
+    get.assert_error(StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn atomic_add_author_standalone() {
+    let app = support::app().await;
+    let res = app
+        .send(
+            TestRequest::post("/operations")
+                .header(header::CONTENT_TYPE, ATOMIC_CT)
+                .header(header::ACCEPT, ATOMIC_CT)
+                .body_json(&json!({ "atomic:operations": [
+                    { "op": "add", "data": { "type": "authors",
+                        "attributes": { "name": "Ada Lovelace", "email": "ada@example.com" } } }
+                ] }))
+                .build(),
+        )
+        .await;
+
+    let res = res.assert_status(StatusCode::OK);
+    let body = res.json();
+    let results = body["atomic:results"].as_array().expect("results");
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0]["data"]["type"], "authors");
+    assert_eq!(results[0]["data"]["attributes"]["name"], "Ada Lovelace");
+    assert!(
+        results[0]["data"]["id"].as_str().is_some(),
+        "server assigns id"
+    );
+}
+
+#[tokio::test]
+async fn atomic_update_author() {
+    let app = support::seeded_app().await;
+
+    // First: add an author to get a server-assigned id.
+    let create_res = app
+        .clone()
+        .send(
+            TestRequest::post("/operations")
+                .header(header::CONTENT_TYPE, ATOMIC_CT)
+                .header(header::ACCEPT, ATOMIC_CT)
+                .body_json(&json!({ "atomic:operations": [
+                    { "op": "add", "data": { "type": "authors", "lid": "u1",
+                        "attributes": { "name": "Old Name", "email": "old@example.com" } } }
+                ] }))
+                .build(),
+        )
+        .await
+        .assert_status(StatusCode::OK);
+
+    let author_id = create_res.json()["atomic:results"][0]["data"]["id"]
+        .as_str()
+        .expect("id")
+        .to_owned();
+
+    // Now update with the real id.
+    let update_res = app
+        .send(
+            TestRequest::post("/operations")
+                .header(header::CONTENT_TYPE, ATOMIC_CT)
+                .header(header::ACCEPT, ATOMIC_CT)
+                .body_json(&json!({ "atomic:operations": [
+                    { "op": "update",
+                      "ref": { "type": "authors", "id": author_id },
+                      "data": { "type": "authors", "id": author_id,
+                                "attributes": { "name": "New Name" } } }
+                ] }))
+                .build(),
+        )
+        .await
+        .assert_status(StatusCode::OK);
+
+    assert_eq!(
+        update_res.json()["atomic:results"][0]["data"]["attributes"]["name"],
+        "New Name"
+    );
+}
+
+#[tokio::test]
+async fn atomic_remove_author() {
+    let app = support::app().await;
+
+    // Add then remove.
+    let add_res = app
+        .clone()
+        .send(
+            TestRequest::post("/operations")
+                .header(header::CONTENT_TYPE, ATOMIC_CT)
+                .header(header::ACCEPT, ATOMIC_CT)
+                .body_json(&json!({ "atomic:operations": [
+                    { "op": "add", "data": { "type": "authors",
+                        "attributes": { "name": "To Remove", "email": "remove@example.com" } } }
+                ] }))
+                .build(),
+        )
+        .await
+        .assert_status(StatusCode::OK);
+
+    let author_id = add_res.json()["atomic:results"][0]["data"]["id"]
+        .as_str()
+        .expect("id")
+        .to_owned();
+
+    let remove_res = app
+        .send(
+            TestRequest::post("/operations")
+                .header(header::CONTENT_TYPE, ATOMIC_CT)
+                .header(header::ACCEPT, ATOMIC_CT)
+                .body_json(&json!({ "atomic:operations": [
+                    { "op": "remove", "ref": { "type": "authors", "id": author_id } }
+                ] }))
+                .build(),
+        )
+        .await
+        .assert_status(StatusCode::OK);
+
+    // Remove result is an empty object ({} — AtomicResult::default() serializes that way).
+    let results = remove_res.json()["atomic:results"]
+        .as_array()
+        .expect("results");
+    assert_eq!(results.len(), 1);
+    // data is omitted for removes — the result is the empty object `{}`.
+    assert!(results[0].get("data").is_none());
+}
+
+#[tokio::test]
+async fn atomic_remove_nonexistent_returns_error() {
+    let app = support::app().await;
+    let res = app
+        .send(
+            TestRequest::post("/operations")
+                .header(header::CONTENT_TYPE, ATOMIC_CT)
+                .header(header::ACCEPT, ATOMIC_CT)
+                .body_json(&json!({ "atomic:operations": [
+                    { "op": "remove", "ref": { "type": "authors", "id": "no-such-id" } }
+                ] }))
+                .build(),
+        )
+        .await;
+
+    assert!(
+        res.status.as_u16() >= 400,
+        "expected error status, got {}",
+        res.status
+    );
+}
+
+#[tokio::test]
+async fn atomic_unsupported_type_returns_error() {
+    let app = support::app().await;
+    let res = app
+        .send(
+            TestRequest::post("/operations")
+                .header(header::CONTENT_TYPE, ATOMIC_CT)
+                .header(header::ACCEPT, ATOMIC_CT)
+                .body_json(&json!({ "atomic:operations": [
+                    { "op": "add", "data": { "type": "widgets",
+                        "attributes": { "color": "blue" } } }
+                ] }))
+                .build(),
+        )
+        .await;
+
+    assert!(
+        res.status == StatusCode::UNPROCESSABLE_ENTITY,
+        "expected 422, got {}",
+        res.status
+    );
+}
+
+/// A syntactically invalid resource type (e.g. containing `!`) must be
+/// rejected with 400 **before** reaching the unsupported-type 422 branch,
+/// proving that `validate_member_name` runs on client-supplied input.
+#[tokio::test]
+async fn atomic_invalid_member_name_type_is_rejected_400() {
+    let app = support::app().await;
+    let res = app
+        .send(
+            TestRequest::post("/operations")
+                .header(header::CONTENT_TYPE, ATOMIC_CT)
+                .header(header::ACCEPT, ATOMIC_CT)
+                .body_json(&json!({ "atomic:operations": [
+                    { "op": "add", "data": { "type": "not a valid type!",
+                        "attributes": { "name": "X", "email": "x@example.com" } } }
+                ] }))
+                .build(),
+        )
+        .await;
+
+    assert_eq!(
+        res.status,
+        StatusCode::BAD_REQUEST,
+        "expected 400 for invalid member name, got {}",
+        res.status
+    );
+}
+
+// An article `add` whose `author` linkage references a `lid` that no earlier
+// `add` introduced is not caught by `validate_lid_refs` (which only checks ref
+// targets); `resolve_author_id` rejects it with a 422 carrying the exact pointer.
+#[tokio::test]
+async fn atomic_article_with_unresolved_author_lid_is_422_with_pointer() {
+    let app = support::seeded_app().await;
+    let res = app
+        .send(
+            TestRequest::post("/operations")
+                .header(header::CONTENT_TYPE, ATOMIC_CT)
+                .header(header::ACCEPT, ATOMIC_CT)
+                .body_json(&json!({ "atomic:operations": [
+                    { "op": "add", "data": { "type": "articles",
+                        "attributes": { "title": "Orphan", "body": "no author" },
+                        "relationships": { "author": { "data": { "type": "authors", "lid": "never-added" } } } } }
+                ] }))
+                .build(),
+        )
+        .await;
+
+    assert_eq!(
+        res.status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "expected 422, got {}",
+        res.status
+    );
+    let errors = res.errors().as_array().expect("errors array");
+    assert_eq!(
+        errors[0]["source"]["pointer"],
+        "/data/relationships/author/data/lid"
+    );
+}

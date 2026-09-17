@@ -17,11 +17,22 @@
 # Working with Requests and Responses
 
 - [The Query Builder](./query-builder.md)
+- [Query Parsing](./query-parsing.md)
+- [Cursor Pagination](./pagination.md)
+- [Building Responses](./building-responses.md)
 - [Sparse Fieldsets](./sparse-fieldsets.md)
 - [Include Path Validation](./include-validation.md)
 - [Content Negotiation](./content-negotiation.md)
 - [Member Name Validation](./member-name-validation.md)
 - [Error Handling](./error-handling.md)
+
+# Building HTTP Servers
+
+- [Overview](./http-servers.md)
+- [Extractors and Responders](./axum-extractors-responders.md)
+- [Error Handling in axum](./axum-error-handling.md)
+- [Compound Documents and Pagination](./axum-includes-pagination.md)
+- [Testing axum Handlers](./axum-testing.md)
 
 # Extensions
 

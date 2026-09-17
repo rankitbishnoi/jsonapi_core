@@ -1,0 +1,40 @@
+# Run the backend against an on-disk SQLite db (seeds on first run).
+run-backend:
+    DATABASE_URL="sqlite://showcase.db?mode=rwc" cargo run --manifest-path backend/Cargo.toml
+
+# Run all backend tests (in-memory db, no external services).
+test:
+    cargo test -p jsonapi-showcase-backend
+
+# Lint: clippy with warnings denied + rustfmt check.
+lint:
+    cargo clippy -p jsonapi-showcase-backend --all-targets -- -D warnings
+    cargo fmt --check
+
+# Format the code.
+fmt:
+    cargo fmt
+
+# Serve the frontend SPA (Trunk dev server on :8081). Backend must be running.
+run-frontend:
+    cd frontend && trunk serve
+
+# Production build of the static SPA bundle into frontend/dist.
+build-frontend:
+    cd frontend && trunk build --release
+
+# Frontend tests: native unit tests + wasm store smoke test (runs under node).
+test-frontend:
+    cargo test -p jsonapi-showcase-frontend --lib
+    cd frontend && CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=wasm-bindgen-test-runner cargo test -p jsonapi-showcase-frontend --target wasm32-unknown-unknown --test frontend_wasm
+
+# Everything green: backend + frontend tests (incl. wasm under node), frontend
+# build, fmt, clippy (both targets). Requires wasm-bindgen-test-runner installed.
+check-all:
+    cargo test -p jsonapi-showcase-backend
+    cargo test -p jsonapi-showcase-frontend --lib
+    cd frontend && CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=wasm-bindgen-test-runner cargo test -p jsonapi-showcase-frontend --target wasm32-unknown-unknown --test frontend_wasm
+    cd frontend && trunk build
+    cargo fmt --check
+    cargo clippy -p jsonapi-showcase-backend -p jsonapi-showcase-resources --all-targets -- -D warnings
+    cargo clippy -p jsonapi-showcase-frontend --target wasm32-unknown-unknown --all-targets -- -D warnings

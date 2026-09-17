@@ -1,0 +1,7 @@
+error[E0046]: not all trait items implemented, missing: `type_info`
+  --> tests/compile_fail/missing_type_info.rs:11:1
+   |
+11 | impl ResourceObject for Widget {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ missing `type_info` in implementation
+   |
+   = help: implement the missing item: `fn type_info() -> TypeInfo { todo!() }`

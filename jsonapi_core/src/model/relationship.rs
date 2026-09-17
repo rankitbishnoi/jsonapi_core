@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use serde::de;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use super::{Links, Meta, ResourceIdentifier};
+use super::{Identity, Links, Meta, ResourceIdentifier};
 
 /// Resource linkage inside a relationship.
 #[non_exhaustive]
@@ -50,6 +50,202 @@ impl<'de> Deserialize<'de> for RelationshipData {
     }
 }
 
+/// Dynamic relationship object for the untyped [`Resource`](crate::Resource)
+/// fallback.
+///
+/// Unlike [`Relationship<T>`], it carries no phantom target type and its linkage
+/// `data` is optional: JSON:API permits a relationship object that has only
+/// `links` and/or `meta` and no `data` member.
+#[derive(Debug, Clone, PartialEq, Default)]
+#[non_exhaustive]
+pub struct ResourceRelationship {
+    /// Linkage data. `None` when the relationship object carries only `links`
+    /// and/or `meta`.
+    pub data: Option<RelationshipData>,
+    /// Relationship-level links.
+    pub links: Option<Links>,
+    /// Relationship-level meta information.
+    pub meta: Option<Meta>,
+}
+
+impl From<Links> for ResourceRelationship {
+    /// A relationship object carrying only `links` (no `data` or `meta`).
+    fn from(links: Links) -> Self {
+        Self::from_links(links)
+    }
+}
+
+impl From<Meta> for ResourceRelationship {
+    /// A relationship object carrying only `meta` (no `data` or `links`).
+    fn from(meta: Meta) -> Self {
+        Self::from_meta(meta)
+    }
+}
+
+impl ResourceRelationship {
+    /// Construct from linkage data alone (no `links` or `meta`).
+    #[must_use]
+    pub fn new(data: RelationshipData) -> Self {
+        Self {
+            data: Some(data),
+            links: None,
+            meta: None,
+        }
+    }
+
+    /// Construct from relationship-level links alone (no `data` or `meta`).
+    ///
+    /// JSON:API permits a relationship object with only `links` (e.g. a
+    /// `related` link and no linkage). Chain [`with_data`](Self::with_data) or
+    /// [`with_meta`](Self::with_meta) to add more.
+    #[must_use]
+    pub fn from_links(links: Links) -> Self {
+        Self {
+            data: None,
+            links: Some(links),
+            meta: None,
+        }
+    }
+
+    /// Construct from relationship-level meta alone (no `data` or `links`).
+    #[must_use]
+    pub fn from_meta(meta: Meta) -> Self {
+        Self {
+            data: None,
+            links: None,
+            meta: Some(meta),
+        }
+    }
+
+    /// Attach (or replace) linkage data, builder-style.
+    #[must_use]
+    pub fn with_data(mut self, data: RelationshipData) -> Self {
+        self.data = Some(data);
+        self
+    }
+
+    /// Attach (or replace) relationship-level links, builder-style.
+    #[must_use]
+    pub fn with_links(mut self, links: Links) -> Self {
+        self.links = Some(links);
+        self
+    }
+
+    /// Attach (or replace) relationship-level meta, builder-style.
+    #[must_use]
+    pub fn with_meta(mut self, meta: Meta) -> Self {
+        self.meta = Some(meta);
+        self
+    }
+
+    /// Unified slice of every identifier in the linkage, regardless of
+    /// cardinality. Empty for no `data`, a null to-one, or an empty to-many.
+    #[must_use]
+    pub fn identifiers(&self) -> &[ResourceIdentifier] {
+        match &self.data {
+            Some(RelationshipData::ToOne(Some(rid))) => std::slice::from_ref(rid),
+            Some(RelationshipData::ToMany(rids)) => rids.as_slice(),
+            _ => &[],
+        }
+    }
+
+    /// The [`Identity`] of a to-one linkage, or `None` when there is no `data`,
+    /// the to-one is null, or the relationship is to-many. Mirrors the typed
+    /// [`Relationship::single_id`] path for the dynamic [`Resource`](crate::Resource).
+    #[must_use]
+    pub fn to_one_identity(&self) -> Option<&Identity> {
+        match &self.data {
+            Some(RelationshipData::ToOne(Some(rid))) => Some(&rid.identity),
+            _ => None,
+        }
+    }
+
+    /// The first server-assigned `id` in the linkage, or `None` for a null
+    /// to-one, empty to-many, or `lid`-only identifiers.
+    #[must_use]
+    pub fn first_id(&self) -> Option<&str> {
+        self.identifiers()
+            .iter()
+            .find_map(|rid| rid.identity.as_id())
+    }
+
+    /// The first identifier — server `id` or client `lid` — as a `&str`, or
+    /// `None` when the linkage carries no identifier.
+    #[must_use]
+    pub fn first_id_or_lid(&self) -> Option<&str> {
+        self.identifiers()
+            .first()
+            .and_then(|rid| rid.identity.as_id().or_else(|| rid.identity.as_lid()))
+    }
+
+    /// Parse a relationship object from an already-buffered JSON object.
+    /// Enforces the JSON:API rule that a relationship object contains at least
+    /// one of `data`, `links`, or `meta`. Shared by the `Deserialize` impl and
+    /// by `Resource`'s deserializer so the invariant lives in one place and the
+    /// dynamic hot path avoids a second round-trip through `serde_json::Value`.
+    pub(crate) fn from_json_object(
+        obj: &serde_json::Map<String, serde_json::Value>,
+    ) -> Result<Self, String> {
+        let data: Option<RelationshipData> = obj
+            .get("data")
+            .map(Deserialize::deserialize)
+            .transpose()
+            .map_err(|e: serde_json::Error| e.to_string())?;
+        let links: Option<Links> = obj
+            .get("links")
+            .map(Deserialize::deserialize)
+            .transpose()
+            .map_err(|e: serde_json::Error| e.to_string())?;
+        let meta: Option<Meta> = obj
+            .get("meta")
+            .map(Deserialize::deserialize)
+            .transpose()
+            .map_err(|e: serde_json::Error| e.to_string())?;
+        if data.is_none() && links.is_none() && meta.is_none() {
+            return Err(
+                "relationship object must contain at least one of `data`, `links`, or `meta`"
+                    .to_string(),
+            );
+        }
+        Ok(ResourceRelationship { data, links, meta })
+    }
+
+    /// Emit the relationship object's wire shape into a JSON object map.
+    /// Shared by the `Serialize` impl and by `Resource`'s serializer.
+    pub(crate) fn to_json_object(
+        &self,
+    ) -> Result<serde_json::Map<String, serde_json::Value>, serde_json::Error> {
+        let mut obj = serde_json::Map::new();
+        if let Some(ref data) = self.data {
+            obj.insert("data".to_string(), serde_json::to_value(data)?);
+        }
+        if let Some(ref links) = self.links {
+            obj.insert("links".to_string(), serde_json::to_value(links)?);
+        }
+        if let Some(ref meta) = self.meta {
+            obj.insert("meta".to_string(), serde_json::to_value(meta)?);
+        }
+        Ok(obj)
+    }
+}
+
+impl Serialize for ResourceRelationship {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let obj = self.to_json_object().map_err(serde::ser::Error::custom)?;
+        serde_json::Value::Object(obj).serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for ResourceRelationship {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = serde_json::Value::deserialize(deserializer)?;
+        let obj = value
+            .as_object()
+            .ok_or_else(|| de::Error::custom("relationship object must be a JSON object"))?;
+        ResourceRelationship::from_json_object(obj).map_err(de::Error::custom)
+    }
+}
+
 /// Typed relationship reference. Carries the target type as a phantom
 /// for type-safe registry lookups.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -68,6 +264,7 @@ pub struct Relationship<T> {
 
 impl<T> Relationship<T> {
     /// Create a new relationship with the given linkage data.
+    #[must_use]
     pub fn new(data: RelationshipData) -> Self {
         Self {
             data,
@@ -75,6 +272,40 @@ impl<T> Relationship<T> {
             meta: None,
             _phantom: PhantomData,
         }
+    }
+
+    /// Convenience constructor for a to-one relationship pointing at a single
+    /// identifier.
+    #[must_use]
+    pub fn to_one(rid: ResourceIdentifier) -> Self {
+        Self::new(RelationshipData::ToOne(Some(rid)))
+    }
+
+    /// Convenience constructor for an explicitly null (empty) to-one
+    /// relationship.
+    #[must_use]
+    pub fn to_one_null() -> Self {
+        Self::new(RelationshipData::ToOne(None))
+    }
+
+    /// Convenience constructor for a to-one relationship, building the
+    /// identifier from a `type`/`id` pair.
+    ///
+    /// ```
+    /// # use jsonapi_core::Relationship;
+    /// let rel = Relationship::<()>::to_one_id("authors", "42");
+    /// assert_eq!(rel.first_id(), Some("42"));
+    /// ```
+    #[must_use]
+    pub fn to_one_id(r#type: impl Into<String>, id: impl Into<String>) -> Self {
+        Self::to_one(ResourceIdentifier::new(r#type, id))
+    }
+
+    /// Convenience constructor for a to-many relationship from any iterator of
+    /// identifiers.
+    #[must_use]
+    pub fn to_many(rids: impl IntoIterator<Item = ResourceIdentifier>) -> Self {
+        Self::new(RelationshipData::ToMany(rids.into_iter().collect()))
     }
 
     /// Unified slice view of every identifier inside the relationship,
@@ -103,6 +334,9 @@ impl<T> Relationship<T> {
     /// The first server-assigned ID in the relationship, or `None` if the
     /// relationship is null-to-one, empty-to-many, or contains only local
     /// identifiers.
+    ///
+    /// For a required to-one where absence should be an error rather than
+    /// `None`, use [`single_id`](Self::single_id), which returns a `Result`.
     #[must_use]
     pub fn first_id(&self) -> Option<&str> {
         self.ids().next()
@@ -126,17 +360,15 @@ impl<T> Relationship<T> {
     /// the compiler to remind you to handle the null and to-many cases:
     ///
     /// - [`crate::Error::NullRelationship`] for `ToOne(None)`.
-    /// - [`crate::Error::LidNotIndexed`] for `ToOne(Some(lid-only))`.
+    /// - [`crate::Error::LidNotAllowed`] for `ToOne(Some(lid-only))`.
     /// - [`crate::Error::RelationshipCardinalityMismatch`] for `ToMany`.
     pub fn single_id(&self) -> crate::Result<&str> {
         match &self.data {
-            RelationshipData::ToOne(Some(rid)) => {
-                rid.identity.as_id().ok_or(crate::Error::LidNotIndexed)
-            }
+            RelationshipData::ToOne(Some(rid)) => rid.require_id(),
             RelationshipData::ToOne(None) => Err(crate::Error::NullRelationship),
-            RelationshipData::ToMany(_) => {
-                Err(crate::Error::RelationshipCardinalityMismatch { expected: "to-one" })
-            }
+            RelationshipData::ToMany(_) => Err(crate::Error::RelationshipCardinalityMismatch {
+                expected: crate::Cardinality::ToOne,
+            }),
         }
     }
 }
@@ -145,6 +377,119 @@ impl<T> Relationship<T> {
 mod tests {
     use super::*;
     use crate::model::Identity;
+
+    #[test]
+    fn resource_relationship_serialize_omits_none_fields() {
+        let rel = ResourceRelationship::new(RelationshipData::ToOne(Some(rid("people", "9"))));
+        let v = serde_json::to_value(&rel).unwrap();
+        assert_eq!(v["data"]["id"], "9");
+        assert!(v.get("links").is_none());
+        assert!(v.get("meta").is_none());
+    }
+
+    #[test]
+    fn resource_relationship_serialize_null_to_one_emits_data_null() {
+        let rel = ResourceRelationship::new(RelationshipData::ToOne(None));
+        let v = serde_json::to_value(&rel).unwrap();
+        assert!(v.get("data").is_some());
+        assert!(v["data"].is_null());
+    }
+
+    #[test]
+    fn resource_relationship_deserialize_preserves_links_and_meta() {
+        let json =
+            r#"{"data":{"type":"people","id":"9"},"links":{"related":"/a/1"},"meta":{"c":1}}"#;
+        let rel: ResourceRelationship = serde_json::from_str(json).unwrap();
+        assert!(matches!(rel.data, Some(RelationshipData::ToOne(Some(_)))));
+        assert!(rel.links.is_some());
+        assert!(rel.meta.is_some());
+    }
+
+    #[test]
+    fn resource_relationship_deserialize_links_only_has_no_data() {
+        let json = r#"{"links":{"related":"/a/1"}}"#;
+        let rel: ResourceRelationship = serde_json::from_str(json).unwrap();
+        assert!(rel.data.is_none());
+        assert!(rel.links.is_some());
+    }
+
+    #[test]
+    fn resource_relationship_deserialize_rejects_empty_object() {
+        let err = serde_json::from_str::<ResourceRelationship>("{}").unwrap_err();
+        assert!(err.to_string().contains("at least one of"), "got: {err}");
+    }
+
+    #[test]
+    fn resource_relationship_round_trip_is_stable() {
+        let json = r#"{"data":null,"meta":{"k":"v"}}"#;
+        let rel: ResourceRelationship = serde_json::from_str(json).unwrap();
+        let out = serde_json::to_value(&rel).unwrap();
+        assert!(out["data"].is_null());
+        assert_eq!(out["meta"]["k"], "v");
+    }
+
+    #[test]
+    fn resource_relationship_from_links_is_links_only() {
+        let mut links = Links::new();
+        links.insert("related", Some(crate::Link::String("/a/1".into())));
+        let rel = ResourceRelationship::from_links(links);
+        assert!(rel.data.is_none());
+        assert!(rel.meta.is_none());
+        let v = serde_json::to_value(&rel).unwrap();
+        assert!(v.get("data").is_none());
+        assert_eq!(v["links"]["related"], "/a/1");
+    }
+
+    #[test]
+    fn resource_relationship_builder_chaining_composes_members() {
+        let mut meta = serde_json::Map::new();
+        meta.insert("count".into(), serde_json::json!(2));
+        let rel = ResourceRelationship::new(RelationshipData::ToOne(Some(rid("people", "9"))))
+            .with_meta(meta);
+        assert!(matches!(rel.data, Some(RelationshipData::ToOne(Some(_)))));
+        assert!(rel.meta.is_some());
+        assert!(rel.links.is_none());
+    }
+
+    #[test]
+    fn resource_relationship_to_one_identity_and_ids() {
+        let rel = ResourceRelationship::new(RelationshipData::ToOne(Some(rid("people", "9"))));
+        assert_eq!(rel.to_one_identity(), Some(&Identity::Id("9".into())));
+        assert_eq!(rel.first_id(), Some("9"));
+        assert_eq!(rel.first_id_or_lid(), Some("9"));
+    }
+
+    #[test]
+    fn resource_relationship_lid_only_to_one() {
+        let rel = ResourceRelationship::new(RelationshipData::ToOne(Some(lid_rid("tags", "t1"))));
+        assert_eq!(rel.first_id(), None);
+        assert_eq!(rel.first_id_or_lid(), Some("t1"));
+        assert!(matches!(rel.to_one_identity(), Some(Identity::Lid(_))));
+    }
+
+    #[test]
+    fn resource_relationship_no_data_and_null_to_one_have_no_identity() {
+        let links_only = ResourceRelationship::from_meta(serde_json::Map::new());
+        assert_eq!(links_only.to_one_identity(), None);
+        assert_eq!(links_only.first_id_or_lid(), None);
+        assert!(links_only.identifiers().is_empty());
+
+        let null_to_one = ResourceRelationship::new(RelationshipData::ToOne(None));
+        assert_eq!(null_to_one.to_one_identity(), None);
+        assert!(null_to_one.identifiers().is_empty());
+    }
+
+    #[test]
+    fn resource_relationship_to_many_identifiers_and_first() {
+        let rel = ResourceRelationship::new(RelationshipData::ToMany(vec![
+            rid("tags", "1"),
+            rid("tags", "2"),
+        ]));
+        assert_eq!(rel.identifiers().len(), 2);
+        assert_eq!(rel.first_id(), Some("1"));
+        // to-many has no single to-one identity.
+        assert_eq!(rel.to_one_identity(), None);
+    }
 
     #[test]
     fn test_relationship_data_to_one() {
@@ -207,6 +552,35 @@ mod tests {
     // Phantom target; `Relationship::<T>` only uses T for type-safe registry
     // lookups at the call site, so this is a fine stand-in for unit tests.
     struct Target;
+
+    #[test]
+    fn relationship_to_one_wraps_single_identifier() {
+        let rel: Relationship<Target> = Relationship::to_one(rid("people", "9"));
+        assert_eq!(rel.data, RelationshipData::ToOne(Some(rid("people", "9"))));
+    }
+
+    #[test]
+    fn relationship_to_one_null_is_empty_to_one() {
+        let rel: Relationship<Target> = Relationship::to_one_null();
+        assert_eq!(rel.data, RelationshipData::ToOne(None));
+    }
+
+    #[test]
+    fn relationship_to_one_id_builds_identifier() {
+        let rel: Relationship<Target> = Relationship::to_one_id("people", "9");
+        assert_eq!(rel.data, RelationshipData::ToOne(Some(rid("people", "9"))));
+        assert_eq!(rel.first_id(), Some("9"));
+    }
+
+    #[test]
+    fn relationship_to_many_collects_iterator() {
+        let rel: Relationship<Target> =
+            Relationship::to_many([rid("people", "1"), rid("people", "2")]);
+        assert_eq!(
+            rel.data,
+            RelationshipData::ToMany(vec![rid("people", "1"), rid("people", "2")])
+        );
+    }
 
     #[test]
     fn relationship_ids_skips_null_to_one() {
@@ -348,7 +722,13 @@ mod tests {
         let rel: Relationship<Target> =
             Relationship::new(RelationshipData::ToOne(Some(lid_rid("tags", "local-a"))));
         let err = rel.single_id().unwrap_err();
-        assert!(matches!(err, crate::Error::LidNotIndexed));
+        match err {
+            crate::Error::LidNotAllowed { r#type, lid } => {
+                assert_eq!(r#type, "tags");
+                assert_eq!(lid, "local-a");
+            }
+            other => panic!("expected LidNotAllowed, got {other:?}"),
+        }
     }
 
     #[test]
@@ -360,7 +740,9 @@ mod tests {
         let err = rel.single_id().unwrap_err();
         assert!(matches!(
             err,
-            crate::Error::RelationshipCardinalityMismatch { expected: "to-one" }
+            crate::Error::RelationshipCardinalityMismatch {
+                expected: crate::Cardinality::ToOne
+            }
         ));
     }
 
@@ -370,7 +752,9 @@ mod tests {
         let err = rel.single_id().unwrap_err();
         assert!(matches!(
             err,
-            crate::Error::RelationshipCardinalityMismatch { expected: "to-one" }
+            crate::Error::RelationshipCardinalityMismatch {
+                expected: crate::Cardinality::ToOne
+            }
         ));
     }
 }

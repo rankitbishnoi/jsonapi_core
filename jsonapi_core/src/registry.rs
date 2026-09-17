@@ -17,12 +17,13 @@ use crate::model::{Identity, Relationship, RelationshipData, ResourceObject};
 
 /// Lookup table populated from the `included` array.
 /// Keyed by type then id for O(1) lookups without per-call allocation.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Registry {
     resources: HashMap<String, BTreeMap<String, serde_json::Value>>,
 }
 
 /// Configuration for recursive resolution.
+#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct ResolveConfig {
     /// Maximum recursion depth. Default: 10.
@@ -85,9 +86,9 @@ impl Registry {
                 self.get_by_id(&rid.r#type, id)
             }
             RelationshipData::ToOne(None) => Err(Error::NullRelationship),
-            RelationshipData::ToMany(_) => {
-                Err(Error::RelationshipCardinalityMismatch { expected: "to-one" })
-            }
+            RelationshipData::ToMany(_) => Err(Error::RelationshipCardinalityMismatch {
+                expected: crate::Cardinality::ToOne,
+            }),
         }
     }
 
@@ -108,7 +109,7 @@ impl Registry {
                 Ok(results)
             }
             RelationshipData::ToOne(_) => Err(Error::RelationshipCardinalityMismatch {
-                expected: "to-many",
+                expected: crate::Cardinality::ToMany,
             }),
         }
     }
@@ -123,7 +124,7 @@ impl Registry {
             .map(|by_id| {
                 by_id
                     .values()
-                    .filter_map(|v| serde_json::from_value(v.clone()).ok())
+                    .filter_map(|v| T::deserialize(v).ok())
                     .collect()
             })
             .unwrap_or_default()
@@ -133,7 +134,7 @@ impl Registry {
     #[must_use = "registry lookup result should be used"]
     pub fn get_by_id<T: DeserializeOwned>(&self, type_: &str, id: &str) -> Result<T, Error> {
         match self.lookup(type_, id) {
-            Some(value) => serde_json::from_value(value.clone()).map_err(Error::Json),
+            Some(value) => T::deserialize(value).map_err(Error::Json),
             None => Err(Error::RegistryLookup {
                 r#type: type_.to_string(),
                 id: id.to_string(),
@@ -281,7 +282,10 @@ impl Registry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::{Identity, Relationship, RelationshipData, Resource, ResourceIdentifier};
+    use crate::model::{
+        Identity, Relationship, RelationshipData, Resource, ResourceIdentifier,
+        ResourceRelationship,
+    };
     use std::collections::BTreeMap;
 
     fn make_resource(type_: &str, id: &str, attrs: serde_json::Value) -> Resource {
@@ -307,7 +311,10 @@ mod tests {
             id: Some(id.into()),
             lid: None,
             attributes: attrs,
-            relationships: rels,
+            relationships: rels
+                .into_iter()
+                .map(|(k, v)| (k, ResourceRelationship::new(v)))
+                .collect(),
             links: None,
             meta: None,
         }

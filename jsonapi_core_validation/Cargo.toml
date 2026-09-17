@@ -1,0 +1,17 @@
+[package]
+name = "jsonapi_core_validation"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Shared member-name validation for jsonapi_core (implementation detail)"
+documentation = "https://docs.rs/jsonapi_core_validation"
+keywords = ["jsonapi", "json-api", "validation"]
+categories = ["encoding"]
+
+[lints]
+workspace = true
+
+[package.metadata.docs.rs]
+all-features = true

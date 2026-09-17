@@ -61,7 +61,7 @@ fn sample_links() -> Links {
         Some(Link::String("/articles/1".to_string())),
     );
     map.insert("missing".to_string(), None);
-    Links(map)
+    Links::from(map)
 }
 
 fn sample_meta() -> Meta {

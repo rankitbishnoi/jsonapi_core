@@ -3,6 +3,26 @@
 //! [`Error`] is the unified error type for all `jsonapi_core` operations.
 //! [`Result<T>`](Result) is a convenience alias for `std::result::Result<T, Error>`.
 
+/// Whether a relationship is expected to be to-one or to-many. Carried by
+/// [`Error::RelationshipCardinalityMismatch`].
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Cardinality {
+    /// A to-one relationship (single or null linkage).
+    ToOne,
+    /// A to-many relationship (a list of linkage).
+    ToMany,
+}
+
+impl std::fmt::Display for Cardinality {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Cardinality::ToOne => "to-one",
+            Cardinality::ToMany => "to-many",
+        })
+    }
+}
+
 /// Crate-level error type.
 #[non_exhaustive]
 #[derive(Debug, thiserror::Error)]
@@ -36,13 +56,26 @@ pub enum Error {
     /// Caller used `get()` on a to-many relationship or `get_many()` on a to-one.
     #[error("relationship cardinality mismatch: expected {expected}")]
     RelationshipCardinalityMismatch {
-        /// The expected cardinality (`"to-one"` or `"to-many"`).
-        expected: &'static str,
+        /// The expected cardinality.
+        expected: Cardinality,
     },
 
     /// Registry does not support lookup by local identifier (lid).
     #[error("registry does not index by lid")]
     LidNotIndexed,
+
+    /// A relationship linkage referenced a client-local `lid` where a
+    /// server-assigned `id` is required (e.g. a relationship endpoint mapping
+    /// linkage to datastore ids).
+    #[error(
+        "relationship linkage for type `{type}` used a client `lid` (`{lid}`); a server-assigned `id` is required"
+    )]
+    LidNotAllowed {
+        /// The JSON:API type string of the offending identifier.
+        r#type: String,
+        /// The client-local `lid` that was supplied.
+        lid: String,
+    },
 
     /// Base media type does not match `application/vnd.api+json`.
     #[error("media type mismatch: expected {expected}, got {got}")]
@@ -71,6 +104,15 @@ pub enum Error {
     /// All JSON:API entries in Accept have unsupported parameters (406 semantics).
     #[error("all JSON:API media type instances in Accept have unsupported parameters")]
     AllMediaTypesUnsupportedParams,
+
+    /// A request query parameter could not be parsed.
+    #[error("invalid query parameter `{param}`: {reason}")]
+    QueryParse {
+        /// The offending parameter name (e.g. `sort`, `page[size]`).
+        param: String,
+        /// Why it failed.
+        reason: String,
+    },
 
     /// A document violates structural rules (e.g. `data` + `errors` both present).
     #[error("document structure error: {0}")]
@@ -115,7 +157,7 @@ pub enum Error {
 
     /// The wire-side resource `type` does not match the type declared by the
     /// Rust type the document is being deserialized into. Surfaced by
-    /// [`Document::from_str`](crate::Document::from_str),
+    /// [`Document::parse`](crate::Document::parse),
     /// [`Document::from_slice`](crate::Document::from_slice), and
     /// [`Document::from_value`](crate::Document::from_value).
     #[error("type mismatch at {location}: expected `{expected}`, got `{got}`")]
@@ -143,7 +185,7 @@ pub enum Error {
     },
 
     /// A required attribute is absent from the wire `attributes` block.
-    /// Surfaced by [`Document::from_str`](crate::Document::from_str),
+    /// Surfaced by [`Document::parse`](crate::Document::parse),
     /// [`Document::from_slice`](crate::Document::from_slice), and
     /// [`Document::from_value`](crate::Document::from_value).
     ///
@@ -165,7 +207,7 @@ pub enum Error {
 
     /// A relationship references a `(type, id)` pair that is not present in
     /// the wire `included` array. Surfaced by
-    /// [`Document::from_str`](crate::Document::from_str),
+    /// [`Document::parse`](crate::Document::parse),
     /// [`Document::from_slice`](crate::Document::from_slice), and
     /// [`Document::from_value`](crate::Document::from_value).
     ///
@@ -238,6 +280,18 @@ mod tests {
         assert_eq!(
             err.to_string(),
             "missing required attribute `title` on `articles` at data"
+        );
+    }
+
+    #[test]
+    fn query_parse_display() {
+        let err = Error::QueryParse {
+            param: "page[size]".into(),
+            reason: "expected an integer".into(),
+        };
+        assert_eq!(
+            err.to_string(),
+            "invalid query parameter `page[size]`: expected an integer"
         );
     }
 

@@ -91,7 +91,7 @@ impl OperationTarget {
 /// [`ResourceIdentifier`](crate::ResourceIdentifier). An optional
 /// `relationship` name narrows the operation to a specific relationship
 /// of the referenced resource.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct OperationRef {
     /// JSON:API type string.
     pub r#type: String,
@@ -224,13 +224,12 @@ impl AtomicOperation {
 }
 
 /// Iterate over the resources inside a `PrimaryData<Resource>`, skipping `Null`.
-fn primary_data_resources(
-    data: &PrimaryData<Resource>,
-) -> Box<dyn Iterator<Item = &Resource> + '_> {
+/// All three shapes unify to a slice iterator, so no boxing is needed.
+fn primary_data_resources(data: &PrimaryData<Resource>) -> std::slice::Iter<'_, Resource> {
     match data {
-        PrimaryData::Null => Box::new(std::iter::empty()),
-        PrimaryData::Single(boxed) => Box::new(std::iter::once(boxed.as_ref())),
-        PrimaryData::Many(vec) => Box::new(vec.iter()),
+        PrimaryData::Null => [].iter(),
+        PrimaryData::Single(boxed) => std::slice::from_ref(boxed.as_ref()).iter(),
+        PrimaryData::Many(vec) => vec.iter(),
     }
 }
 
@@ -482,6 +481,30 @@ mod atomic_operation_tests {
         assert_eq!(json["op"], "remove");
         assert_eq!(json["ref"]["id"], "1");
         assert!(json.get("data").is_none());
+    }
+
+    #[test]
+    fn remove_op_with_href_target_round_trips() {
+        let op = AtomicOperation::Remove {
+            target: OperationTarget {
+                r#ref: None,
+                href: Some("/articles/1".into()),
+            },
+        };
+        let json = serde_json::to_value(&op).unwrap();
+        assert_eq!(json["op"], "remove");
+        assert_eq!(json["href"], "/articles/1");
+        assert!(json.get("ref").is_none());
+
+        let back: AtomicOperation = serde_json::from_value(json).unwrap();
+        match back {
+            AtomicOperation::Remove { target } => {
+                assert_eq!(target.href.as_deref(), Some("/articles/1"));
+                assert!(target.r#ref.is_none());
+                assert!(target.is_valid());
+            }
+            _ => panic!("expected Remove variant"),
+        }
     }
 
     #[test]

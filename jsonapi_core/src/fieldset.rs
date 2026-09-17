@@ -14,7 +14,7 @@ use crate::model::ResourceObject;
 
 /// Configuration for sparse fieldset filtering.
 #[must_use]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FieldsetConfig {
     fields: HashMap<String, HashSet<String>>,
 }
@@ -39,6 +39,14 @@ impl FieldsetConfig {
     /// Check whether this config has an entry for the given type.
     pub fn has_type(&self, type_name: &str) -> bool {
         self.fields.contains_key(type_name)
+    }
+
+    /// Returns `true` when no per-type fieldsets are configured, i.e. every
+    /// resource passes through unfiltered. Lets callers skip filtering entirely
+    /// (and any serialize→`Value`→serialize round trip) when there is nothing to
+    /// filter.
+    pub fn is_empty(&self) -> bool {
+        self.fields.is_empty()
     }
 
     /// Returns true if: type has no fieldset entry, OR the field is in the type's fieldset list.
@@ -184,6 +192,16 @@ mod tests {
     fn test_fieldset_config_new() {
         let config = FieldsetConfig::new();
         assert!(!config.has_type("articles"));
+    }
+
+    #[test]
+    fn test_fieldset_config_is_empty() {
+        assert!(FieldsetConfig::new().is_empty());
+        assert!(
+            !FieldsetConfig::new()
+                .fields("articles", &["title"])
+                .is_empty()
+        );
     }
 
     #[test]

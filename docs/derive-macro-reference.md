@@ -42,6 +42,9 @@ The `type_info()` impl returns a `TypeInfo` populated with:
   declaration order.
 - `relationships` — `(field_name, target_type)` pairs for every relationship
   field that has `type = "..."` set.
+- `required_attribute_names` — wire names of attribute fields declared as
+  required (non-`Option`, non-`Vec`), which drive the `MissingAttribute` check
+  in `Document::parse` (see [Error Handling](./error-handling.md)).
 
 ## Output casing rules
 
@@ -79,7 +82,9 @@ Each of these has a `tests/compile_fail/` companion test in the crate.
 ## Hand-rolling `ResourceObject`
 
 When you need behaviour the macro can't express, implement `ResourceObject`
-yourself:
+yourself. All methods except `resource_lid` are required — `resource_lid`
+defaults to `None`. `type_info()` has no default; omitting it is a compile
+error.
 
 ```rust
 use jsonapi_core::model::ResourceObject;

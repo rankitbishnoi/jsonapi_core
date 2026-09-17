@@ -87,8 +87,8 @@ fn test_spec_compound_document() {
             // Relationships
             assert!(article.relationships.contains_key("author"));
             assert!(article.relationships.contains_key("comments"));
-            match &article.relationships["comments"] {
-                RelationshipData::ToMany(rids) => assert_eq!(rids.len(), 2),
+            match &article.relationships["comments"].data {
+                Some(RelationshipData::ToMany(rids)) => assert_eq!(rids.len(), 2),
                 _ => panic!("expected to-many"),
             }
 
@@ -231,4 +231,60 @@ fn test_registry_get_via_relationship() {
 
     let person: Resource = registry.get(&rel).unwrap();
     assert_eq!(person.attributes["name"], "Dan");
+}
+
+/// `Document::parse` surfaces the `data` + `errors` violation as the typed
+/// `Error::Structure` variant (the plain serde path only yields an opaque
+/// `Error::Json`).
+#[test]
+fn from_str_rejects_data_and_errors_as_structure() {
+    let json = r#"{"data":null,"errors":[]}"#;
+    let err = Document::<Resource>::parse(json).unwrap_err();
+    assert!(matches!(err, jsonapi_core::Error::Structure(_)));
+    assert!(err.to_string().contains("must not contain both"));
+}
+
+/// `Registry::get` on a to-one relationship that carries only a `lid` cannot be
+/// resolved (the registry indexes by server id) and returns `LidNotIndexed`.
+#[test]
+fn registry_get_on_lid_only_relationship_is_lid_not_indexed() {
+    let registry = Registry::from_included::<Resource>(&[]).unwrap();
+    let rel: Relationship<Resource> =
+        Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier {
+            r#type: "people".into(),
+            identity: Identity::Lid("tmp-1".into()),
+            meta: None,
+        })));
+    let err = registry.get(&rel).unwrap_err();
+    assert!(matches!(err, jsonapi_core::Error::LidNotIndexed));
+}
+
+/// `into_single` on a collection document is a shape error, not a panic.
+#[test]
+fn into_single_on_collection_is_unexpected_shape() {
+    let json = r#"{"data":[{"type":"articles","id":"1","attributes":{}}]}"#;
+    let doc: Document<Resource> = serde_json::from_str(json).unwrap();
+    let err = doc.into_single().unwrap_err();
+    assert!(matches!(
+        err,
+        jsonapi_core::Error::UnexpectedDocumentShape {
+            expected: "single resource",
+            found: "resource collection",
+        }
+    ));
+}
+
+/// `into_many` on an errors document is a shape error.
+#[test]
+fn into_many_on_errors_document_is_unexpected_shape() {
+    let json = r#"{"errors":[{"title":"boom"}]}"#;
+    let doc: Document<Resource> = serde_json::from_str(json).unwrap();
+    let err = doc.into_many().unwrap_err();
+    assert!(matches!(
+        err,
+        jsonapi_core::Error::UnexpectedDocumentShape {
+            expected: "resource collection",
+            ..
+        }
+    ));
 }

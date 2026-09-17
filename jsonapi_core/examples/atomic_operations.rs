@@ -34,11 +34,13 @@ fn main() {
     let mut article_rels = BTreeMap::new();
     article_rels.insert(
         "author".into(),
-        jsonapi_core::RelationshipData::ToOne(Some(jsonapi_core::ResourceIdentifier {
-            r#type: "people".into(),
-            identity: Identity::Lid("p1".into()),
-            meta: None,
-        })),
+        jsonapi_core::ResourceRelationship::new(jsonapi_core::RelationshipData::ToOne(Some(
+            jsonapi_core::ResourceIdentifier {
+                r#type: "people".into(),
+                identity: Identity::Lid("p1".into()),
+                meta: None,
+            },
+        ))),
     );
     let article = Resource {
         r#type: "articles".into(),

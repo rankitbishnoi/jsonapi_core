@@ -1,9 +1,12 @@
+use std::fmt;
+
 use super::parser::parse_media_type_params;
 
 const JSONAPI_MEDIA_TYPE: &str = "application/vnd.api+json";
 
 /// Parsed JSON:API media type with extension and profile parameters.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct JsonApiMediaType {
     /// Extension URIs.
     pub ext: Vec<String>,
@@ -94,20 +97,66 @@ impl JsonApiMediaType {
         }
     }
 
+    /// Construct an `application/vnd.api+json` media type declaring one or
+    /// more profile URIs.
+    ///
+    /// ```
+    /// # use jsonapi_core::{JsonApiMediaType, CURSOR_PAGINATION_PROFILE};
+    /// let mt = JsonApiMediaType::with_profile([CURSOR_PAGINATION_PROFILE]);
+    /// assert_eq!(mt.profile, vec![CURSOR_PAGINATION_PROFILE.to_string()]);
+    /// ```
+    #[must_use]
+    pub fn with_profile<S, I>(profile: I) -> Self
+    where
+        S: Into<String>,
+        I: IntoIterator<Item = S>,
+    {
+        Self {
+            ext: Vec::new(),
+            profile: profile.into_iter().map(Into::into).collect(),
+        }
+    }
+
     /// Format as a header value string (usable for both Content-Type and Accept).
+    ///
+    /// Equivalent to the [`Display`](std::fmt::Display) impl; kept as a named,
+    /// discoverable method for header-building call sites.
     #[must_use]
     pub fn to_header_value(&self) -> String {
-        let mut result = JSONAPI_MEDIA_TYPE.to_string();
-        if !self.ext.is_empty() {
-            let escaped = self.ext.join(" ").replace('"', "\\\"");
-            result.push_str(&format!("; ext=\"{escaped}\""));
-        }
-        if !self.profile.is_empty() {
-            let escaped = self.profile.join(" ").replace('"', "\\\"");
-            result.push_str(&format!("; profile=\"{escaped}\""));
-        }
-        result
+        self.to_string()
     }
+}
+
+impl fmt::Display for JsonApiMediaType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(JSONAPI_MEDIA_TYPE)?;
+        write_param(f, "ext", &self.ext)?;
+        write_param(f, "profile", &self.profile)
+    }
+}
+
+/// Append `; key="v1 v2"` to `out`, escaping any `"` in values. No-op if `values`
+/// is empty. Writes directly into `out` — no intermediate allocations. Generic
+/// over `fmt::Write` so it serves both `Display` and `to_header_value`.
+fn write_param<W: fmt::Write>(out: &mut W, key: &str, values: &[String]) -> fmt::Result {
+    if values.is_empty() {
+        return Ok(());
+    }
+    out.write_str("; ")?;
+    out.write_str(key)?;
+    out.write_str("=\"")?;
+    for (i, v) in values.iter().enumerate() {
+        if i > 0 {
+            out.write_char(' ')?;
+        }
+        for c in v.chars() {
+            if c == '"' {
+                out.write_char('\\')?;
+            }
+            out.write_char(c)?;
+        }
+    }
+    out.write_char('"')
 }
 
 /// Validate a Content-Type header per JSON:API 1.1 rules.
@@ -117,29 +166,45 @@ pub fn validate_content_type(header: &str) -> crate::Result<JsonApiMediaType> {
     parse_jsonapi(header, true)
 }
 
-/// Choose a response media type from an Accept header.
+/// Choose a response media type from an `Accept` header, honoring `q` weights.
 ///
-/// Parses comma-separated entries. Returns the server's capabilities when a
-/// valid JSON:API entry is found. Returns an error if:
-/// - All JSON:API entries have unsupported parameters (`Error::AllMediaTypesUnsupportedParams`, 406 semantics)
-/// - No JSON:API media type is present at all (`Error::NoAcceptableMediaType`)
+/// Parses comma-separated entries, each optionally carrying an HTTP quality
+/// weight (`; q=0.8`; missing or malformed weights default to `1.0`). Among the
+/// acceptable entries — explicit `application/vnd.api+json` entries plus `*/*`
+/// and `application/*` wildcards — the highest-weighted one is chosen. Ties are
+/// broken in favor of an explicit JSON:API entry over a wildcard, then by
+/// document order.
 ///
-/// Note: this function always returns the server's full ext/profile capabilities.
-/// Per JSON:API 1.1, the 406 rule applies to unknown parameter *names* (e.g.
-/// `charset`), not to ext/profile value mismatches. Use `is_compatible_with` if
-/// you need to check whether specific ext/profile URIs are supported.
+/// The returned media type reflects the *chosen* entry's requested `ext` and
+/// `profile`, each intersected with the server's advertised capabilities
+/// (`server_ext` / `server_profile`). A bare entry or a wildcard requests no
+/// extensions or profiles, so it yields an empty result (a plain response).
+/// Requested `ext`/`profile` URIs the server does not support are dropped.
+///
+/// An entry with `q=0` (or lower) is treated as "not acceptable" and ignored
+/// (RFC 7231 §5.3.1).
+///
+/// Returns an error if:
+/// - Every JSON:API entry is modified with a parameter other than `ext`,
+///   `profile`, or `q` (`Error::AllMediaTypesUnsupportedParams`, 406 semantics), or
+/// - No JSON:API media type or acceptable wildcard is present
+///   (`Error::NoAcceptableMediaType`).
 #[must_use = "negotiation result should be used"]
 pub fn negotiate_accept(
     accept_header: &str,
     server_ext: &[&str],
     server_profile: &[&str],
 ) -> crate::Result<JsonApiMediaType> {
-    let server = JsonApiMediaType {
-        ext: server_ext.iter().map(|s| s.to_string()).collect(),
-        profile: server_profile.iter().map(|s| s.to_string()).collect(),
-    };
+    // An entry the client is willing to accept, with its quality weight.
+    struct Candidate {
+        q: f32,
+        specific: bool,
+        ext: Vec<String>,
+        profile: Vec<String>,
+    }
 
-    let mut found_jsonapi = false;
+    let mut candidates: Vec<Candidate> = Vec::new();
+    let mut saw_disqualified_jsonapi = false;
 
     for entry in accept_header.split(',') {
         let entry = entry.trim();
@@ -147,36 +212,101 @@ pub fn negotiate_accept(
             continue;
         }
 
-        // Check for wildcards
         let base = entry.split(';').next().unwrap_or("").trim();
+
+        // Wildcards express no ext/profile preference.
         if base == "*/*" || base.eq_ignore_ascii_case("application/*") {
-            return Ok(server);
+            let q = parse_q(entry);
+            if q <= 0.0 {
+                continue;
+            }
+            candidates.push(Candidate {
+                q,
+                specific: false,
+                ext: Vec::new(),
+                profile: Vec::new(),
+            });
+            continue;
         }
 
         let Ok((parsed_base, params)) = parse_media_type_params(entry) else {
             continue;
         };
-
         if !parsed_base.eq_ignore_ascii_case(JSONAPI_MEDIA_TYPE) {
             continue;
         }
 
-        found_jsonapi = true;
+        let mut ext = Vec::new();
+        let mut profile = Vec::new();
+        let mut q = 1.0_f32;
+        let mut has_unsupported_param = false;
+        for (key, value) in &params {
+            match *key {
+                "ext" => ext.extend(value.split_whitespace().map(String::from)),
+                "profile" => profile.extend(value.split_whitespace().map(String::from)),
+                "q" => q = value.parse::<f32>().unwrap_or(1.0),
+                _ => has_unsupported_param = true,
+            }
+        }
 
-        // Skip entries with unknown params
-        if params.iter().any(|(k, _)| *k != "ext" && *k != "profile") {
+        if has_unsupported_param {
+            saw_disqualified_jsonapi = true;
             continue;
         }
 
-        // Valid JSON:API entry — return server capabilities
-        return Ok(server);
+        if q <= 0.0 {
+            continue;
+        }
+
+        candidates.push(Candidate {
+            q,
+            specific: true,
+            ext,
+            profile,
+        });
     }
 
-    if found_jsonapi {
-        Err(crate::Error::AllMediaTypesUnsupportedParams)
-    } else {
-        Err(crate::Error::NoAcceptableMediaType)
+    // Highest q wins; on a tie prefer a specific entry over a wildcard, then
+    // earliest document order (reduce keeps `acc` on ties).
+    let best = candidates.into_iter().reduce(|acc, c| {
+        if c.q > acc.q || (c.q == acc.q && c.specific && !acc.specific) {
+            c
+        } else {
+            acc
+        }
+    });
+
+    match best {
+        Some(c) => {
+            let ext = c
+                .ext
+                .into_iter()
+                .filter(|e| server_ext.contains(&e.as_str()))
+                .collect();
+            let profile = c
+                .profile
+                .into_iter()
+                .filter(|p| server_profile.contains(&p.as_str()))
+                .collect();
+            Ok(JsonApiMediaType { ext, profile })
+        }
+        None if saw_disqualified_jsonapi => Err(crate::Error::AllMediaTypesUnsupportedParams),
+        None => Err(crate::Error::NoAcceptableMediaType),
     }
+}
+
+/// Parse the `q` weight from an `Accept` entry, defaulting to `1.0` when absent
+/// or malformed.
+fn parse_q(entry: &str) -> f32 {
+    parse_media_type_params(entry)
+        .ok()
+        .and_then(|(_, params)| {
+            params
+                .iter()
+                .find(|(k, _)| *k == "q")
+                .map(|(_, v)| v.parse::<f32>().unwrap_or(1.0))
+        })
+        .unwrap_or(1.0)
 }
 
 #[cfg(test)]
@@ -398,26 +528,29 @@ mod tests {
 
     #[test]
     fn negotiate_with_server_capabilities() {
+        // New contract: a bare request advertises nothing; the server does not
+        // unilaterally apply its ext/profile.
         let mt =
             negotiate_accept("application/vnd.api+json", &["https://e1"], &["https://p1"]).unwrap();
-        assert_eq!(mt.ext, vec!["https://e1"]);
-        assert_eq!(mt.profile, vec!["https://p1"]);
+        assert!(mt.ext.is_empty());
+        assert!(mt.profile.is_empty());
     }
 
     #[test]
     fn negotiate_wildcard_accepts() {
+        // A wildcard requests nothing specific -> empty result, but still Ok.
         let mt = negotiate_accept("*/*", &["https://e1"], &[]).unwrap();
-        assert_eq!(mt.ext, vec!["https://e1"]);
+        assert!(mt.ext.is_empty());
     }
 
     #[test]
     fn negotiate_application_wildcard() {
         let mt = negotiate_accept("application/*", &[], &["https://p1"]).unwrap();
-        assert_eq!(mt.profile, vec!["https://p1"]);
+        assert!(mt.profile.is_empty());
     }
 
     #[test]
-    fn negotiate_multiple_entries_first_valid_wins() {
+    fn negotiate_equal_q_picks_first_in_document_order() {
         let mt = negotiate_accept(
             "text/html, application/vnd.api+json; ext=\"https://e1\"",
             &["https://e1"],
@@ -455,6 +588,74 @@ mod tests {
     fn negotiate_empty_accept_is_error() {
         let err = negotiate_accept("", &[], &[]).unwrap_err();
         assert!(matches!(err, crate::Error::NoAcceptableMediaType));
+    }
+
+    #[test]
+    fn negotiate_picks_higher_q_entry() {
+        // Two JSON:API entries; the higher-q one (ext e2) wins.
+        let mt = negotiate_accept(
+            "application/vnd.api+json; ext=\"https://e1\"; q=0.5, \
+             application/vnd.api+json; ext=\"https://e2\"; q=0.9",
+            &["https://e1", "https://e2"],
+            &[],
+        )
+        .unwrap();
+        assert_eq!(mt.ext, vec!["https://e2"]);
+    }
+
+    #[test]
+    fn negotiate_q_tie_prefers_specific_over_wildcard() {
+        let mt = negotiate_accept(
+            "*/*; q=1.0, application/vnd.api+json; ext=\"https://e1\"; q=1.0",
+            &["https://e1"],
+            &[],
+        )
+        .unwrap();
+        assert_eq!(mt.ext, vec!["https://e1"]);
+    }
+
+    #[test]
+    fn negotiate_drops_ext_not_supported_by_server() {
+        let mt = negotiate_accept(
+            "application/vnd.api+json; ext=\"https://e1 https://e3\"",
+            &["https://e1"],
+            &[],
+        )
+        .unwrap();
+        assert_eq!(mt.ext, vec!["https://e1"]);
+    }
+
+    #[test]
+    fn negotiate_malformed_q_defaults_to_one() {
+        let mt = negotiate_accept("application/vnd.api+json; q=notanumber", &[], &[]).unwrap();
+        assert!(mt.ext.is_empty());
+        assert!(mt.profile.is_empty());
+    }
+
+    #[test]
+    fn negotiate_bare_request_yields_empty_params() {
+        // New contract: server capabilities are NOT advertised unless requested.
+        let mt =
+            negotiate_accept("application/vnd.api+json", &["https://e1"], &["https://p1"]).unwrap();
+        assert!(mt.ext.is_empty());
+        assert!(mt.profile.is_empty());
+    }
+
+    #[test]
+    fn negotiate_q_zero_entry_is_rejected() {
+        let err = negotiate_accept("application/vnd.api+json; q=0", &[], &[]).unwrap_err();
+        assert!(matches!(err, crate::Error::NoAcceptableMediaType));
+    }
+
+    #[test]
+    fn negotiate_q_zero_wildcard_falls_through_to_specific() {
+        let mt = negotiate_accept(
+            "*/*; q=0, application/vnd.api+json; ext=\"https://e1\"",
+            &["https://e1"],
+            &[],
+        )
+        .unwrap();
+        assert_eq!(mt.ext, vec!["https://e1"]);
     }
 
     // --- round-trip ---
@@ -501,6 +702,21 @@ mod tests {
     #[test]
     fn with_ext_round_trips_through_header_value() {
         let original = JsonApiMediaType::with_ext(["https://jsonapi.org/ext/atomic"]);
+        let header = original.to_header_value();
+        let parsed = JsonApiMediaType::parse(&header).unwrap();
+        assert_eq!(parsed, original);
+    }
+
+    #[test]
+    fn with_profile_single_uri() {
+        let mt = JsonApiMediaType::with_profile(["https://example.com/profiles/cursor"]);
+        assert_eq!(mt.profile, vec!["https://example.com/profiles/cursor"]);
+        assert!(mt.ext.is_empty());
+    }
+
+    #[test]
+    fn with_profile_round_trips_through_header_value() {
+        let original = JsonApiMediaType::with_profile(["https://example.com/profiles/cursor"]);
         let header = original.to_header_value();
         let parsed = JsonApiMediaType::parse(&header).unwrap();
         assert_eq!(parsed, original);

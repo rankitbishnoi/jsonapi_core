@@ -143,7 +143,10 @@ fn test_type_info_no_relationships() {
 }
 
 #[test]
-fn test_type_info_relationship_without_target_type() {
+fn test_type_info_relationship_infers_target_from_inner_type() {
+    // A bare `#[jsonapi(relationship)]` (no `type = "..."`) infers its target
+    // from `Relationship<Person>` via `<Person as ResourceType>::TYPE`, so the
+    // relationship is registered and include-path validation works by default.
     #[derive(Debug, Clone, PartialEq, jsonapi_core::JsonApi)]
     #[jsonapi(type = "posts")]
     struct Post {
@@ -156,7 +159,29 @@ fn test_type_info_relationship_without_target_type() {
 
     let info = Post::type_info();
     assert_eq!(info.field_names, &["title", "author"]);
-    assert_eq!(info.relationships, &[] as &[(&str, &str)]);
+    assert_eq!(info.relationships, &[("author", "people")]);
+}
+
+#[test]
+fn test_include_validation_works_without_explicit_relationship_type() {
+    // Regression for the footgun: a relationship declared with a bare
+    // `#[jsonapi(relationship)]` used to drop out of `TypeInfo.relationships`,
+    // making `validate_include_paths` reject every path. Inference from the
+    // inner type fixes it — `?include=author` now validates by default.
+    let mut registry = TypeRegistry::new();
+    registry.register::<TestArticle>().register::<TestPerson>();
+
+    assert!(
+        registry
+            .validate_include_paths("articles", &["author"])
+            .is_ok()
+    );
+    // A genuinely unknown relationship still fails.
+    assert!(
+        registry
+            .validate_include_paths("articles", &["bogus"])
+            .is_err()
+    );
 }
 
 #[test]

@@ -34,8 +34,15 @@ impl Identity {
     }
 }
 
+impl Default for Identity {
+    /// An empty server-assigned id — a scaffold for builder-style construction.
+    fn default() -> Self {
+        Identity::Id(String::new())
+    }
+}
+
 /// JSON:API resource identifier object.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct ResourceIdentifier {
     /// The JSON:API type string.
     pub r#type: String,
@@ -43,6 +50,81 @@ pub struct ResourceIdentifier {
     pub identity: Identity,
     /// Optional meta information.
     pub meta: Option<Meta>,
+}
+
+impl ResourceIdentifier {
+    /// Build a resource identifier for a server-assigned `id`.
+    ///
+    /// ```
+    /// # use jsonapi_core::{ResourceIdentifier, Identity};
+    /// let rid = ResourceIdentifier::new("authors", "42");
+    /// assert_eq!(rid.r#type, "authors");
+    /// assert_eq!(rid.identity, Identity::Id("42".into()));
+    /// ```
+    #[must_use]
+    pub fn new(r#type: impl Into<String>, id: impl Into<String>) -> Self {
+        Self {
+            r#type: r#type.into(),
+            identity: Identity::Id(id.into()),
+            meta: None,
+        }
+    }
+
+    /// Build a resource identifier for a client-local `lid` (JSON:API 1.1).
+    ///
+    /// ```
+    /// # use jsonapi_core::{ResourceIdentifier, Identity};
+    /// let rid = ResourceIdentifier::with_lid("authors", "local-1");
+    /// assert_eq!(rid.identity, Identity::Lid("local-1".into()));
+    /// ```
+    #[must_use]
+    pub fn with_lid(r#type: impl Into<String>, lid: impl Into<String>) -> Self {
+        Self {
+            r#type: r#type.into(),
+            identity: Identity::Lid(lid.into()),
+            meta: None,
+        }
+    }
+
+    /// Build a `Vec` of server-assigned identifiers sharing one `type` from an
+    /// iterator of ids — the common shape for a to-many relationship's linkage.
+    ///
+    /// ```
+    /// # use jsonapi_core::{Relationship, ResourceIdentifier};
+    /// let rel = Relationship::<()>::to_many(ResourceIdentifier::many("tags", ["1", "2"]));
+    /// assert_eq!(rel.ids().collect::<Vec<_>>(), ["1", "2"]);
+    /// ```
+    #[must_use]
+    pub fn many(
+        r#type: impl Into<String>,
+        ids: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Vec<Self> {
+        let r#type = r#type.into();
+        ids.into_iter()
+            .map(|id| Self {
+                r#type: r#type.clone(),
+                identity: Identity::Id(id.into()),
+                meta: None,
+            })
+            .collect()
+    }
+
+    /// The server-assigned `id`, or an error when this identifier carries only a
+    /// client-local `lid`. Use at a relationship endpoint that maps linkage to
+    /// datastore ids and must reject `lid`-only members rather than skip them.
+    ///
+    /// # Errors
+    /// [`Error::LidNotAllowed`](crate::Error::LidNotAllowed) — naming the type
+    /// and offending `lid` — when the identity is a client-local `lid`.
+    pub fn require_id(&self) -> crate::Result<&str> {
+        match self.identity.as_id() {
+            Some(id) => Ok(id),
+            None => Err(crate::Error::LidNotAllowed {
+                r#type: self.r#type.clone(),
+                lid: self.identity.as_lid().unwrap_or_default().to_string(),
+            }),
+        }
+    }
 }
 
 /// Borrowing representation used for serialization.
@@ -128,6 +210,56 @@ mod tests {
         let lid = Identity::Lid("local-1".into());
         assert_eq!(lid.as_id(), None);
         assert_eq!(lid.as_lid(), Some("local-1"));
+    }
+
+    #[test]
+    fn test_resource_identifier_new_builds_id() {
+        let rid = ResourceIdentifier::new("people", "1");
+        assert_eq!(rid.r#type, "people");
+        assert_eq!(rid.identity, Identity::Id("1".into()));
+        assert_eq!(rid.meta, None);
+        assert_eq!(
+            serde_json::to_string(&rid).unwrap(),
+            r#"{"type":"people","id":"1"}"#
+        );
+    }
+
+    #[test]
+    fn test_resource_identifier_with_lid_builds_lid() {
+        let rid = ResourceIdentifier::with_lid("people", "local-1");
+        assert_eq!(rid.r#type, "people");
+        assert_eq!(rid.identity, Identity::Lid("local-1".into()));
+        assert_eq!(rid.meta, None);
+        assert_eq!(
+            serde_json::to_string(&rid).unwrap(),
+            r#"{"type":"people","lid":"local-1"}"#
+        );
+    }
+
+    #[test]
+    fn test_resource_identifier_many_builds_shared_type_ids() {
+        let rids = ResourceIdentifier::many("tags", ["1", "2", "3"]);
+        assert_eq!(rids.len(), 3);
+        assert!(rids.iter().all(|r| r.r#type == "tags"));
+        assert_eq!(rids[2].identity, Identity::Id("3".into()));
+    }
+
+    #[test]
+    fn test_resource_identifier_require_id_ok_for_id() {
+        let rid = ResourceIdentifier::new("people", "9");
+        assert_eq!(rid.require_id().unwrap(), "9");
+    }
+
+    #[test]
+    fn test_resource_identifier_require_id_errors_for_lid() {
+        let rid = ResourceIdentifier::with_lid("people", "local-1");
+        match rid.require_id() {
+            Err(crate::Error::LidNotAllowed { r#type, lid }) => {
+                assert_eq!(r#type, "people");
+                assert_eq!(lid, "local-1");
+            }
+            other => panic!("expected LidNotAllowed, got {other:?}"),
+        }
     }
 
     #[test]

@@ -8,7 +8,7 @@ default `derive` feature enabled (which re-exports the macro):
 
 ```toml
 [dependencies]
-jsonapi_core = "0.1"
+jsonapi_core = "0.4"
 ```
 
 ```rust

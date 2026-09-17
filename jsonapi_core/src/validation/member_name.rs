@@ -24,132 +24,37 @@ pub enum MemberNameKind {
     },
 }
 
-/// Returns true if `c` is a globally allowed character per JSON:API 1.1.
-/// Allowed: `[a-zA-Z0-9\u{0080}-\u{FFFF}]`.
-fn is_globally_allowed(c: char) -> bool {
-    c.is_ascii_alphanumeric() || ('\u{0080}'..='\u{FFFF}').contains(&c)
-}
-
-/// Returns true if `c` is allowed in the interior of a member name.
-/// Interior allows globally allowed chars plus `-`, `_`, and space.
-fn is_interior_allowed(c: char) -> bool {
-    is_globally_allowed(c) || c == '-' || c == '_' || c == ' '
-}
-
-/// Check that `name` follows standard member-name character rules.
-/// Returns `Ok(())` or `Err(reason)`.
-fn check_standard_name(name: &str) -> Result<(), String> {
-    let mut chars = name.chars();
-    let first = match chars.next() {
-        None => return Err("must not be empty".into()),
-        Some(c) => c,
-    };
-    if !is_globally_allowed(first) {
-        return Err(format!(
-            "must start with [a-zA-Z0-9\\u{{0080}}-\\u{{FFFF}}], got '{first}'"
-        ));
-    }
-
-    let mut last = first;
-    for c in chars {
-        if !is_interior_allowed(c) {
-            return Err(format!("invalid interior character '{c}'"));
+impl From<jsonapi_core_validation::MemberNameKind<'_>> for MemberNameKind {
+    fn from(kind: jsonapi_core_validation::MemberNameKind<'_>) -> Self {
+        use jsonapi_core_validation::MemberNameKind as Shared;
+        match kind {
+            Shared::Standard => MemberNameKind::Standard,
+            Shared::AtMember { namespace, member } => MemberNameKind::AtMember {
+                namespace: namespace.to_string(),
+                member: member.to_string(),
+            },
+            Shared::ExtensionMember { namespace, member } => MemberNameKind::ExtensionMember {
+                namespace: namespace.to_string(),
+                member: member.to_string(),
+            },
         }
-        last = c;
     }
-
-    // If name has more than one char, check the last character
-    if last != first && !is_globally_allowed(last) {
-        return Err(format!(
-            "must end with [a-zA-Z0-9\\u{{0080}}-\\u{{FFFF}}], got '{last}'"
-        ));
-    }
-
-    Ok(())
 }
 
 /// Validate a member name per JSON:API 1.1 rules.
+///
+/// The character-level rules live in `jsonapi_core_validation` (shared with the
+/// derive macro, so compile-time and runtime validation cannot drift); this
+/// wrapper maps the shared classification to the owned [`MemberNameKind`] and
+/// failures to [`Error::InvalidMemberName`](crate::Error::InvalidMemberName).
 #[must_use = "validation result should be used"]
 pub fn validate_member_name(name: &str) -> crate::Result<MemberNameKind> {
-    if name.is_empty() {
-        return Err(crate::Error::InvalidMemberName {
+    jsonapi_core_validation::classify_member_name(name)
+        .map(MemberNameKind::from)
+        .map_err(|reason| crate::Error::InvalidMemberName {
             name: name.to_string(),
-            reason: "member name must not be empty".into(),
-        });
-    }
-
-    if let Some(rest) = name.strip_prefix('@') {
-        let Some((namespace, member)) = rest.split_once(':') else {
-            return Err(crate::Error::InvalidMemberName {
-                name: name.to_string(),
-                reason: "@-member must contain ':' separator (format: @namespace:member)".into(),
-            });
-        };
-        if namespace.is_empty() {
-            return Err(crate::Error::InvalidMemberName {
-                name: name.to_string(),
-                reason: "@-member namespace must not be empty".into(),
-            });
-        }
-        if member.is_empty() {
-            return Err(crate::Error::InvalidMemberName {
-                name: name.to_string(),
-                reason: "@-member member must not be empty".into(),
-            });
-        }
-        check_standard_name(namespace).map_err(|reason| crate::Error::InvalidMemberName {
-            name: name.to_string(),
-            reason: format!("namespace: {reason}"),
-        })?;
-        check_standard_name(member).map_err(|reason| crate::Error::InvalidMemberName {
-            name: name.to_string(),
-            reason: format!("member: {reason}"),
-        })?;
-        return Ok(MemberNameKind::AtMember {
-            namespace: namespace.to_string(),
-            member: member.to_string(),
-        });
-    }
-
-    // Extension-namespaced member: exactly one `:` splits namespace from member.
-    if let Some((namespace, member)) = name.split_once(':') {
-        if name.matches(':').count() != 1 {
-            return Err(crate::Error::InvalidMemberName {
-                name: name.to_string(),
-                reason: "extension member name must contain exactly one ':' separator".into(),
-            });
-        }
-        if namespace.is_empty() {
-            return Err(crate::Error::InvalidMemberName {
-                name: name.to_string(),
-                reason: "extension namespace must not be empty".into(),
-            });
-        }
-        if member.is_empty() {
-            return Err(crate::Error::InvalidMemberName {
-                name: name.to_string(),
-                reason: "extension member must not be empty".into(),
-            });
-        }
-        check_standard_name(namespace).map_err(|reason| crate::Error::InvalidMemberName {
-            name: name.to_string(),
-            reason: format!("namespace: {reason}"),
-        })?;
-        check_standard_name(member).map_err(|reason| crate::Error::InvalidMemberName {
-            name: name.to_string(),
-            reason: format!("member: {reason}"),
-        })?;
-        return Ok(MemberNameKind::ExtensionMember {
-            namespace: namespace.to_string(),
-            member: member.to_string(),
-        });
-    }
-
-    check_standard_name(name).map_err(|reason| crate::Error::InvalidMemberName {
-        name: name.to_string(),
-        reason,
-    })?;
-    Ok(MemberNameKind::Standard)
+            reason,
+        })
 }
 
 #[cfg(test)]

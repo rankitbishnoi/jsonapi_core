@@ -54,7 +54,7 @@ pub enum Link {
 /// Map of link names to link values. Null links are represented as `None`.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct Links(pub BTreeMap<String, Option<Link>>);
+pub struct Links(BTreeMap<String, Option<Link>>);
 
 impl Links {
     /// Construct an empty link map.
@@ -74,10 +74,23 @@ impl Links {
     /// Borrow the link for `rel` if it is present *and* non-null.
     ///
     /// Returns `None` for both "key absent" and "key present, value `null`".
-    /// Use `links.0.get(rel)` directly if you need to distinguish the two.
+    /// Use [`get_raw`](Self::get_raw) if you need to distinguish the two.
     #[must_use]
     pub fn get(&self, rel: &str) -> Option<&Link> {
         self.0.get(rel).and_then(Option::as_ref)
+    }
+
+    /// Borrow the raw entry for `rel`, distinguishing "absent" (`None`) from
+    /// "present but `null`" (`Some(None)`) from "present" (`Some(Some(link))`).
+    #[must_use]
+    pub fn get_raw(&self, rel: &str) -> Option<&Option<Link>> {
+        self.0.get(rel)
+    }
+
+    /// Insert a link under `rel`. Pass `Some(link)` for a normal link or `None`
+    /// to record an explicit JSON `null` link. Returns the previous entry, if any.
+    pub fn insert(&mut self, rel: impl Into<String>, link: Option<Link>) -> Option<Option<Link>> {
+        self.0.insert(rel.into(), link)
     }
 
     /// Iterate `(name, &Link)` pairs, skipping entries whose value is `null`.
@@ -102,6 +115,12 @@ impl Links {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
+    }
+}
+
+impl From<BTreeMap<String, Option<Link>>> for Links {
+    fn from(map: BTreeMap<String, Option<Link>>) -> Self {
+        Self(map)
     }
 }
 

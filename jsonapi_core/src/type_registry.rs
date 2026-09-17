@@ -22,7 +22,7 @@ pub struct TypeInfo {
     pub relationships: &'static [(&'static str, &'static str)],
     /// Wire names of attributes the consumer's struct declared as required
     /// (non-`Option`, non-`Vec`). Used by
-    /// [`Document::from_str`](crate::Document::from_str) and friends to
+    /// [`Document::parse`](crate::Document::parse) and friends to
     /// surface [`Error::MissingAttribute`](crate::Error::MissingAttribute).
     /// Empty for the dynamic [`Resource`](crate::Resource) and for any
     /// manual `TypeInfo::new(...)` caller that does not opt in via
@@ -163,7 +163,7 @@ mod tests {
     use crate::model::{Resource, ResourceObject};
 
     #[test]
-    fn test_type_info_default() {
+    fn test_resource_type_info() {
         let info = Resource::type_info();
         assert_eq!(info.type_name, "");
         assert_eq!(info.field_names, &[] as &[&str]);

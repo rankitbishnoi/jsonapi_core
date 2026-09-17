@@ -1,0 +1,39 @@
+# cargo-deny configuration.
+#
+# Scope: license compatibility, dependency bans, and source allow-listing.
+# Security advisories are handled by cargo-audit (see ci.yml / release.yml), so
+# they are intentionally not duplicated here.
+
+[licenses]
+# All dependencies are permissively licensed. This list is derived from the
+# actual all-features dependency tree; extend it (or add `exceptions`) only for a
+# deliberately vetted addition.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "Unicode-3.0",
+    "Unlicense",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "Zlib",
+    "BSL-1.0",
+]
+confidence-threshold = 0.9
+
+[bans]
+# The transitive tree carries a few duplicated versions (common in large trees);
+# surface them without failing the build.
+multiple-versions = "warn"
+# Our manifests pin real version requirements — no wildcard (`*`) deps allowed.
+wildcards = "deny"
+# ...except intra-workspace path dependencies (e.g. the `acceptance` test crate
+# depends on the workspace crates by path with no version). Those are local, not
+# registry wildcards, and are always resolved from the workspace.
+allow-wildcard-paths = true
+
+[sources]
+# Every dependency must come from a known registry (crates.io); no surprise
+# git or alternative-registry sources.
+unknown-registry = "deny"
+unknown-git = "deny"

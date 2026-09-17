@@ -22,7 +22,8 @@ fn main() {
     let err = validate_content_type("application/vnd.api+json; charset=utf-8");
     println!("Unknown param: {}", err.unwrap_err());
 
-    // 2. Negotiate an Accept header (returns server capabilities)
+    // 2. Negotiate an Accept header (returns the client's requested ext/profile,
+    //    filtered to what the server supports)
     println!("\n=== Accept Negotiation ===");
 
     let response = negotiate_accept(

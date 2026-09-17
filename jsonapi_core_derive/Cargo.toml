@@ -8,6 +8,8 @@ repository.workspace = true
 description = "Derive macro for jsonapi_core"
 documentation = "https://docs.rs/jsonapi_core_derive"
 readme = "README.md"
+keywords = ["jsonapi", "json-api", "derive", "proc-macro", "serde"]
+categories = ["encoding"]
 
 [lib]
 proc-macro = true
@@ -17,6 +19,7 @@ syn = { version = "2", features = ["full"] }
 quote = "1"
 proc-macro2 = "1"
 heck = "0.5"
+jsonapi_core_validation = { path = "../jsonapi_core_validation", version = "0.4.0" }
 
 [lints]
 workspace = true

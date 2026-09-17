@@ -23,7 +23,7 @@ pub enum Error {
     InvalidMemberName { name: String, reason: String },
     RegistryLookup { r#type: String, id: String },
     NullRelationship,
-    RelationshipCardinalityMismatch { expected: &'static str },
+    RelationshipCardinalityMismatch { expected: Cardinality }, // Cardinality is ToOne | ToMany
     LidNotIndexed,
     MediaTypeMismatch { expected: String, got: String },
     UnsupportedMediaTypeParam { param: String },
@@ -31,6 +31,7 @@ pub enum Error {
     NoAcceptableMediaType,
     AllMediaTypesUnsupportedParams,
     Structure(String),
+    QueryParse { param: String, reason: String },
     InvalidIncludePath { path: String, segment: String, type_name: String },
     InvalidAtomicOperation { index: usize, reason: String },
     UnexpectedDocumentShape { expected: &'static str, found: &'static str },
@@ -61,6 +62,7 @@ so the `?` operator works when interleaving with serde calls. It is
 | `NoAcceptableMediaType` | `negotiate_accept` found nothing JSON:API in the Accept header. |
 | `AllMediaTypesUnsupportedParams` | All JSON:API entries in Accept had unsupported params (406). |
 | `Structure` | Document structure rule violated (e.g. data + errors both present). |
+| `QueryParse` | `Query::from_query_string` / `from_pairs` hit a malformed parameter (carries the offending `param`). |
 | `InvalidIncludePath` | `TypeRegistry::validate_include_paths` couldn't resolve a hop. |
 | `InvalidAtomicOperation` | `AtomicRequest::validate_lid_refs` failed (Atomic Ops extension). |
 | `UnexpectedDocumentShape` | Caller used an accessor like `Document::into_single` on a document of the wrong shape. |
@@ -122,7 +124,7 @@ A natural translation table for a handler:
 |---------------|-----------------------|
 | `MediaTypeMismatch`, `UnsupportedMediaTypeParam` | 415 Unsupported Media Type |
 | `NoAcceptableMediaType`, `AllMediaTypesUnsupportedParams` | 406 Not Acceptable |
-| `Structure`, `InvalidMemberName`, `InvalidIncludePath`, `InvalidAtomicOperation` | 400 Bad Request |
+| `Structure`, `InvalidMemberName`, `QueryParse`, `InvalidIncludePath`, `InvalidAtomicOperation` | 400 Bad Request |
 | `Json` (during request parsing) | 400 Bad Request |
 | `RegistryLookup`, `NullRelationship`, `RelationshipCardinalityMismatch`, `LidNotIndexed` | Internal — these reflect *your* code's assumptions about the document |
 | `TypeMismatch`, `MalformedRelationship`, `IncludedRefMissing` | 502 Bad Gateway — upstream payload structurally wrong |

@@ -162,12 +162,20 @@ where
 {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let value = serde_json::Value::deserialize(deserializer)?;
-        let obj = value
-            .as_object()
-            .ok_or_else(|| de::Error::custom("document must be a JSON object"))?;
+        let mut obj = match value {
+            serde_json::Value::Object(map) => map,
+            _ => return Err(de::Error::custom("document must be a JSON object")),
+        };
 
-        let has_data = obj.contains_key("data");
-        let has_errors = obj.contains_key("errors");
+        // Take ownership of the mutually-exclusive primary members up front so
+        // their values can be moved into `from_value` without cloning. Presence
+        // is decided here; parsing is deferred to the matching branch below so
+        // error precedence (both-present > meta/jsonapi/links > data > included)
+        // is preserved.
+        let data_value = obj.remove("data");
+        let errors_value = obj.remove("errors");
+        let has_data = data_value.is_some();
+        let has_errors = errors_value.is_some();
 
         if has_data && has_errors {
             return Err(de::Error::custom(
@@ -176,38 +184,38 @@ where
         }
 
         let meta: Option<Meta> = obj
-            .get("meta")
-            .map(|v| serde_json::from_value(v.clone()))
+            .remove("meta")
+            .map(serde_json::from_value)
             .transpose()
             .map_err(de::Error::custom)?;
         let jsonapi: Option<JsonApiObject> = obj
-            .get("jsonapi")
-            .map(|v| serde_json::from_value(v.clone()))
+            .remove("jsonapi")
+            .map(serde_json::from_value)
             .transpose()
             .map_err(de::Error::custom)?;
         let links: Option<Links> = obj
-            .get("links")
-            .map(|v| serde_json::from_value(v.clone()))
+            .remove("links")
+            .map(serde_json::from_value)
             .transpose()
             .map_err(de::Error::custom)?;
 
-        if has_data {
-            let data: PrimaryData<P> = serde_json::from_value(obj["data"].clone())
+        if let Some(data_value) = data_value {
+            let data: PrimaryData<P> = serde_json::from_value(data_value)
                 .map_err(|e| de::Error::custom(format!("in primary data: {e}")))?;
             // Deserialize each included entry individually so errors can name
             // the offending index.
-            let included: Vec<I> = match obj.get("included") {
-                Some(v) => {
-                    let arr = v
-                        .as_array()
-                        .ok_or_else(|| de::Error::custom("`included` must be a JSON array"))?;
+            let included: Vec<I> = match obj.remove("included") {
+                Some(serde_json::Value::Array(arr)) => {
                     let mut out = Vec::with_capacity(arr.len());
-                    for (idx, entry) in arr.iter().enumerate() {
-                        let parsed: I = serde_json::from_value(entry.clone())
+                    for (idx, entry) in arr.into_iter().enumerate() {
+                        let parsed: I = serde_json::from_value(entry)
                             .map_err(|e| de::Error::custom(format!("in included[{idx}]: {e}")))?;
                         out.push(parsed);
                     }
                     out
+                }
+                Some(_) => {
+                    return Err(de::Error::custom("`included` must be a JSON array"));
                 }
                 None => Vec::new(),
             };
@@ -218,9 +226,9 @@ where
                 jsonapi,
                 links,
             })
-        } else if has_errors {
+        } else if let Some(errors_value) = errors_value {
             let errors: Vec<ApiError> =
-                serde_json::from_value(obj["errors"].clone()).map_err(de::Error::custom)?;
+                serde_json::from_value(errors_value).map_err(de::Error::custom)?;
             Ok(Document::Errors {
                 errors,
                 meta,
@@ -241,6 +249,29 @@ where
     }
 }
 
+impl<P, I> Document<P, I> {
+    /// Build an error document from one or more [`ApiError`]s.
+    #[must_use]
+    pub fn errors(errors: impl IntoIterator<Item = ApiError>) -> Document<P, I> {
+        Document::Errors {
+            errors: errors.into_iter().collect(),
+            meta: None,
+            jsonapi: None,
+            links: None,
+        }
+    }
+
+    /// Build a meta-only document.
+    #[must_use]
+    pub fn meta_only(meta: Meta) -> Document<P, I> {
+        Document::Meta {
+            meta,
+            jsonapi: None,
+            links: None,
+        }
+    }
+}
+
 impl<P, I: ResourceObject> Document<P, I> {
     /// Build a [`Registry`](crate::registry::Registry) from this document's `included` resources.
     /// Returns an empty registry for `Errors` and `Meta` variants.
@@ -249,6 +280,22 @@ impl<P, I: ResourceObject> Document<P, I> {
     /// `I = Resource` always satisfies that; if you override `I` with a custom
     /// type that doesn't implement `ResourceObject`, `.registry()` becomes
     /// unavailable and you'll need to build the registry manually.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use jsonapi_core::{Document, Resource, ResourceObject};
+    /// let json = r#"{
+    ///     "data": {"type": "articles", "id": "1", "attributes": {"title": "Hi"},
+    ///         "relationships": {"author": {"data": {"type": "people", "id": "9"}}}},
+    ///     "included": [{"type": "people", "id": "9", "attributes": {"name": "Dan"}}]
+    /// }"#;
+    /// let doc: Document<Resource> = serde_json::from_str(json).unwrap();
+    /// let registry = doc.registry().unwrap();
+    ///
+    /// let author: Resource = registry.get_by_id("people", "9").unwrap();
+    /// assert_eq!(author.resource_id(), Some("9"));
+    /// ```
     pub fn registry(&self) -> crate::Result<crate::registry::Registry> {
         match self {
             Document::Data { included, .. } => crate::registry::Registry::from_included(included),
@@ -266,6 +313,17 @@ impl<P, I> Document<P, I> {
     /// This is the typed-primary fast path: write
     /// `let article = doc.into_single()?;` instead of pattern-matching on
     /// [`Document`] and [`PrimaryData`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use jsonapi_core::{Document, Resource, ResourceObject};
+    /// let json = r#"{"data":{"type":"articles","id":"1","attributes":{"title":"Hi"}}}"#;
+    /// let doc: Document<Resource> = serde_json::from_str(json).unwrap();
+    ///
+    /// let article = doc.into_single().unwrap();
+    /// assert_eq!(article.resource_id(), Some("1"));
+    /// ```
     pub fn into_single(self) -> crate::Result<P> {
         match self {
             Document::Data {
@@ -289,6 +347,20 @@ impl<P, I> Document<P, I> {
     ///
     /// Returns [`Error::UnexpectedDocumentShape`](crate::Error::UnexpectedDocumentShape)
     /// if the document is a single resource, null, errors, or meta-only.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use jsonapi_core::{Document, Resource};
+    /// let json = r#"{"data":[
+    ///     {"type":"articles","id":"1","attributes":{"title":"A"}},
+    ///     {"type":"articles","id":"2","attributes":{"title":"B"}}
+    /// ]}"#;
+    /// let doc: Document<Resource> = serde_json::from_str(json).unwrap();
+    ///
+    /// let articles = doc.into_many().unwrap();
+    /// assert_eq!(articles.len(), 2);
+    /// ```
     pub fn into_many(self) -> crate::Result<Vec<P>> {
         match self {
             Document::Data {
@@ -343,7 +415,7 @@ impl<P, I> Document<P, I> {
     /// Borrow the single primary resource without consuming the document.
     ///
     /// See [`into_single`](Self::into_single) for the consuming version.
-    pub fn as_single(&self) -> crate::Result<&P> {
+    pub fn try_as_single(&self) -> crate::Result<&P> {
         match self {
             Document::Data {
                 data: PrimaryData::Single(boxed),
@@ -365,7 +437,7 @@ impl<P, I> Document<P, I> {
     /// Borrow the primary resource collection as a slice without consuming the document.
     ///
     /// See [`into_many`](Self::into_many) for the consuming version.
-    pub fn as_many(&self) -> crate::Result<&[P]> {
+    pub fn try_as_many(&self) -> crate::Result<&[P]> {
         match self {
             Document::Data {
                 data: PrimaryData::Many(items),
@@ -451,7 +523,7 @@ where
     /// When the primary type `P` is the dynamic [`Resource`](crate::Resource),
     /// the type check and required-attribute check are skipped (open-set
     /// primary type). The relationship walk and `IncludedRefMissing` check
-    /// still run, so `Document::<Resource>::from_str` is useful for
+    /// still run, so `Document::<Resource>::parse` is useful for
     /// validating compound documents with arbitrary primary shapes.
     ///
     /// # `IncludedRefMissing` scope
@@ -464,28 +536,100 @@ where
     /// empty, since there is no compound resolution to validate against.
     /// References that use only `lid` (no `id`) are skipped because atomic
     /// operations resolve those at request execution rather than at parse time.
-    #[allow(clippy::should_implement_trait)]
-    pub fn from_str(s: &str) -> crate::Result<Self> {
+    ///
+    /// # Examples
+    ///
+    /// Happy path — parse, then take the typed primary:
+    ///
+    /// ```
+    /// # use jsonapi_core::{Document, Resource, ResourceObject};
+    /// let json = r#"{"data":{"type":"articles","id":"1","attributes":{"title":"Hi"}}}"#;
+    /// let doc = Document::<Resource>::parse(json).unwrap();
+    /// assert_eq!(doc.into_single().unwrap().resource_id(), Some("1"));
+    /// ```
+    ///
+    /// Unlike `serde_json::from_str`, a structural defect surfaces as a typed
+    /// [`Error`](crate::Error). Here a relationship references `people:9`, but
+    /// the (non-empty) `included` array doesn't contain it:
+    ///
+    /// ```
+    /// # use jsonapi_core::{Document, Error, Resource};
+    /// let json = r#"{
+    ///     "data": {"type": "articles", "id": "1", "attributes": {"title": "Hi"},
+    ///         "relationships": {"author": {"data": {"type": "people", "id": "9"}}}},
+    ///     "included": [{"type": "people", "id": "1", "attributes": {"name": "Other"}}]
+    /// }"#;
+    /// let err = Document::<Resource>::parse(json).unwrap_err();
+    /// assert!(matches!(err, Error::IncludedRefMissing { .. }));
+    /// ```
+    pub fn parse(s: &str) -> crate::Result<Self> {
         let value: serde_json::Value = serde_json::from_str(s)?;
         Self::from_value(value)
     }
 
-    /// Parse a JSON:API document from a byte slice. See [`Document::from_str`]
+    /// Parse a JSON:API document from a byte slice. See [`Document::parse`]
     /// for semantics.
     pub fn from_slice(bytes: &[u8]) -> crate::Result<Self> {
         let value: serde_json::Value = serde_json::from_slice(bytes)?;
         Self::from_value(value)
     }
 
+    /// Parse bytes and return the single primary resource in one step — the
+    /// fold of [`from_slice`](Self::from_slice) and
+    /// [`into_single`](Self::into_single).
+    ///
+    /// Fails if the bytes aren't a valid JSON:API document (see
+    /// [`from_slice`](Self::from_slice)) or the document isn't a single
+    /// resource (see [`into_single`](Self::into_single)). Use
+    /// [`from_slice`](Self::from_slice) directly when you also need the
+    /// document's `included` or `meta`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use jsonapi_core::{Document, Resource, ResourceObject};
+    /// let json = br#"{"data":{"type":"articles","id":"1","attributes":{"title":"Hi"}}}"#;
+    /// let article = Document::<Resource>::parse_single(json).unwrap();
+    /// assert_eq!(article.resource_id(), Some("1"));
+    /// ```
+    pub fn parse_single(bytes: &[u8]) -> crate::Result<P> {
+        Self::from_slice(bytes)?.into_single()
+    }
+
+    /// Parse bytes and return the primary resources as a [`Vec`] in one step —
+    /// the fold of [`from_slice`](Self::from_slice) and
+    /// [`into_many`](Self::into_many).
+    ///
+    /// Fails if the bytes aren't a valid JSON:API document (see
+    /// [`from_slice`](Self::from_slice)) or the document isn't a collection
+    /// (see [`into_many`](Self::into_many)). Use
+    /// [`from_slice`](Self::from_slice) directly when you also need the
+    /// document's `included` or `meta`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use jsonapi_core::{Document, Resource};
+    /// let json = br#"{"data":[
+    ///     {"type":"articles","id":"1","attributes":{"title":"A"}},
+    ///     {"type":"articles","id":"2","attributes":{"title":"B"}}
+    /// ]}"#;
+    /// let articles = Document::<Resource>::parse_many(json).unwrap();
+    /// assert_eq!(articles.len(), 2);
+    /// ```
+    pub fn parse_many(bytes: &[u8]) -> crate::Result<Vec<P>> {
+        Self::from_slice(bytes)?.into_many()
+    }
+
     /// Parse a JSON:API document from a `serde_json::Value` with structural
-    /// pre-validation. See [`Document::from_str`] for semantics.
+    /// pre-validation. See [`Document::parse`] for semantics.
     pub fn from_value(value: serde_json::Value) -> crate::Result<Self> {
         prevalidate::<P>(&value)?;
         serde_json::from_value(value).map_err(crate::Error::Json)
     }
 }
 
-fn build_included_set(value: &serde_json::Value) -> std::collections::HashSet<(String, String)> {
+fn build_included_set(value: &serde_json::Value) -> std::collections::HashSet<(&str, &str)> {
     let mut set = std::collections::HashSet::new();
     let Some(arr) = value.get("included").and_then(|v| v.as_array()) else {
         return set;
@@ -500,7 +644,7 @@ fn build_included_set(value: &serde_json::Value) -> std::collections::HashSet<(S
         ) else {
             continue;
         };
-        set.insert((type_.to_string(), id.to_string()));
+        set.insert((type_, id));
     }
     set
 }
@@ -516,6 +660,13 @@ fn prevalidate<P: ResourceObject>(value: &serde_json::Value) -> crate::Result<()
         None => return Ok(()),
     };
 
+    // A document must not carry both `data` and `errors` (JSON:API 1.1 §7.1).
+    if obj.contains_key("data") && obj.contains_key("errors") {
+        return Err(crate::Error::Structure(
+            "document must not contain both `data` and `errors`".into(),
+        ));
+    }
+
     let Some(data) = obj.get("data") else {
         // Errors / meta documents do not carry primary data; nothing to validate.
         return Ok(());
@@ -525,12 +676,11 @@ fn prevalidate<P: ResourceObject>(value: &serde_json::Value) -> crate::Result<()
 
     match data {
         serde_json::Value::Object(_) => {
-            check_resource_full(data, "data", &info, &included_set)?;
+            check_resource_full(data, &|| "data".to_string(), &info, &included_set)?;
         }
         serde_json::Value::Array(arr) => {
             for (idx, item) in arr.iter().enumerate() {
-                let location = format!("data[{idx}]");
-                check_resource_full(item, &location, &info, &included_set)?;
+                check_resource_full(item, &|| format!("data[{idx}]"), &info, &included_set)?;
             }
         }
         // Null primary data is always valid structurally.
@@ -548,11 +698,11 @@ fn prevalidate<P: ResourceObject>(value: &serde_json::Value) -> crate::Result<()
     Ok(())
 }
 
-fn check_resource_full(
-    item: &serde_json::Value,
-    location: &str,
+fn check_resource_full<'a>(
+    item: &'a serde_json::Value,
+    location: &dyn Fn() -> String,
     info: &crate::TypeInfo,
-    included_set: &std::collections::HashSet<(String, String)>,
+    included_set: &std::collections::HashSet<(&'a str, &'a str)>,
 ) -> crate::Result<()> {
     let obj = match item.as_object() {
         Some(o) => o,
@@ -569,7 +719,7 @@ fn check_resource_full(
         return Err(crate::Error::TypeMismatch {
             expected: info.type_name,
             got: got.clone(),
-            location: location.to_string(),
+            location: location(),
         });
     }
 
@@ -582,7 +732,7 @@ fn check_resource_full(
                         return Err(crate::Error::MissingAttribute {
                             resource_type: info.type_name,
                             attribute: required,
-                            location: location.to_string(),
+                            location: location(),
                         });
                     }
                 }
@@ -591,7 +741,7 @@ fn check_resource_full(
                 return Err(crate::Error::MissingAttribute {
                     resource_type: info.type_name,
                     attribute: info.required_attribute_names[0],
-                    location: location.to_string(),
+                    location: location(),
                 });
             }
             Some(_) => {
@@ -610,11 +760,11 @@ fn check_resource_full(
     Ok(())
 }
 
-fn check_included_ref(
+fn check_included_ref<'a>(
     name: &str,
-    rel_location: &str,
-    identity: &serde_json::Value,
-    included_set: &std::collections::HashSet<(String, String)>,
+    rel_location: &dyn Fn() -> String,
+    identity: &'a serde_json::Value,
+    included_set: &std::collections::HashSet<(&'a str, &'a str)>,
 ) -> crate::Result<()> {
     // Skip the check when the wire payload has no `included` array (or all
     // entries were malformed). The empty set is the canonical "consumer didn't
@@ -632,33 +782,32 @@ fn check_included_ref(
         // lid-only — atomic-ops resolves these.
         return Ok(());
     };
-    let key = (type_.to_string(), id.to_string());
-    if !included_set.contains(&key) {
+    if !included_set.contains(&(type_, id)) {
         return Err(crate::Error::IncludedRefMissing {
             name: name.to_string(),
             r#type: type_.to_string(),
             id: id.to_string(),
-            location: rel_location.to_string(),
+            location: rel_location(),
         });
     }
     Ok(())
 }
 
-fn check_relationship(
+fn check_relationship<'a>(
     name: &str,
-    rel_value: &serde_json::Value,
-    location: &str,
-    included_set: &std::collections::HashSet<(String, String)>,
+    rel_value: &'a serde_json::Value,
+    location: &dyn Fn() -> String,
+    included_set: &std::collections::HashSet<(&'a str, &'a str)>,
 ) -> crate::Result<()> {
     let rel_obj = rel_value
         .as_object()
         .ok_or_else(|| crate::Error::MalformedRelationship {
             name: name.to_string(),
-            location: location.to_string(),
+            location: location(),
             reason: "relationship value must be an object".into(),
         })?;
 
-    let rel_location = format!("{location}.relationships.{name}");
+    let rel_location = || format!("{}.relationships.{}", location(), name);
 
     // A relationship may omit `data` (links/meta only), but if `data` is
     // present it must be null, an object, or an array. For object/array
@@ -683,7 +832,7 @@ fn check_relationship(
                 };
                 return Err(crate::Error::MalformedRelationship {
                     name: name.to_string(),
-                    location: location.to_string(),
+                    location: location(),
                     reason: format!("`data` must be null, an object, or an array; got {kind}"),
                 });
             }
@@ -710,12 +859,8 @@ mod prepass_helpers {
         )
         .unwrap();
         let set = build_included_set(&v);
-        let expected: HashSet<(String, String)> = [
-            ("people".to_string(), "1".to_string()),
-            ("tags".to_string(), "5".to_string()),
-        ]
-        .into_iter()
-        .collect();
+        let expected: HashSet<(&str, &str)> =
+            [("people", "1"), ("tags", "5")].into_iter().collect();
         assert_eq!(set, expected);
     }
 
@@ -741,25 +886,38 @@ mod prepass_helpers {
         .unwrap();
         let set = build_included_set(&v);
         assert_eq!(set.len(), 2);
-        assert!(set.contains(&("people".to_string(), "1".to_string())));
-        assert!(set.contains(&("tags".to_string(), "5".to_string())));
+        assert!(set.contains(&("people", "1")));
+        assert!(set.contains(&("tags", "5")));
     }
 
     #[test]
     fn check_included_ref_passes_for_present_id() {
         let identity = serde_json::json!({ "type": "people", "id": "1" });
         let mut set = HashSet::new();
-        set.insert(("people".to_string(), "1".to_string()));
-        assert!(check_included_ref("author", "data.relationships.author", &identity, &set).is_ok());
+        set.insert(("people", "1"));
+        assert!(
+            check_included_ref(
+                "author",
+                &|| "data.relationships.author".to_string(),
+                &identity,
+                &set
+            )
+            .is_ok()
+        );
     }
 
     #[test]
     fn check_included_ref_fails_for_absent_id() {
         let identity = serde_json::json!({ "type": "people", "id": "9" });
-        let mut set: HashSet<(String, String)> = HashSet::new();
-        set.insert(("people".to_string(), "1".to_string()));
-        let err =
-            check_included_ref("author", "data.relationships.author", &identity, &set).unwrap_err();
+        let mut set: HashSet<(&str, &str)> = HashSet::new();
+        set.insert(("people", "1"));
+        let err = check_included_ref(
+            "author",
+            &|| "data.relationships.author".to_string(),
+            &identity,
+            &set,
+        )
+        .unwrap_err();
         assert!(
             matches!(
                 &err,
@@ -777,24 +935,48 @@ mod prepass_helpers {
     fn check_included_ref_skips_when_set_is_empty() {
         // Empty set means "no included on the wire" — refs are unverified.
         let identity = serde_json::json!({ "type": "people", "id": "9" });
-        let set: HashSet<(String, String)> = HashSet::new();
-        assert!(check_included_ref("author", "data.relationships.author", &identity, &set).is_ok());
+        let set: HashSet<(&str, &str)> = HashSet::new();
+        assert!(
+            check_included_ref(
+                "author",
+                &|| "data.relationships.author".to_string(),
+                &identity,
+                &set
+            )
+            .is_ok()
+        );
     }
 
     #[test]
     fn check_included_ref_skips_lid_only_identifier() {
         let identity = serde_json::json!({ "type": "people", "lid": "tmp-1" });
-        let mut set: HashSet<(String, String)> = HashSet::new();
-        set.insert(("other".to_string(), "x".to_string()));
-        assert!(check_included_ref("author", "data.relationships.author", &identity, &set).is_ok());
+        let mut set: HashSet<(&str, &str)> = HashSet::new();
+        set.insert(("other", "x"));
+        assert!(
+            check_included_ref(
+                "author",
+                &|| "data.relationships.author".to_string(),
+                &identity,
+                &set
+            )
+            .is_ok()
+        );
     }
 
     #[test]
     fn check_included_ref_skips_non_object_identity() {
         let identity = serde_json::Value::Null;
-        let mut set: HashSet<(String, String)> = HashSet::new();
-        set.insert(("other".to_string(), "x".to_string()));
-        assert!(check_included_ref("author", "data.relationships.author", &identity, &set).is_ok());
+        let mut set: HashSet<(&str, &str)> = HashSet::new();
+        set.insert(("other", "x"));
+        assert!(
+            check_included_ref(
+                "author",
+                &|| "data.relationships.author".to_string(),
+                &identity,
+                &set
+            )
+            .is_ok()
+        );
     }
 }
 
@@ -1134,20 +1316,20 @@ mod tests {
     #[test]
     fn as_single_borrows_without_consuming() {
         let doc: Document<Resource> = serde_json::from_str(single_doc_json()).unwrap();
-        let r1 = doc.as_single().unwrap();
+        let r1 = doc.try_as_single().unwrap();
         assert_eq!(r1.resource_id(), Some("1"));
         // Doc is still usable.
-        let r2 = doc.as_single().unwrap();
+        let r2 = doc.try_as_single().unwrap();
         assert_eq!(r2.resource_id(), Some("1"));
     }
 
     #[test]
     fn as_many_borrows_slice() {
         let doc: Document<Resource> = serde_json::from_str(many_doc_json()).unwrap();
-        let slice = doc.as_many().unwrap();
+        let slice = doc.try_as_many().unwrap();
         assert_eq!(slice.len(), 2);
         // Doc is still usable for further borrows.
-        let _ = doc.as_many().unwrap();
+        let _ = doc.try_as_many().unwrap();
     }
 
     #[test]
@@ -1190,5 +1372,25 @@ mod tests {
 
         let meta: Document<Resource> = serde_json::from_str(meta_doc_json()).unwrap();
         assert!(meta.included().is_empty());
+    }
+
+    // ----- Document constructors -----
+
+    #[test]
+    fn document_errors_constructor_builds_errors_variant() {
+        let doc = Document::<Resource>::errors([ApiError {
+            status: Some("404".into()),
+            title: Some("Not Found".into()),
+            ..Default::default()
+        }]);
+        assert!(matches!(doc, Document::Errors { .. }));
+    }
+
+    #[test]
+    fn document_meta_only_constructor_builds_meta_variant() {
+        let mut m = serde_json::Map::new();
+        m.insert("total".into(), serde_json::json!(3));
+        let doc = Document::<Resource>::meta_only(m);
+        assert!(matches!(doc, Document::Meta { .. }));
     }
 }

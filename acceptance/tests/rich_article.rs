@@ -317,8 +317,8 @@ fn test_dynamic_lossless_round_trip() {
         .relationships
         .get("field_media_override")
         .expect("field_media_override present");
-    let media_rid = match media_data {
-        RelationshipData::ToOne(Some(rid)) => rid,
+    let media_rid = match media_data.data.as_ref() {
+        Some(RelationshipData::ToOne(Some(rid))) => rid,
         _ => panic!("expected to-one present"),
     };
     let media_meta = media_rid
@@ -341,7 +341,7 @@ fn test_dynamic_lossless_round_trip() {
         .get("field_logo")
         .expect("field_logo present");
     assert!(
-        matches!(logo_data, RelationshipData::ToOne(None)),
+        matches!(logo_data.data, Some(RelationshipData::ToOne(None))),
         "expected null to-one, got {logo_data:?}"
     );
 
@@ -367,10 +367,10 @@ fn test_document_from_str_happy_path_against_drupal_fixture() {
     // Run the rich Drupal fixture through the typed-parse-error pre-pass
     // entrypoint. Catches regressions to the pre-pass-then-deserialize
     // handoff against a real-shape payload.
-    let doc: Document<ArticleFull> = jsonapi_core::Document::from_str(RICH_ARTICLE_JSON)
-        .expect("rich Drupal fixture parses cleanly through Document::from_str");
+    let doc: Document<ArticleFull> = jsonapi_core::Document::parse(RICH_ARTICLE_JSON)
+        .expect("rich Drupal fixture parses cleanly through Document::parse");
 
-    let article = doc.as_single().expect("single article");
+    let article = doc.try_as_single().expect("single article");
     assert!(!article.id.is_empty(), "article id present");
 
     // Sanity: the fixture has a non-empty included array, registry builds.
