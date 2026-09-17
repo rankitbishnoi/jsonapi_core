@@ -15,8 +15,8 @@ readme = "README.md"
 # default-features = false — only the extractor/responder traits are needed here;
 # the server runtime (tokio/http1) is a dev-dependency concern for the example.
 [dependencies]
-jsonapi_core = { path = "../jsonapi_core", version = "0.4.0" }
-jsonapi_http = { path = "../jsonapi_http", version = "0.4.0" }
+jsonapi_core = { path = "../jsonapi_core", version = "1.0.0-rc.1" }
+jsonapi_http = { path = "../jsonapi_http", version = "1.0.0-rc.1" }
 axum = { version = "0.8", default-features = false }
 http = "1"
 bytes = "1"

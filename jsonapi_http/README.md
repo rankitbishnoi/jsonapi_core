@@ -37,8 +37,8 @@ Every failure — from an extractor, a layer, or a handler — funnels through
 
 ```toml
 [dependencies]
-jsonapi_http = "0.4"
-jsonapi_core = "0.4"
+jsonapi_http = "1.0.0-rc.1"
+jsonapi_core = "1.0.0-rc.1"
 ```
 
 ## Building an adapter

@@ -6,7 +6,7 @@ tests. Enable it in your `[dev-dependencies]`:
 
 ```toml
 [dev-dependencies]
-jsonapi_axum = { version = "0.4", features = ["testing"] }
+jsonapi_axum = { version = "1.0.0-rc.1", features = ["testing"] }
 ```
 
 It keeps the default build lean and pulls in `tower`'s `util` (for `oneshot`)

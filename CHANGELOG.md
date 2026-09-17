@@ -16,6 +16,13 @@ workspace version.
 
 ## [Unreleased]
 
+## [1.0.0-rc.1] — 2026-09-17
+
+First release candidate for the stable `1.0` line. The public API surface
+described in the [versioning policy](./README.md#versioning-policy) is now
+considered stable; the RC period is for consumer feedback before the final
+`1.0.0` tag.
+
 ### Added
 
 - **New crate `jsonapi_axum`** — a first-class [axum](https://docs.rs/axum)
@@ -443,8 +450,8 @@ Initial release.
 - `Error` enum with structured variants for registry, member-name, media-type,
   document-structure, and include-path failures.
 
-[Unreleased]: https://github.com/rankitbishnoi/jsonapi_core/compare/v0.4.0...HEAD
-[0.4.0]: https://github.com/rankitbishnoi/jsonapi_core/compare/v0.3.0...v0.4.0
+[Unreleased]: https://github.com/rankitbishnoi/jsonapi_core/compare/v1.0.0-rc.1...HEAD
+[1.0.0-rc.1]: https://github.com/rankitbishnoi/jsonapi_core/compare/v0.3.0...v1.0.0-rc.1
 [0.3.0]: https://github.com/rankitbishnoi/jsonapi_core/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/rankitbishnoi/jsonapi_core/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/rankitbishnoi/jsonapi_core/compare/v0.1.2...v0.2.0

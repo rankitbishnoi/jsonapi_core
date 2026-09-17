@@ -14,7 +14,7 @@ readme = "README.md"
 # NOTE: this crate deliberately depends on no web framework. Adapters
 # (jsonapi_axum, future jsonapi_actix, …) build on top of it.
 [dependencies]
-jsonapi_core = { path = "../jsonapi_core", version = "0.4.0", default-features = false }
+jsonapi_core = { path = "../jsonapi_core", version = "1.0.0-rc.1", default-features = false }
 serde = "1"
 serde_json = "1"
 http = "1"

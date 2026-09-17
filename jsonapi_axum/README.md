@@ -24,10 +24,10 @@ can back adapters for other frameworks.
 
 ```toml
 [dependencies]
-jsonapi_axum = "0.4"
+jsonapi_axum = "1.0.0-rc.1"
 # Required to derive JsonApi on your resource types (the derive macro expands to
 # ::jsonapi_core paths, so the crate must be a direct dependency):
-jsonapi_core = "0.4"
+jsonapi_core = "1.0.0-rc.1"
 axum = "0.8"
 ```
 
@@ -254,7 +254,7 @@ A handler can read the resolved id with the `RequestId` extractor.
 | `testing` | In-process test utilities (`jsonapi_axum::testing`) — request builder, `Router::send`, fluent response assertions. |
 
 ```toml
-jsonapi_axum = { version = "0.4", features = ["validator", "anyhow", "sqlx", "uuid"] }
+jsonapi_axum = { version = "1.0.0-rc.1", features = ["validator", "anyhow", "sqlx", "uuid"] }
 ```
 
 ## Testing
@@ -264,7 +264,7 @@ Enable the `testing` feature in your `[dev-dependencies]` for in-process helpers
 
 ```toml
 [dev-dependencies]
-jsonapi_axum = { version = "0.4", features = ["testing"] }
+jsonapi_axum = { version = "1.0.0-rc.1", features = ["testing"] }
 ```
 
 ```rust,ignore

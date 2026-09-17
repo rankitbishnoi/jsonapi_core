@@ -7,7 +7,7 @@ publish = false
 
 [dependencies]
 # used by the client, inspector, and pages tasks (added ahead of first use)
-jsonapi_core = { path = "../../jsonapi_core", version = "0.4.0", features = ["atomic-ops"] }
+jsonapi_core = { path = "../../jsonapi_core", version = "1.0.0-rc.1", features = ["atomic-ops"] }
 jsonapi-showcase-resources = { path = "../resources", version = "0.1.0" }
 
 leptos = { version = "0.8", features = ["csr"] }

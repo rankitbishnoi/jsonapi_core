@@ -6,8 +6,8 @@ rust-version.workspace = true
 publish = false
 
 [dependencies]
-jsonapi_core = { path = "../../jsonapi_core", version = "0.4.0", features = ["atomic-ops"] }
-jsonapi_axum = { path = "../../jsonapi_axum", version = "0.4.0", features = ["sqlx", "uuid", "validator", "anyhow", "atomic-ops"] }
+jsonapi_core = { path = "../../jsonapi_core", version = "1.0.0-rc.1", features = ["atomic-ops"] }
+jsonapi_axum = { path = "../../jsonapi_axum", version = "1.0.0-rc.1", features = ["sqlx", "uuid", "validator", "anyhow", "atomic-ops"] }
 jsonapi-showcase-resources = { path = "../resources", version = "0.1.0" }
 
 axum = { version = "0.8", features = ["tokio", "http1", "macros"] }
@@ -24,7 +24,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 anyhow = "1"
 
 [dev-dependencies]
-jsonapi_axum = { path = "../../jsonapi_axum", version = "0.4.0", features = ["sqlx", "uuid", "validator", "anyhow", "atomic-ops", "testing"] }
+jsonapi_axum = { path = "../../jsonapi_axum", version = "1.0.0-rc.1", features = ["sqlx", "uuid", "validator", "anyhow", "atomic-ops", "testing"] }
 
 [lints]
 workspace = true

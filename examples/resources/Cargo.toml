@@ -6,7 +6,7 @@ rust-version.workspace = true
 publish = false
 
 [dependencies]
-jsonapi_core = { path = "../../jsonapi_core", version = "0.4.0" }
+jsonapi_core = { path = "../../jsonapi_core", version = "1.0.0-rc.1" }
 serde = { version = "1", features = ["derive"] }
 validator = { version = "0.20", features = ["derive"] }
 

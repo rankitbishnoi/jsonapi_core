@@ -100,7 +100,7 @@ rules. Use `.or_json_api()` / `.into_json_api_error()` instead.
 | `debug-errors` | Include the raw `detail` in an `internal` `500` (local debugging only). |
 
 ```toml
-jsonapi_axum = { version = "0.4", features = ["validator", "anyhow", "sqlx"] }
+jsonapi_axum = { version = "1.0.0-rc.1", features = ["validator", "anyhow", "sqlx"] }
 ```
 
 With the `validator` feature, feed field errors straight into a document:

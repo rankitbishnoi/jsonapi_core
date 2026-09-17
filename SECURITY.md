@@ -2,14 +2,13 @@
 
 ## Supported versions
 
-`jsonapi_core` is pre-1.0. Security fixes are released only against the latest
-published `0.x` minor version. Please upgrade to the newest release before
-reporting an issue.
+Security fixes are released only against the latest published version. Please
+upgrade to the newest release before reporting an issue.
 
 | Version | Supported |
 |---------|-----------|
-| latest `0.x` | ✅ |
-| older | ❌ |
+| latest `1.x` (including `1.0` release candidates) | ✅ |
+| `0.x` | ❌ |
 
 ## Reporting a vulnerability
 
