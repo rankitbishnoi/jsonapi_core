@@ -45,12 +45,16 @@ pub fn build_router(state: AppState) -> Router {
             axum::routing::post(routes::operations::operations),
         )
         .fallback(not_found)
-        // Layers applied last-added = outermost. Order from innermost to outermost:
-        .layer(cors)
+        // Layers applied last-added = outermost. CORS must be OUTERMOST so that
+        // responses short-circuited by inner layers (e.g. JsonApiLayer's 415/406
+        // content-negotiation guard) still receive `Access-Control-Allow-Origin`;
+        // otherwise the browser blocks those error responses as CORS failures.
+        // Order from innermost to outermost:
         .layer(TraceLayer::new_for_http())
         .layer(JsonApiLayer::new().ext([jsonapi_core::atomic::ATOMIC_EXT_URI]))
         .layer(NormalizeErrorsLayer::new())
         .layer(RequestIdLayer::new().generate())
+        .layer(cors)
         .with_state(state)
 }
 
