@@ -1,4 +1,6 @@
 use axum::Router;
+use axum::http::Method;
+use axum::http::header::{ACCEPT, CONTENT_TYPE};
 use axum::routing::get;
 use jsonapi_axum::{JsonApiLayer, NormalizeErrorsLayer, RequestIdLayer, not_found};
 use tower_http::cors::CorsLayer;
@@ -57,11 +59,24 @@ pub fn build_router(state: AppState) -> Router {
 /// An empty list means "permissive" — used in tests so cross-origin requests
 /// aren't blocked. A non-empty list restricts to the provided origins.
 fn build_cors(origins: &[String]) -> CorsLayer {
+    // Enumerate methods/headers explicitly rather than `Any`. A wildcard
+    // `Access-Control-Allow-Methods: *` is not reliably honoured by browsers for
+    // preflighted verbs like PATCH (and never in credentialed mode), so writes
+    // were CORS-blocked in the browser even though the origin was allowed.
+    let methods = [
+        Method::GET,
+        Method::POST,
+        Method::PATCH,
+        Method::PUT,
+        Method::DELETE,
+        Method::OPTIONS,
+    ];
+    let headers = [CONTENT_TYPE, ACCEPT];
+    let base = CorsLayer::new()
+        .allow_methods(methods)
+        .allow_headers(headers);
     if origins.is_empty() {
-        CorsLayer::new()
-            .allow_origin(tower_http::cors::Any)
-            .allow_methods(tower_http::cors::Any)
-            .allow_headers(tower_http::cors::Any)
+        base.allow_origin(tower_http::cors::Any)
     } else {
         let parsed: Vec<axum::http::HeaderValue> = origins
             .iter()
@@ -73,9 +88,6 @@ fn build_cors(origins: &[String]) -> CorsLayer {
                 }
             })
             .collect();
-        CorsLayer::new()
-            .allow_origin(parsed)
-            .allow_methods(tower_http::cors::Any)
-            .allow_headers(tower_http::cors::Any)
+        base.allow_origin(parsed)
     }
 }
