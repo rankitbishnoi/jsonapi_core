@@ -499,3 +499,11 @@ pub use atomic::{
 #[cfg(feature = "derive")]
 #[cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 pub use jsonapi_core_derive::JsonApi;
+
+#[doc(hidden)]
+pub mod __private {
+    //! Not public API. Re-exports referenced by `#[derive(JsonApi)]`-generated
+    //! code so a `jsonapi_core` dependency alone suffices — downstream crates
+    //! that only derive `JsonApi` need not also declare `serde_json` themselves.
+    pub use serde_json;
+}

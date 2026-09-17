@@ -260,7 +260,7 @@ fn gen_serialize(
 
         quote! {
             {
-                let mut __attrs = ::serde_json::Map::new();
+                let mut __attrs = ::jsonapi_core::__private::serde_json::Map::new();
                 #(#attr_inserts)*
                 if !__attrs.is_empty() {
                     __map.serialize_entry("attributes", &__attrs)?;
@@ -285,7 +285,7 @@ fn gen_serialize(
 
         quote! {
             {
-                let mut __rels = ::serde_json::Map::new();
+                let mut __rels = ::jsonapi_core::__private::serde_json::Map::new();
                 #(#rel_inserts)*
                 if !__rels.is_empty() {
                     __map.serialize_entry("relationships", &__rels)?;
@@ -413,7 +413,7 @@ fn gen_deserialize(
             quote! {
                 let #ident = __obj
                     .get("links")
-                    .map(|v| ::serde_json::from_value(v.clone()).map_err(::serde::de::Error::custom))
+                    .map(|v| ::jsonapi_core::__private::serde_json::from_value(v.clone()).map_err(::serde::de::Error::custom))
                     .transpose()?;
             }
         });
@@ -427,7 +427,7 @@ fn gen_deserialize(
             quote! {
                 let #ident = __obj
                     .get("meta")
-                    .map(|v| ::serde_json::from_value(v.clone()).map_err(::serde::de::Error::custom))
+                    .map(|v| ::jsonapi_core::__private::serde_json::from_value(v.clone()).map_err(::serde::de::Error::custom))
                     .transpose()?;
             }
         });
@@ -450,7 +450,7 @@ fn gen_deserialize(
             fn deserialize<__D: ::serde::Deserializer<'de>>(
                 deserializer: __D,
             ) -> ::core::result::Result<Self, __D::Error> {
-                let __value = <::serde_json::Value as ::serde::Deserialize>::deserialize(deserializer)?;
+                let __value = <::jsonapi_core::__private::serde_json::Value as ::serde::Deserialize>::deserialize(deserializer)?;
                 let __obj = __value
                     .as_object()
                     .ok_or_else(|| ::serde::de::Error::custom("resource must be a JSON object"))?;
@@ -505,12 +505,12 @@ fn gen_field_serialize(field: &ParsedField, target_var: &str) -> TokenStream {
             match &self.#ident {
                 ::jsonapi_core::Field::Absent => {}
                 ::jsonapi_core::Field::Null => {
-                    #target.insert(#wire.to_string(), ::serde_json::Value::Null);
+                    #target.insert(#wire.to_string(), ::jsonapi_core::__private::serde_json::Value::Null);
                 }
                 ::jsonapi_core::Field::Set(__val) => {
                     #target.insert(
                         #wire.to_string(),
-                        ::serde_json::to_value(__val).map_err(::serde::ser::Error::custom)?,
+                        ::jsonapi_core::__private::serde_json::to_value(__val).map_err(::serde::ser::Error::custom)?,
                     );
                 }
             }
@@ -520,7 +520,7 @@ fn gen_field_serialize(field: &ParsedField, target_var: &str) -> TokenStream {
             if let ::core::option::Option::Some(ref __val) = self.#ident {
                 #target.insert(
                     #wire.to_string(),
-                    ::serde_json::to_value(__val).map_err(::serde::ser::Error::custom)?,
+                    ::jsonapi_core::__private::serde_json::to_value(__val).map_err(::serde::ser::Error::custom)?,
                 );
             }
         }
@@ -528,7 +528,7 @@ fn gen_field_serialize(field: &ParsedField, target_var: &str) -> TokenStream {
         quote! {
             #target.insert(
                 #wire.to_string(),
-                ::serde_json::to_value(&self.#ident).map_err(::serde::ser::Error::custom)?,
+                ::jsonapi_core::__private::serde_json::to_value(&self.#ident).map_err(::serde::ser::Error::custom)?,
             );
         }
     }
@@ -573,7 +573,7 @@ fn gen_field_extract(field: &ParsedField, source_var: &str) -> TokenStream {
                 ::core::option::Option::None => ::jsonapi_core::Field::Absent,
                 ::core::option::Option::Some(__v) if __v.is_null() => ::jsonapi_core::Field::Null,
                 ::core::option::Option::Some(__v) => ::jsonapi_core::Field::Set(
-                    ::serde_json::from_value(__v.clone()).map_err(|__err| {
+                    ::jsonapi_core::__private::serde_json::from_value(__v.clone()).map_err(|__err| {
                         <__D::Error as ::serde::de::Error>::custom(
                             ::std::format!("field `{}`: {}", #wire, __err),
                         )
@@ -592,7 +592,7 @@ fn gen_field_extract(field: &ParsedField, source_var: &str) -> TokenStream {
             let #ident: #ty = match #lookup {
                 ::core::option::Option::Some(__v) => {
                     let __is_null = __v.is_null();
-                    match ::serde_json::from_value(__v.clone()) {
+                    match ::jsonapi_core::__private::serde_json::from_value(__v.clone()) {
                         ::core::result::Result::Ok(__parsed) => {
                             ::core::option::Option::Some(__parsed)
                         }
@@ -616,7 +616,7 @@ fn gen_field_extract(field: &ParsedField, source_var: &str) -> TokenStream {
         quote! {
             let #ident: #ty = match #lookup {
                 ::core::option::Option::Some(v) => {
-                    ::serde_json::from_value(v.clone()).map_err(|__err| {
+                    ::jsonapi_core::__private::serde_json::from_value(v.clone()).map_err(|__err| {
                         <__D::Error as ::serde::de::Error>::custom(
                             ::std::format!("field `{}`: {}", #wire, __err),
                         )
@@ -630,7 +630,7 @@ fn gen_field_extract(field: &ParsedField, source_var: &str) -> TokenStream {
             let __raw = #lookup
                 .ok_or_else(|| <__D::Error as ::serde::de::Error>::missing_field(#wire))?
                 .clone();
-            let #ident: #ty = ::serde_json::from_value(__raw).map_err(|__err| {
+            let #ident: #ty = ::jsonapi_core::__private::serde_json::from_value(__raw).map_err(|__err| {
                 <__D::Error as ::serde::de::Error>::custom(
                     ::std::format!("field `{}`: {}", #wire, __err),
                 )
