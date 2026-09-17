@@ -1,5 +1,7 @@
 use leptos::prelude::*;
-use serde_json::json;
+
+use jsonapi_core::{DocumentBuilder, Field, Relationship};
+use jsonapi_showcase_resources::{ArticlePatchResource, NewArticleResource};
 
 use crate::api::ApiClient;
 use crate::components::JsonView;
@@ -39,33 +41,43 @@ pub fn CreateEditPage() -> impl IntoView {
     });
 
     let on_create = move |_| {
-        let doc = json!({
-            "data": {
-                "type": "articles",
-                "attributes": { "title": new_title.get(), "body": new_body.get() },
-                "relationships": {
-                    "author": { "data": { "type": "authors", "id": new_author.get() } }
-                }
-            }
-        });
-        post.dispatch_local(doc.to_string());
+        // Dogfood the typed write resource: `#[derive(JsonApi)]` serializes it
+        // into a proper JSON:API document (type + attributes + relationships).
+        let new = NewArticleResource {
+            id: None,
+            title: new_title.get(),
+            body: new_body.get(),
+            author: Relationship::to_one_id("authors", new_author.get()),
+        };
+        let doc = DocumentBuilder::single(new).build();
+        let payload = serde_json::to_string(&doc).unwrap_or_default();
+        post.dispatch_local(payload);
     };
 
     let on_patch = move |_| {
-        let mut attrs = serde_json::Map::new();
-        if send_title.get() {
-            attrs.insert("title".into(), json!(patch_title.get()));
-        }
-        if send_body.get() {
-            attrs.insert("body".into(), json!(patch_body.get()));
-        }
-        let id = patch_id.get();
+        // Field<T> tri-state: Set when the box is checked, Absent otherwise. The
+        // derive omits Absent members from the serialized `attributes`, emits
+        // `null` for Null, and the value for Set — exactly PATCH semantics.
+        let patch_res = ArticlePatchResource {
+            id: patch_id.get(),
+            title: if send_title.get() {
+                Field::Set(patch_title.get())
+            } else {
+                Field::Absent
+            },
+            body: if send_body.get() {
+                Field::Set(patch_body.get())
+            } else {
+                Field::Absent
+            },
+        };
         // Raw id in the body; percent-encoded when placed in the URL path.
-        let id_seg = js_sys::encode_uri_component(&id)
+        let id_seg = js_sys::encode_uri_component(&patch_res.id)
             .as_string()
             .unwrap_or_default();
-        let doc = json!({ "data": { "type": "articles", "id": id, "attributes": attrs } });
-        patch.dispatch_local((format!("/articles/{id_seg}"), doc.to_string()));
+        let doc = DocumentBuilder::single(patch_res).build();
+        let payload = serde_json::to_string(&doc).unwrap_or_default();
+        patch.dispatch_local((format!("/articles/{id_seg}"), payload));
     };
 
     let response: Signal<String> = body.into();

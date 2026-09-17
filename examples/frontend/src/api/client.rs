@@ -125,12 +125,12 @@ impl ApiClient {
     }
 
     /// Typed helper: dogfood `jsonapi_core` by parsing a list of articles into
-    /// `Vec<ArticleResource>`. Returns the parsed titles for a page summary.
+    /// `Vec<ArticleResource>` in one step via [`Document::parse_many`]. Returns
+    /// the parsed titles for a page summary.
     pub async fn list_article_titles(&self, path: &str) -> Result<Vec<String>, String> {
         let res = self.get(path).await;
-        let doc: Document<ArticleResource> =
-            Document::from_slice(res.body.as_bytes()).map_err(|e| e.to_string())?;
-        let items = doc.into_many().map_err(|e| e.to_string())?;
+        let items = Document::<ArticleResource>::parse_many(res.body.as_bytes())
+            .map_err(|e| e.to_string())?;
         Ok(items.into_iter().map(|a| a.title).collect())
     }
 }

@@ -1,8 +1,10 @@
 #![cfg(target_arch = "wasm32")]
 
+use jsonapi_core::{DocumentBuilder, Field};
 use jsonapi_showcase_frontend::api::capture::{pretty_body, request_id};
 use jsonapi_showcase_frontend::inspector::model::{ExchangeInit, Header};
 use jsonapi_showcase_frontend::inspector::store::InspectorStore;
+use jsonapi_showcase_resources::ArticlePatchResource;
 use wasm_bindgen_test::*;
 
 fn init(method: &str) -> ExchangeInit {
@@ -56,4 +58,27 @@ fn capture_helpers_work_in_wasm() {
         value: "abc".into(),
     }];
     assert_eq!(request_id(&headers).as_deref(), Some("abc"));
+}
+
+// The create/edit page dogfoods the derive to build PATCH bodies: a checked
+// field is `Field::Set`, an unchecked field is `Field::Absent`. The derived
+// `Serialize` must omit Absent members entirely so the wire document is a true
+// partial update. This asserts that exact tri-state behaviour in wasm.
+#[wasm_bindgen_test]
+fn typed_patch_omits_absent_fields() {
+    let patch = ArticlePatchResource {
+        id: "art-01".into(),
+        title: Field::Set("Edited".into()),
+        body: Field::Absent,
+    };
+    let doc = DocumentBuilder::single(patch).build();
+    let json = serde_json::to_value(&doc).expect("serialize typed patch");
+    let attrs = &json["data"]["attributes"];
+    assert_eq!(json["data"]["type"], "articles");
+    assert_eq!(json["data"]["id"], "art-01");
+    assert_eq!(attrs["title"], "Edited", "Set member is present");
+    assert!(
+        attrs.get("body").is_none(),
+        "Absent member must be omitted, got {attrs:?}"
+    );
 }

@@ -1,5 +1,11 @@
+use std::collections::BTreeMap;
+
 use leptos::prelude::*;
-use serde_json::json;
+
+use jsonapi_core::atomic::{AtomicOperation, AtomicRequest, OperationTarget};
+use jsonapi_core::{
+    Identity, PrimaryData, RelationshipData, Resource, ResourceIdentifier, ResourceRelationship,
+};
 
 use crate::api::ApiClient;
 use crate::components::JsonView;
@@ -36,29 +42,65 @@ pub fn AtomicPage() -> impl IntoView {
     });
 
     let compose = move |_| {
-        let doc = json!({
-            "atomic:operations": [
-                {
-                    "op": "add",
-                    "data": {
-                        "type": "authors",
-                        "lid": "new-author",
-                        "attributes": { "name": author_name.get(), "email": author_email.get() }
-                    }
+        // Dogfood the typed atomic-ops model: build `AtomicRequest` from typed
+        // operations (the `op` discriminant is compile-checked), pre-flight it
+        // with `validate_lid_refs`, then serialize.
+        let author = Resource {
+            r#type: "authors".into(),
+            id: None,
+            lid: Some("new-author".into()),
+            attributes: serde_json::json!({
+                "name": author_name.get(),
+                "email": author_email.get(),
+            }),
+            relationships: BTreeMap::new(),
+            links: None,
+            meta: None,
+        };
+
+        let mut article_rels = BTreeMap::new();
+        article_rels.insert(
+            "author".into(),
+            ResourceRelationship::new(RelationshipData::ToOne(Some(ResourceIdentifier {
+                r#type: "authors".into(),
+                identity: Identity::Lid("new-author".into()),
+                meta: None,
+            }))),
+        );
+        let article = Resource {
+            r#type: "articles".into(),
+            id: None,
+            lid: None,
+            attributes: serde_json::json!({
+                "title": title.get(),
+                "body": "Created atomically.",
+            }),
+            relationships: article_rels,
+            links: None,
+            meta: None,
+        };
+
+        let req = AtomicRequest {
+            operations: vec![
+                AtomicOperation::Add {
+                    target: OperationTarget::default(),
+                    data: PrimaryData::Single(Box::new(author)),
                 },
-                {
-                    "op": "add",
-                    "data": {
-                        "type": "articles",
-                        "attributes": { "title": title.get(), "body": "Created atomically." },
-                        "relationships": {
-                            "author": { "data": { "type": "authors", "lid": "new-author" } }
-                        }
-                    }
-                }
-            ]
-        });
-        run.dispatch_local(doc.to_string());
+                AtomicOperation::Add {
+                    target: OperationTarget::default(),
+                    data: PrimaryData::Single(Box::new(article)),
+                },
+            ],
+        };
+
+        // Client-side pre-flight: reject inconsistent lid references before the
+        // network round-trip (no exchange is recorded when this fails).
+        if let Err(e) = req.validate_lid_refs() {
+            body.set(format!("client-side lid validation failed: {e}"));
+            return;
+        }
+        let payload = serde_json::to_string(&req).unwrap_or_default();
+        run.dispatch_local(payload);
     };
 
     let response: Signal<String> = body.into();
