@@ -137,6 +137,7 @@ Or browse the markdown directly starting at [`docs/introduction.md`](https://git
 |------|----------|
 | `jsonapi_core/` | The library crate. |
 | `jsonapi_core_derive/` | The proc-macro crate (re-exported via the `derive` feature). |
+| `jsonapi_core_validation/` | Shared member-name validation used by both the runtime and derive crates (internal implementation detail). |
 | `jsonapi_http/` | Framework-agnostic HTTP integration (request parsing, response building, tower layers). |
 | `jsonapi_axum/` | [axum](https://docs.rs/axum) adapter: JSON:API extractors, responders, and middleware. |
 | `acceptance/` | Spec-conformance integration tests. |
@@ -161,12 +162,14 @@ The following are **public API** and changes to them are governed by SemVer:
 
 - All items re-exported at the `jsonapi_core` crate root (`Document`,
   `PrimaryData`, `Resource`, `ResourceObject`, `ResourceIdentifier`,
-  `ResourceRelationship`, `Identity`, `Relationship`, `RelationshipData`, `Links`, `Link`,
-  `LinkObject`, `Hreflang`, `Meta`, `JsonApiObject`, `ApiError`, `ErrorLinks`,
+  `ResourceRelationship`, `ResourceType`, `Identity`, `Relationship`,
+  `RelationshipData`, `Links`, `Link`, `LinkObject`, `Hreflang`, `Meta`,
+  `HasLinks`, `HasMeta`, `Field`, `JsonApiObject`, `ApiError`, `ErrorLinks`,
   `ErrorSource`, `Registry`, `ResolveConfig`, `TypeRegistry`, `TypeInfo`,
   `QueryBuilder`, `Query`, `SortField`, `FieldsetConfig`, `SparseSerializer`,
   `sparse_filter`, `DocumentBuilder`, `CursorPage`, `CursorLinks`,
-  `CURSOR_PAGINATION_PROFILE`,
+  `CURSOR_PAGINATION_PROFILE`, `OffsetPage`, `PageNumberPage`, `PageStrategy`,
+  `PageWindow`, `PaginationLinks`,
   `CaseConfig`, `CaseConvention`, `Error`, `Result`, `Cardinality`, `JsonApiMediaType`,
   `validate_content_type`, `negotiate_accept`, `validate_member_name`,
   `MemberNameKind`).
@@ -211,18 +214,16 @@ The minimum supported Rust version is currently **1.94.1**. MSRV bumps require
 a minor-version release (≥ `0.x.0` while pre-1.0; ≥ `x.0.0` post-1.0) and
 will be called out in the [changelog](https://github.com/rankitbishnoi/jsonapi_core/blob/main/CHANGELOG.md).
 
-### Pre-1.0 caveat
+### Stability
 
-While at `0.x`, breaking changes follow the SemVer pre-1.0 convention: a bump
-to `0.(x+1).0` may include breaking changes. We will continue to maintain a
-detailed changelog so each upgrade has a clear migration path.
+The public API described above is stable as of the `1.0` line. Breaking changes
+to it require a major-version bump (`2.0.0`); new functionality ships in minor
+releases and fixes in patch releases, per SemVer. A detailed changelog
+accompanies every release so each upgrade has a clear migration path.
 
-The typed parse-error story is now complete — `TypeMismatch`,
-`MalformedRelationship`, `MissingAttribute`, and `IncludedRefMissing` all
-flow through `Document::from_str` / `from_slice` / `from_value`. A 1.0 tag
-will follow once the next round of consumer-feedback churn settles: if no
-breaking changes land for two consecutive minor releases after this work,
-1.0 becomes a tag-when-ready event.
+`1.0.0-rc.1` is the first release candidate: the API is frozen for the RC
+period so consumers can validate it before the final `1.0.0` tag. Report any
+issue you would want addressed before `1.0.0` via the tracker.
 
 ### Changelog
 

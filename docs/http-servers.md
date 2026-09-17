@@ -18,10 +18,10 @@ building blocks can back an adapter for any `tower`-based framework.
 
 ```toml
 [dependencies]
-jsonapi_axum = "0.4"
+jsonapi_axum = "1.0.0-rc.1"
 # Deriving JsonApi on your resource types needs a direct jsonapi_core dependency:
 # the derive macro expands to `::jsonapi_core` paths.
-jsonapi_core = "0.4"
+jsonapi_core = "1.0.0-rc.1"
 axum = "0.8"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
 ```

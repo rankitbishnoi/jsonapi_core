@@ -48,7 +48,10 @@ The chapters build on each other in order, but each one is self-contained:
 
 ## A note on stability
 
-`jsonapi_core` is pre-1.0 and the public API is intentionally
-small but evolving. All public enums and structs that may grow new variants
-or fields are marked `#[non_exhaustive]`, so additions won't be breaking
-changes — but minor signatures may still shift before 1.0.
+As of the `1.0` line the public API is stable and governed by SemVer:
+breaking changes require a major-version bump. The API is intentionally
+small; all public enums and structs that may grow new variants or fields are
+marked `#[non_exhaustive]`, so such additions ship in minor releases without
+breaking downstream code. See the [versioning
+policy](https://github.com/rankitbishnoi/jsonapi_core#versioning-policy) for the
+exact stability contract.

@@ -10,7 +10,7 @@ Or edit `Cargo.toml` directly:
 
 ```toml
 [dependencies]
-jsonapi_core = "0.4"
+jsonapi_core = "1.0.0-rc.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ```
@@ -30,14 +30,14 @@ To opt out of the derive macro (e.g. when implementing `ResourceObject` by hand)
 
 ```toml
 [dependencies]
-jsonapi_core = { version = "0.4", default-features = false }
+jsonapi_core = { version = "1.0.0-rc.1", default-features = false }
 ```
 
 To turn on Atomic Operations:
 
 ```toml
 [dependencies]
-jsonapi_core = { version = "0.4", features = ["atomic-ops"] }
+jsonapi_core = { version = "1.0.0-rc.1", features = ["atomic-ops"] }
 ```
 
 See the [Feature Flags](./feature-flags.md) reference chapter for details on what

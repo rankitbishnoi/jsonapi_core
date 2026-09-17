@@ -20,4 +20,4 @@ PR title must follow Conventional Commits, e.g.
 - [ ] `cargo test --workspace` passes
 - [ ] Public API changes are reflected in the rustdoc and the guide under `docs/`
 - [ ] `CHANGELOG.md` updated (user-facing changes)
-- [ ] SemVer impact considered (breaking changes noted for a minor bump while pre-1.0)
+- [ ] SemVer impact considered (breaking changes require a major-version bump on the `1.x` line)

@@ -9,7 +9,7 @@ supports it behind the `atomic-ops` feature.
 
 ```toml
 [dependencies]
-jsonapi_core = { version = "0.4", features = ["atomic-ops"] }
+jsonapi_core = { version = "1.0.0-rc.1", features = ["atomic-ops"] }
 ```
 
 This unlocks the `jsonapi_core::atomic` module.
