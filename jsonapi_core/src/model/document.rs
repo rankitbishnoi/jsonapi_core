@@ -574,6 +574,53 @@ where
         Self::from_value(value)
     }
 
+    /// Parse bytes and return the single primary resource in one step — the
+    /// fold of [`from_slice`](Self::from_slice) and
+    /// [`into_single`](Self::into_single).
+    ///
+    /// Fails if the bytes aren't a valid JSON:API document (see
+    /// [`from_slice`](Self::from_slice)) or the document isn't a single
+    /// resource (see [`into_single`](Self::into_single)). Use
+    /// [`from_slice`](Self::from_slice) directly when you also need the
+    /// document's `included` or `meta`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use jsonapi_core::{Document, Resource, ResourceObject};
+    /// let json = br#"{"data":{"type":"articles","id":"1","attributes":{"title":"Hi"}}}"#;
+    /// let article = Document::<Resource>::parse_single(json).unwrap();
+    /// assert_eq!(article.resource_id(), Some("1"));
+    /// ```
+    pub fn parse_single(bytes: &[u8]) -> crate::Result<P> {
+        Self::from_slice(bytes)?.into_single()
+    }
+
+    /// Parse bytes and return the primary resources as a [`Vec`] in one step —
+    /// the fold of [`from_slice`](Self::from_slice) and
+    /// [`into_many`](Self::into_many).
+    ///
+    /// Fails if the bytes aren't a valid JSON:API document (see
+    /// [`from_slice`](Self::from_slice)) or the document isn't a collection
+    /// (see [`into_many`](Self::into_many)). Use
+    /// [`from_slice`](Self::from_slice) directly when you also need the
+    /// document's `included` or `meta`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use jsonapi_core::{Document, Resource};
+    /// let json = br#"{"data":[
+    ///     {"type":"articles","id":"1","attributes":{"title":"A"}},
+    ///     {"type":"articles","id":"2","attributes":{"title":"B"}}
+    /// ]}"#;
+    /// let articles = Document::<Resource>::parse_many(json).unwrap();
+    /// assert_eq!(articles.len(), 2);
+    /// ```
+    pub fn parse_many(bytes: &[u8]) -> crate::Result<Vec<P>> {
+        Self::from_slice(bytes)?.into_many()
+    }
+
     /// Parse a JSON:API document from a `serde_json::Value` with structural
     /// pre-validation. See [`Document::parse`] for semantics.
     pub fn from_value(value: serde_json::Value) -> crate::Result<Self> {

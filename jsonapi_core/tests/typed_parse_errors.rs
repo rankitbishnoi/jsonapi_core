@@ -588,3 +588,50 @@ fn from_str_surfaces_included_ref_missing_on_primary_collection() {
         "got: {err:?}",
     );
 }
+
+// ----- Single-step parse helpers (parse_single / parse_many) -----
+
+#[test]
+fn parse_single_folds_from_slice_and_into_single() {
+    let json = br#"{"data":{"type":"people","id":"9","attributes":{"name":"Dan"}}}"#;
+    let person = Document::<Person>::parse_single(json).unwrap();
+    assert_eq!(person.resource_id(), Some("9"));
+    assert_eq!(person.name, "Dan");
+}
+
+#[test]
+fn parse_many_folds_from_slice_and_into_many() {
+    let json = br#"{"data":[
+        {"type":"people","id":"1","attributes":{"name":"A"}},
+        {"type":"people","id":"2","attributes":{"name":"B"}}
+    ]}"#;
+    let people = Document::<Person>::parse_many(json).unwrap();
+    assert_eq!(people.len(), 2);
+    assert_eq!(people[1].resource_id(), Some("2"));
+}
+
+#[test]
+fn parse_single_errors_on_collection_shape() {
+    let json = br#"{"data":[{"type":"people","id":"1","attributes":{"name":"A"}}]}"#;
+    let err = Document::<Person>::parse_single(json).unwrap_err();
+    assert!(
+        matches!(err, Error::UnexpectedDocumentShape { .. }),
+        "got: {err:?}",
+    );
+}
+
+#[test]
+fn parse_many_errors_on_single_shape() {
+    let json = br#"{"data":{"type":"people","id":"1","attributes":{"name":"A"}}}"#;
+    let err = Document::<Person>::parse_many(json).unwrap_err();
+    assert!(
+        matches!(err, Error::UnexpectedDocumentShape { .. }),
+        "got: {err:?}",
+    );
+}
+
+#[test]
+fn parse_single_propagates_invalid_json() {
+    let err = Document::<Person>::parse_single(b"not json").unwrap_err();
+    assert!(matches!(err, Error::Json(_)), "got: {err:?}");
+}
