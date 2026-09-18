@@ -86,6 +86,19 @@ impl ResourceIdentifier {
         }
     }
 
+    /// Attach `meta` to this identifier.
+    ///
+    /// ```
+    /// # use jsonapi_core::{Meta, ResourceIdentifier};
+    /// let rid = ResourceIdentifier::new("authors", "42").with_meta(Meta::new());
+    /// assert!(rid.meta.is_some());
+    /// ```
+    #[must_use]
+    pub fn with_meta(mut self, meta: Meta) -> Self {
+        self.meta = Some(meta);
+        self
+    }
+
     /// Build a `Vec` of server-assigned identifiers sharing one `type` from an
     /// iterator of ids — the common shape for a to-many relationship's linkage.
     ///

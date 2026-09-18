@@ -64,6 +64,81 @@ pub struct Resource {
 }
 
 impl Resource {
+    /// Start building a dynamic [`Resource`] of the given `type`, with no id,
+    /// attributes, or relationships. Chain the `with_*` setters to fill it in.
+    ///
+    /// ```
+    /// # use jsonapi_core::Resource;
+    /// let r = Resource::new("articles")
+    ///     .with_id("1")
+    ///     .with_attributes(serde_json::json!({ "title": "Hi" }));
+    /// assert_eq!(r.r#type, "articles");
+    /// assert_eq!(r.id.as_deref(), Some("1"));
+    /// ```
+    #[must_use]
+    pub fn new(r#type: impl Into<String>) -> Self {
+        Self {
+            r#type: r#type.into(),
+            ..Default::default()
+        }
+    }
+
+    /// Set the server-assigned `id`.
+    #[must_use]
+    pub fn with_id(mut self, id: impl Into<String>) -> Self {
+        self.id = Some(id.into());
+        self
+    }
+
+    /// Set the client-generated local identifier `lid` (JSON:API 1.1).
+    #[must_use]
+    pub fn with_lid(mut self, lid: impl Into<String>) -> Self {
+        self.lid = Some(lid.into());
+        self
+    }
+
+    /// Set the resource `attributes` from a raw JSON value.
+    #[must_use]
+    pub fn with_attributes(mut self, attributes: serde_json::Value) -> Self {
+        self.attributes = attributes;
+        self
+    }
+
+    /// Replace the relationship map wholesale.
+    #[must_use]
+    pub fn with_relationships(
+        mut self,
+        relationships: BTreeMap<String, ResourceRelationship>,
+    ) -> Self {
+        self.relationships = relationships;
+        self
+    }
+
+    /// Insert a single named relationship, keeping any already set.
+    #[must_use]
+    pub fn with_relationship(
+        mut self,
+        name: impl Into<String>,
+        relationship: ResourceRelationship,
+    ) -> Self {
+        self.relationships.insert(name.into(), relationship);
+        self
+    }
+
+    /// Set resource-level `links`.
+    #[must_use]
+    pub fn with_links(mut self, links: Links) -> Self {
+        self.links = Some(links);
+        self
+    }
+
+    /// Set resource-level `meta`.
+    #[must_use]
+    pub fn with_meta(mut self, meta: Meta) -> Self {
+        self.meta = Some(meta);
+        self
+    }
+
     /// Derive a Resource from a typed ResourceObject.
     ///
     /// Not exposed as `TryFrom<&T>`: a blanket `impl<T> TryFrom<&T> for Resource`
@@ -231,6 +306,21 @@ mod tests {
         assert_eq!(resource.r#type, "articles");
         assert_eq!(resource.id.as_deref(), Some("1"));
         assert_eq!(resource.attributes["title"], "Rails is Omakase");
+    }
+
+    #[test]
+    fn resource_builder_sets_members_and_relationships() {
+        let rel = ResourceRelationship::new(RelationshipData::ToOne(Some(
+            crate::ResourceIdentifier::new("authors", "9"),
+        )));
+        let r = Resource::new("articles")
+            .with_id("1")
+            .with_attributes(serde_json::json!({ "title": "Hi" }))
+            .with_relationship("author", rel);
+        assert_eq!(r.r#type, "articles");
+        assert_eq!(r.id.as_deref(), Some("1"));
+        assert_eq!(r.attributes["title"], "Hi");
+        assert!(r.relationships.contains_key("author"));
     }
 
     #[test]
