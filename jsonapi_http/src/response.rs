@@ -18,10 +18,11 @@ use jsonapi_core::{Document, FieldsetConfig, JsonApiMediaType, ResourceObject, s
 /// media type, including any `ext` / `profile` parameters.
 ///
 /// Reuses [`JsonApiMediaType::to_header_value`] for correct formatting and
-/// quote-escaping. The media type's `ext`/`profile` URIs are server-controlled
-/// (they come from negotiation against the server's advertised capabilities),
-/// so an unrepresentable header value is a server misconfiguration and panics
-/// rather than silently emitting a wrong media type.
+/// quote-escaping. `JsonApiMediaType` only admits header-safe `ext`/`profile`
+/// URIs (unrepresentable ones are dropped at construction and negotiation), so
+/// the formatted value is always a valid header. As defense-in-depth, if an
+/// unrepresentable value ever reaches this function it falls back to the plain
+/// `application/vnd.api+json` media type rather than panicking.
 ///
 /// ```
 /// # use jsonapi_core::JsonApiMediaType;
@@ -32,7 +33,7 @@ use jsonapi_core::{Document, FieldsetConfig, JsonApiMediaType, ResourceObject, s
 #[must_use]
 pub fn content_type_value(media_type: &JsonApiMediaType) -> HeaderValue {
     HeaderValue::try_from(media_type.to_header_value())
-        .expect("a negotiated JSON:API media type is always a valid header value")
+        .unwrap_or_else(|_| HeaderValue::from_static("application/vnd.api+json"))
 }
 
 /// Wrap an already-encoded body in a [`Response`]. The `status` is a

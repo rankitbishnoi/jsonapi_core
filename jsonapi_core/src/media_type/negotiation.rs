@@ -80,6 +80,10 @@ impl JsonApiMediaType {
     /// Construct an `application/vnd.api+json` media type declaring one or
     /// more extension URIs.
     ///
+    /// URIs that cannot be represented in an HTTP header value (they contain a
+    /// control character or `DEL`) are dropped, so the result is always safe to
+    /// emit as a `Content-Type`.
+    ///
     /// ```
     /// # use jsonapi_core::JsonApiMediaType;
     /// let mt = JsonApiMediaType::with_ext(["https://jsonapi.org/ext/atomic"]);
@@ -92,13 +96,21 @@ impl JsonApiMediaType {
         I: IntoIterator<Item = S>,
     {
         Self {
-            ext: ext.into_iter().map(Into::into).collect(),
+            ext: ext
+                .into_iter()
+                .map(Into::into)
+                .filter(|uri| is_header_safe(uri))
+                .collect(),
             profile: Vec::new(),
         }
     }
 
     /// Construct an `application/vnd.api+json` media type declaring one or
     /// more profile URIs.
+    ///
+    /// URIs that cannot be represented in an HTTP header value (they contain a
+    /// control character or `DEL`) are dropped, so the result is always safe to
+    /// emit as a `Content-Type`.
     ///
     /// ```
     /// # use jsonapi_core::{JsonApiMediaType, CURSOR_PAGINATION_PROFILE};
@@ -113,7 +125,11 @@ impl JsonApiMediaType {
     {
         Self {
             ext: Vec::new(),
-            profile: profile.into_iter().map(Into::into).collect(),
+            profile: profile
+                .into_iter()
+                .map(Into::into)
+                .filter(|uri| is_header_safe(uri))
+                .collect(),
         }
     }
 
@@ -133,6 +149,17 @@ impl fmt::Display for JsonApiMediaType {
         write_param(f, "ext", &self.ext)?;
         write_param(f, "profile", &self.profile)
     }
+}
+
+/// Whether `uri` can appear in an HTTP header value without corrupting it.
+///
+/// Mirrors the byte rule the `http` crate enforces for `HeaderValue` (visible
+/// ASCII plus horizontal tab; no control characters or `DEL`). `jsonapi_core`
+/// does not depend on `http`, so the rule is replicated here. Applied when
+/// `ext`/`profile` URIs enter a [`JsonApiMediaType`] so that
+/// [`JsonApiMediaType::to_header_value`] is always representable as a header.
+fn is_header_safe(uri: &str) -> bool {
+    uri.bytes().all(|b| b == b'\t' || (b'\x20'..=b'\x7e').contains(&b))
 }
 
 /// Append `; key="v1 v2"` to `out`, escaping any `"` in values. No-op if `values`
@@ -281,12 +308,12 @@ pub fn negotiate_accept(
             let ext = c
                 .ext
                 .into_iter()
-                .filter(|e| server_ext.contains(&e.as_str()))
+                .filter(|e| server_ext.contains(&e.as_str()) && is_header_safe(e))
                 .collect();
             let profile = c
                 .profile
                 .into_iter()
-                .filter(|p| server_profile.contains(&p.as_str()))
+                .filter(|p| server_profile.contains(&p.as_str()) && is_header_safe(p))
                 .collect();
             Ok(JsonApiMediaType { ext, profile })
         }
@@ -720,5 +747,42 @@ mod tests {
         let header = original.to_header_value();
         let parsed = JsonApiMediaType::parse(&header).unwrap();
         assert_eq!(parsed, original);
+    }
+
+    // --- header safety (B2) ---
+
+    fn is_header_representable(s: &str) -> bool {
+        s.bytes().all(|b| b == b'\t' || (0x20..=0x7e).contains(&b))
+    }
+
+    #[test]
+    fn with_ext_drops_non_header_safe_uri() {
+        let mt = JsonApiMediaType::with_ext(["https://ok/ext", "https://bad/\next"]);
+        assert_eq!(mt.ext, vec!["https://ok/ext".to_string()]);
+    }
+
+    #[test]
+    fn with_profile_drops_non_header_safe_uri() {
+        let mt = JsonApiMediaType::with_profile(["https://ok/p", "bad\u{7f}p"]);
+        assert_eq!(mt.profile, vec!["https://ok/p".to_string()]);
+    }
+
+    #[test]
+    fn constructed_media_type_is_always_header_representable() {
+        let mt = JsonApiMediaType::with_ext(["https://e1", "e\r\n2", "e\u{0}3"]);
+        assert!(is_header_representable(&mt.to_header_value()));
+    }
+
+    #[test]
+    fn negotiate_drops_non_header_safe_uri() {
+        // Even if the server advertises an unsafe URI and the client requests it,
+        // the negotiated result stays header-safe.
+        let mt = negotiate_accept(
+            "application/vnd.api+json; ext=\"https://e1 bad\u{7f}uri\"",
+            &["https://e1", "bad\u{7f}uri"],
+            &[],
+        )
+        .unwrap();
+        assert_eq!(mt.ext, vec!["https://e1"]);
     }
 }
