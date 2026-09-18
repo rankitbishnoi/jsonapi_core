@@ -92,15 +92,11 @@ pub fn status_for(err: &Error) -> StatusCode {
 ///   `/data/relationships/author`).
 #[must_use]
 pub fn to_api_error(err: &Error) -> ApiError {
-    let status = status_for(err);
-
-    ApiError {
-        status: Some(status.as_u16().to_string()),
-        title: status.canonical_reason().map(str::to_string),
-        detail: Some(err.to_string()),
-        source: source_for(err),
-        ..Default::default()
+    let mut api = with_status(status_for(err)).with_detail(err.to_string());
+    if let Some(source) = source_for(err) {
+        api = api.with_source(source);
     }
+    api
 }
 
 /// Derive the JSON:API `source` object for an error, if the variant identifies
@@ -108,10 +104,7 @@ pub fn to_api_error(err: &Error) -> ApiError {
 fn source_for(err: &Error) -> Option<ErrorSource> {
     let pointer = match err {
         Error::QueryParse { param, .. } => {
-            return Some(ErrorSource {
-                parameter: Some(param.clone()),
-                ..Default::default()
-            });
+            return Some(ErrorSource::parameter(param.clone()));
         }
         // `location` is the resource path; the offending value is its `type`.
         Error::TypeMismatch { location, .. } => format!("{}/type", location_to_pointer(location)),
@@ -130,10 +123,7 @@ fn source_for(err: &Error) -> Option<ErrorSource> {
         _ => return None,
     };
 
-    Some(ErrorSource {
-        pointer: Some(pointer),
-        ..Default::default()
-    })
+    Some(ErrorSource::pointer(pointer))
 }
 
 /// Convert a `jsonapi_core` dotted/bracketed `location` (e.g.
@@ -199,11 +189,10 @@ pub fn error_response_for(err: &Error) -> Response<Bytes> {
 /// `404`/`405`/`413` that an adapter needs to re-shape as a JSON:API document.
 #[must_use]
 pub fn api_error_for_status(status: StatusCode, detail: Option<String>) -> ApiError {
-    ApiError {
-        status: Some(status.as_u16().to_string()),
-        title: status.canonical_reason().map(str::to_string),
-        detail,
-        ..Default::default()
+    let api = with_status(status);
+    match detail {
+        Some(detail) => api.with_detail(detail),
+        None => api,
     }
 }
 
@@ -243,10 +232,10 @@ pub fn error_response_for_status(status: StatusCode, detail: Option<String>) -> 
 /// ```
 #[must_use]
 pub fn with_status(status: StatusCode) -> ApiError {
-    ApiError {
-        status: Some(status.as_u16().to_string()),
-        title: status.canonical_reason().map(str::to_string),
-        ..Default::default()
+    let api = ApiError::new().with_status(status.as_u16().to_string());
+    match status.canonical_reason() {
+        Some(title) => api.with_title(title),
+        None => api,
     }
 }
 
@@ -750,14 +739,8 @@ mod tests {
     #[test]
     fn top_level_status_all_same() {
         let errors = vec![
-            ApiError {
-                status: Some("404".into()),
-                ..Default::default()
-            },
-            ApiError {
-                status: Some("404".into()),
-                ..Default::default()
-            },
+            ApiError::new().with_status("404"),
+            ApiError::new().with_status("404"),
         ];
         assert_eq!(top_level_status(&errors), StatusCode::NOT_FOUND);
     }
@@ -765,14 +748,8 @@ mod tests {
     #[test]
     fn top_level_status_mixed_4xx_collapses_to_400() {
         let errors = vec![
-            ApiError {
-                status: Some("404".into()),
-                ..Default::default()
-            },
-            ApiError {
-                status: Some("422".into()),
-                ..Default::default()
-            },
+            ApiError::new().with_status("404"),
+            ApiError::new().with_status("422"),
         ];
         assert_eq!(top_level_status(&errors), StatusCode::BAD_REQUEST);
     }
@@ -780,14 +757,8 @@ mod tests {
     #[test]
     fn top_level_status_any_5xx_collapses_to_500() {
         let errors = vec![
-            ApiError {
-                status: Some("400".into()),
-                ..Default::default()
-            },
-            ApiError {
-                status: Some("503".into()),
-                ..Default::default()
-            },
+            ApiError::new().with_status("400"),
+            ApiError::new().with_status("503"),
         ];
         assert_eq!(top_level_status(&errors), StatusCode::INTERNAL_SERVER_ERROR);
     }

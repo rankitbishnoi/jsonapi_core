@@ -48,7 +48,7 @@
 //!
 //! ```
 //! # #[cfg(feature = "derive")] {
-//! # use jsonapi_core::{JsonApi, Relationship, Document, PrimaryData, Identity,
+//! # use jsonapi_core::{JsonApi, Relationship, Document, PrimaryData,
 //! #     RelationshipData, ResourceIdentifier, ResourceObject};
 //! # #[derive(Debug, Clone, PartialEq, JsonApi)]
 //! # #[jsonapi(type = "articles")]
@@ -71,11 +71,9 @@
 //!     id: "1".into(),
 //!     title: "JSON:API paints my bikeshed!".into(),
 //!     body: "The shortest article. Ever.".into(),
-//!     author: Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier {
-//!         r#type: "people".into(),
-//!         identity: Identity::Id("9".into()),
-//!         meta: None,
-//!     }))),
+//!     author: Relationship::new(RelationshipData::ToOne(Some(
+//!         ResourceIdentifier::new("people", "9"),
+//!     ))),
 //! };
 //!
 //! let doc: Document<Article> = Document::Data {
@@ -257,7 +255,7 @@
 //!
 //! ```
 //! # #[cfg(feature = "derive")] {
-//! # use jsonapi_core::{JsonApi, Relationship, Identity, RelationshipData,
+//! # use jsonapi_core::{JsonApi, Relationship, RelationshipData,
 //! #     ResourceIdentifier, FieldsetConfig, SparseSerializer, ResourceObject};
 //! # #[derive(Debug, Clone, PartialEq, JsonApi)]
 //! # #[jsonapi(type = "articles")]
@@ -278,9 +276,9 @@
 //! # }
 //! # let article = Article {
 //! #     id: "1".into(), title: "Hello".into(), body: "World".into(),
-//! #     author: Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier {
-//! #         r#type: "people".into(), identity: Identity::Id("9".into()), meta: None,
-//! #     }))),
+//! #     author: Relationship::new(RelationshipData::ToOne(Some(
+//! #         ResourceIdentifier::new("people", "9"),
+//! #     ))),
 //! # };
 //! // Only include the "title" field for articles
 //! let config = FieldsetConfig::new().fields("articles", &["title"]);
@@ -392,7 +390,6 @@
 //!
 //! ```
 //! # #[cfg(feature = "atomic-ops")] {
-//! use std::collections::BTreeMap;
 //! use jsonapi_core::{
 //!     atomic::{AtomicOperation, AtomicRequest, OperationTarget, ATOMIC_EXT_URI},
 //!     PrimaryData, Resource,
@@ -401,15 +398,11 @@
 //! let req = AtomicRequest {
 //!     operations: vec![AtomicOperation::Add {
 //!         target: OperationTarget::default(),
-//!         data: PrimaryData::Single(Box::new(Resource {
-//!             r#type: "articles".into(),
-//!             id: None,
-//!             lid: Some("a1".into()),
-//!             attributes: serde_json::json!({"title": "Hello"}),
-//!             relationships: BTreeMap::new(),
-//!             links: None,
-//!             meta: None,
-//!         })),
+//!         data: PrimaryData::Single(Box::new(
+//!             Resource::new("articles")
+//!                 .with_lid("a1")
+//!                 .with_attributes(serde_json::json!({"title": "Hello"})),
+//!         )),
 //!     }],
 //! };
 //!

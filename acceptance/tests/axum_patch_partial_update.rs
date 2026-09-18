@@ -85,10 +85,9 @@ async fn get_one(
         Some(article) => Ok(JsonApiResponse::new(
             DocumentBuilder::single(article).build(),
         )),
-        None => Err(JsonApiError::from_api_error(jsonapi_core::ApiError {
-            status: Some("404".into()),
-            ..Default::default()
-        })),
+        None => Err(JsonApiError::from_api_error(
+            jsonapi_core::ApiError::new().with_status("404"),
+        )),
     }
 }
 

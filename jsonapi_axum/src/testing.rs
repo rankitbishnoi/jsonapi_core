@@ -346,15 +346,9 @@ mod tests {
     /// error via our own error responder; `GET /empty` → `204`.
     fn app() -> Router {
         async fn ok() -> crate::JsonApiResponse<jsonapi_core::Resource> {
-            let resource = jsonapi_core::Resource {
-                r#type: "articles".into(),
-                id: Some("1".into()),
-                lid: None,
-                attributes: json!({"title": "Hi"}),
-                relationships: Default::default(),
-                links: None,
-                meta: None,
-            };
+            let resource = jsonapi_core::Resource::new("articles")
+                .with_id("1")
+                .with_attributes(json!({"title": "Hi"}));
             crate::JsonApiResponse::new(jsonapi_core::DocumentBuilder::single(resource).build())
         }
         async fn boom() -> crate::JsonApiError {

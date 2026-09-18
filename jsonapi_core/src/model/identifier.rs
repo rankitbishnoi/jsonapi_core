@@ -42,6 +42,7 @@ impl Default for Identity {
 }
 
 /// JSON:API resource identifier object.
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct ResourceIdentifier {
     /// The JSON:API type string.
@@ -84,6 +85,19 @@ impl ResourceIdentifier {
             identity: Identity::Lid(lid.into()),
             meta: None,
         }
+    }
+
+    /// Attach `meta` to this identifier.
+    ///
+    /// ```
+    /// # use jsonapi_core::{Meta, ResourceIdentifier};
+    /// let rid = ResourceIdentifier::new("authors", "42").with_meta(Meta::new());
+    /// assert!(rid.meta.is_some());
+    /// ```
+    #[must_use]
+    pub fn with_meta(mut self, meta: Meta) -> Self {
+        self.meta = Some(meta);
+        self
     }
 
     /// Build a `Vec` of server-assigned identifiers sharing one `type` from an

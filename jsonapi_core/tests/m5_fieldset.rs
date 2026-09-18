@@ -1,6 +1,6 @@
 #![cfg(feature = "derive")]
 
-use jsonapi_core::model::{Identity, RelationshipData, ResourceIdentifier, ResourceObject};
+use jsonapi_core::model::{RelationshipData, ResourceIdentifier, ResourceObject};
 use jsonapi_core::{FieldsetConfig, Relationship, SparseSerializer, TypeRegistry, sparse_filter};
 
 // ── Test structs ──────────────────────────────────────────────────────────────
@@ -60,11 +60,9 @@ fn test_article() -> TestArticle {
         id: "1".into(),
         title: "Hello".into(),
         body: "World".into(),
-        author: Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier {
-            r#type: "people".into(),
-            identity: Identity::Id("9".into()),
-            meta: None,
-        }))),
+        author: Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier::new(
+            "people", "9",
+        )))),
     }
 }
 
@@ -250,11 +248,9 @@ fn test_sparse_serializer_end_to_end() {
         id: "1".into(),
         title: "Hello".into(),
         body: "World".into(),
-        author: Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier {
-            r#type: "people".into(),
-            identity: Identity::Id("9".into()),
-            meta: None,
-        }))),
+        author: Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier::new(
+            "people", "9",
+        )))),
         comments: vec![],
     };
 
@@ -321,11 +317,9 @@ fn test_full_pipeline() {
         id: "1".into(),
         title: "Hello".into(),
         body: "World".into(),
-        author: Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier {
-            r#type: "people".into(),
-            identity: Identity::Id("9".into()),
-            meta: None,
-        }))),
+        author: Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier::new(
+            "people", "9",
+        )))),
         comments: vec![],
     };
     let json = serde_json::to_value(SparseSerializer::new(&article, &fieldset)).unwrap();

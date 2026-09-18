@@ -12,8 +12,7 @@ fn main() {
 #[cfg(feature = "derive")]
 fn main() {
     use jsonapi_core::{
-        Document, Identity, JsonApi, PrimaryData, Relationship, RelationshipData,
-        ResourceIdentifier,
+        Document, JsonApi, PrimaryData, Relationship, RelationshipData, ResourceIdentifier,
     };
 
     #[derive(Debug, Clone, PartialEq, JsonApi)]
@@ -46,11 +45,9 @@ fn main() {
         id: "1".into(),
         title: "JSON:API paints my bikeshed!".into(),
         body: "The shortest article. Ever.".into(),
-        author: Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier {
-            r#type: "people".into(),
-            identity: Identity::Id("9".into()),
-            meta: None,
-        }))),
+        author: Relationship::new(RelationshipData::ToOne(Some(
+            ResourceIdentifier::new("people", "9"),
+        ))),
     };
 
     // Wrap in a Document

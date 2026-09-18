@@ -91,35 +91,20 @@ use jsonapi_core::{
 };
 
 // 1. Add a person with lid "p1".
-let person = Resource {
-    r#type: "people".into(),
-    id: None,
-    lid: Some("p1".into()),
-    attributes: serde_json::json!({"name": "Dan Gebhardt"}),
-    relationships: BTreeMap::new(),
-    links: None,
-    meta: None,
-};
+let person = Resource::new("people")
+    .with_lid("p1")
+    .with_attributes(serde_json::json!({"name": "Dan Gebhardt"}));
 
 // 2. Add an article with lid "a1", whose author is the lid-referenced person.
 let mut article_rels: BTreeMap<String, ResourceRelationship> = BTreeMap::new();
 article_rels.insert(
     "author".into(),
-    ResourceRelationship::new(RelationshipData::ToOne(Some(ResourceIdentifier {
-        r#type: "people".into(),
-        identity: Identity::Lid("p1".into()),
-        meta: None,
-    }))),
+    ResourceRelationship::new(RelationshipData::ToOne(Some(ResourceIdentifier::with_lid("people", "p1")))),
 );
-let article = Resource {
-    r#type: "articles".into(),
-    id: None,
-    lid: Some("a1".into()),
-    attributes: serde_json::json!({"title": "Hello JSON:API"}),
-    relationships: article_rels,
-    links: None,
-    meta: None,
-};
+let article = Resource::new("articles")
+    .with_lid("a1")
+    .with_attributes(serde_json::json!({"title": "Hello JSON:API"}))
+    .with_relationships(article_rels);
 
 // 3. Update the article's author relationship via lid reference.
 let req = AtomicRequest {
@@ -141,15 +126,11 @@ let req = AtomicRequest {
                 }),
                 href: None,
             },
-            data: PrimaryData::Single(Box::new(Resource {
-                r#type: "people".into(),
-                id: None,
-                lid: Some("p1".into()),
-                attributes: serde_json::json!({}),
-                relationships: BTreeMap::new(),
-                links: None,
-                meta: None,
-            })),
+            data: PrimaryData::Single(Box::new(
+                Resource::new("people")
+                    .with_lid("p1")
+                    .with_attributes(serde_json::json!({})),
+            )),
         },
     ],
 };

@@ -6,7 +6,7 @@
 
 use jsonapi_core::Relationship;
 use jsonapi_core::model::{
-    Document, Identity, Links, Meta, PrimaryData, RelationshipData, ResourceIdentifier,
+    Document, Links, Meta, PrimaryData, RelationshipData, ResourceIdentifier,
     ResourceObject,
 };
 
@@ -239,11 +239,9 @@ fn serialize_with_relationships() {
     let post = Post {
         id: "1".into(),
         title: "Hello".into(),
-        author: Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier {
-            r#type: "people".into(),
-            identity: Identity::Id("9".into()),
-            meta: None,
-        }))),
+        author: Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier::new(
+            "people", "9",
+        )))),
         comments: vec![],
     };
     let json = serde_json::to_value(&post).unwrap();

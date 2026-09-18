@@ -3,7 +3,7 @@
 //! (dropped/renamed members, cardinality confusion) that point tests can miss.
 
 use jsonapi_core::{
-    Document, Identity, PrimaryData, RelationshipData, Resource, ResourceIdentifier,
+    Document, PrimaryData, RelationshipData, Resource, ResourceIdentifier,
     ResourceRelationship,
 };
 use proptest::prelude::*;
@@ -29,11 +29,7 @@ fn arb_attributes() -> impl Strategy<Value = serde_json::Value> {
 }
 
 fn arb_identifier() -> impl Strategy<Value = ResourceIdentifier> {
-    ("[a-z]{1,8}", "[a-z0-9]{1,6}").prop_map(|(ty, id)| ResourceIdentifier {
-        r#type: ty,
-        identity: Identity::Id(id),
-        meta: None,
-    })
+    ("[a-z]{1,8}", "[a-z0-9]{1,6}").prop_map(|(ty, id)| ResourceIdentifier::new(ty, id))
 }
 
 fn arb_relationship() -> impl Strategy<Value = ResourceRelationship> {
@@ -53,14 +49,12 @@ fn arb_resource() -> impl Strategy<Value = Resource> {
         arb_attributes(),
         prop::collection::btree_map(arb_member(), arb_relationship(), 0..3),
     )
-        .prop_map(|(ty, id, attributes, relationships)| Resource {
-            r#type: ty,
-            id,
-            lid: None,
-            attributes,
-            relationships,
-            links: None,
-            meta: None,
+        .prop_map(|(ty, id, attributes, relationships)| {
+            let mut r = Resource::new(ty).with_attributes(attributes).with_relationships(relationships);
+            if let Some(id) = id {
+                r = r.with_id(id);
+            }
+            r
         })
 }
 

@@ -143,15 +143,9 @@ fn derive_emits_hasmeta_only_when_meta_field_present() {
 
 #[test]
 fn dynamic_resource_implements_haslinks() {
-    let mut resource = Resource {
-        r#type: "articles".into(),
-        id: Some("1".into()),
-        lid: None,
-        attributes: serde_json::json!({"title": "Hi"}),
-        relationships: BTreeMap::new(),
-        links: None,
-        meta: None,
-    };
+    let mut resource = Resource::new("articles")
+        .with_id("1")
+        .with_attributes(serde_json::json!({"title": "Hi"}));
     // None case
     assert!(HasLinks::links(&resource).is_none());
 
@@ -162,15 +156,9 @@ fn dynamic_resource_implements_haslinks() {
 
 #[test]
 fn dynamic_resource_implements_hasmeta() {
-    let mut resource = Resource {
-        r#type: "articles".into(),
-        id: Some("1".into()),
-        lid: None,
-        attributes: serde_json::json!({"title": "Hi"}),
-        relationships: BTreeMap::new(),
-        links: None,
-        meta: None,
-    };
+    let mut resource = Resource::new("articles")
+        .with_id("1")
+        .with_attributes(serde_json::json!({"title": "Hi"}));
     assert!(HasMeta::meta(&resource).is_none());
 
     resource.meta = Some(sample_meta());

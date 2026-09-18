@@ -4,7 +4,7 @@
 //! `crate::repo::atomic_repo` for the actual SQL. Nothing here touches the
 //! HTTP layer beyond constructing `JsonApiError` values.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 
 use axum::http::StatusCode;
 use jsonapi_axum::{ApiErrorExt, JsonApiError, with_status};
@@ -45,15 +45,11 @@ pub(super) async fn add_author(
     attrs.insert("createdAt".into(), Value::String(author.created_at));
 
     Ok(AtomicResult {
-        data: Some(PrimaryData::Single(Box::new(Resource {
-            r#type: "authors".into(),
-            id: Some(author.id),
-            lid: None,
-            attributes: Value::Object(attrs),
-            relationships: BTreeMap::new(),
-            links: None,
-            meta: None,
-        }))),
+        data: Some(PrimaryData::Single(Box::new(
+            Resource::new("authors")
+                .with_id(author.id)
+                .with_attributes(Value::Object(attrs)),
+        ))),
         meta: None,
         links: None,
     })
@@ -82,15 +78,11 @@ pub(super) async fn update_author(
     attrs.insert("createdAt".into(), Value::String(author.created_at));
 
     Ok(AtomicResult {
-        data: Some(PrimaryData::Single(Box::new(Resource {
-            r#type: "authors".into(),
-            id: Some(author.id),
-            lid: None,
-            attributes: Value::Object(attrs),
-            relationships: BTreeMap::new(),
-            links: None,
-            meta: None,
-        }))),
+        data: Some(PrimaryData::Single(Box::new(
+            Resource::new("authors")
+                .with_id(author.id)
+                .with_attributes(Value::Object(attrs)),
+        ))),
         meta: None,
         links: None,
     })
@@ -141,27 +133,17 @@ pub(super) async fn add_article(
     attrs.insert("updatedAt".into(), Value::String(article.updated_at));
 
     // Build author relationship linkage in the response.
-    let author_rid = ResourceIdentifier {
-        r#type: "authors".into(),
-        identity: Identity::Id(article.author_id),
-        meta: None,
-    };
-    let mut relationships = BTreeMap::new();
-    relationships.insert(
-        "author".into(),
-        jsonapi_core::ResourceRelationship::new(RelationshipData::ToOne(Some(author_rid))),
-    );
+    let author_rid = ResourceIdentifier::new("authors", article.author_id);
+    let author_rel =
+        jsonapi_core::ResourceRelationship::new(RelationshipData::ToOne(Some(author_rid)));
 
     Ok(AtomicResult {
-        data: Some(PrimaryData::Single(Box::new(Resource {
-            r#type: "articles".into(),
-            id: Some(article.id),
-            lid: None,
-            attributes: Value::Object(attrs),
-            relationships,
-            links: None,
-            meta: None,
-        }))),
+        data: Some(PrimaryData::Single(Box::new(
+            Resource::new("articles")
+                .with_id(article.id)
+                .with_attributes(Value::Object(attrs))
+                .with_relationship("author", author_rel),
+        ))),
         meta: None,
         links: None,
     })
@@ -191,27 +173,17 @@ pub(super) async fn update_article(
     attrs.insert("createdAt".into(), Value::String(article.created_at));
     attrs.insert("updatedAt".into(), Value::String(article.updated_at));
 
-    let author_rid = ResourceIdentifier {
-        r#type: "authors".into(),
-        identity: Identity::Id(article.author_id),
-        meta: None,
-    };
-    let mut relationships = BTreeMap::new();
-    relationships.insert(
-        "author".into(),
-        jsonapi_core::ResourceRelationship::new(RelationshipData::ToOne(Some(author_rid))),
-    );
+    let author_rid = ResourceIdentifier::new("authors", article.author_id);
+    let author_rel =
+        jsonapi_core::ResourceRelationship::new(RelationshipData::ToOne(Some(author_rid)));
 
     Ok(AtomicResult {
-        data: Some(PrimaryData::Single(Box::new(Resource {
-            r#type: "articles".into(),
-            id: Some(article.id),
-            lid: None,
-            attributes: Value::Object(attrs),
-            relationships,
-            links: None,
-            meta: None,
-        }))),
+        data: Some(PrimaryData::Single(Box::new(
+            Resource::new("articles")
+                .with_id(article.id)
+                .with_attributes(Value::Object(attrs))
+                .with_relationship("author", author_rel),
+        ))),
         meta: None,
         links: None,
     })

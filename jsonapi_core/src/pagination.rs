@@ -19,6 +19,7 @@ pub const CURSOR_PAGINATION_PROFILE: &str =
 /// # Ok(())
 /// # }
 /// ```
+#[non_exhaustive]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CursorPage {
     /// `page[size]`.
@@ -214,6 +215,7 @@ impl<'a> CursorLinks<'a> {
 /// A typed view over the generic `page` map for **offset** pagination
 /// (`page[offset]` / `page[limit]`). `offset` defaults to `0` when absent;
 /// `limit` is left `None` (the server picks a default page size).
+#[non_exhaustive]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct OffsetPage {
     /// `page[offset]` (defaults to `0`).
@@ -243,7 +245,9 @@ impl OffsetPage {
     ///
     /// ```
     /// # use jsonapi_core::OffsetPage;
-    /// let page = OffsetPage { offset: 40, limit: Some(1_000) };
+    /// let mut page = OffsetPage::default();
+    /// page.offset = 40;
+    /// page.limit = Some(1_000);
     /// let w = page.resolve(20, 100); // default 20, cap 100
     /// assert_eq!((w.offset, w.limit), (40, 100));
     /// ```
@@ -261,6 +265,7 @@ impl OffsetPage {
 /// A typed view over the generic `page` map for **page-number** pagination
 /// (`page[number]` / `page[size]`). `number` defaults to `1` when absent; `size`
 /// is left `None` (the server picks a default page size).
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PageNumberPage {
     /// `page[number]`, 1-based (defaults to `1`).
@@ -297,7 +302,9 @@ impl PageNumberPage {
     ///
     /// ```
     /// # use jsonapi_core::PageNumberPage;
-    /// let page = PageNumberPage { number: 3, size: Some(1_000) };
+    /// let mut page = PageNumberPage::default();
+    /// page.number = 3;
+    /// page.size = Some(1_000);
     /// let w = page.resolve(20, 100); // default 20, cap 100
     /// assert_eq!((w.number, w.offset, w.limit), (3, 200, 100));
     /// ```
@@ -353,6 +360,7 @@ fn parse_page_u64(query: &Query, key: &str) -> crate::Result<Option<u64>> {
 
 /// The concrete page a [`PaginationLinks`] builder is centered on: either
 /// offset/limit or (1-based) number/size.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PageStrategy {
     /// `page[offset]` / `page[limit]` pagination.

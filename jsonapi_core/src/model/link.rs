@@ -16,6 +16,7 @@ pub enum Hreflang {
 }
 
 /// JSON:API link object (as opposed to a bare URL string).
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LinkObject {
     /// The link's URI.
@@ -38,6 +39,71 @@ pub struct LinkObject {
     /// Link-level meta information.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub meta: Option<Meta>,
+}
+
+impl LinkObject {
+    /// Start building a [`LinkObject`] with the given `href` and no other
+    /// members. Chain the `with_*` setters to fill in the rest.
+    ///
+    /// ```
+    /// # use jsonapi_core::LinkObject;
+    /// let link = LinkObject::new("https://example.com/articles/1").with_title("Article 1");
+    /// assert_eq!(link.href, "https://example.com/articles/1");
+    /// ```
+    #[must_use]
+    pub fn new(href: impl Into<String>) -> Self {
+        Self {
+            href: href.into(),
+            rel: None,
+            describedby: None,
+            title: None,
+            r#type: None,
+            hreflang: None,
+            meta: None,
+        }
+    }
+
+    /// Set `rel` — the link's relation type (RFC 8288).
+    #[must_use]
+    pub fn with_rel(mut self, rel: impl Into<String>) -> Self {
+        self.rel = Some(rel.into());
+        self
+    }
+
+    /// Set `describedby` — a link that describes the target resource.
+    #[must_use]
+    pub fn with_describedby(mut self, describedby: Link) -> Self {
+        self.describedby = Some(Box::new(describedby));
+        self
+    }
+
+    /// Set `title` — a human-readable label for the link.
+    #[must_use]
+    pub fn with_title(mut self, title: impl Into<String>) -> Self {
+        self.title = Some(title.into());
+        self
+    }
+
+    /// Set `type` — a media-type hint for the target resource.
+    #[must_use]
+    pub fn with_type(mut self, r#type: impl Into<String>) -> Self {
+        self.r#type = Some(r#type.into());
+        self
+    }
+
+    /// Set `hreflang` — language tag(s) for the target resource (RFC 5646).
+    #[must_use]
+    pub fn with_hreflang(mut self, hreflang: Hreflang) -> Self {
+        self.hreflang = Some(hreflang);
+        self
+    }
+
+    /// Set link-level `meta`.
+    #[must_use]
+    pub fn with_meta(mut self, meta: Meta) -> Self {
+        self.meta = Some(meta);
+        self
+    }
 }
 
 /// A link value: either a bare URL string or a link object.

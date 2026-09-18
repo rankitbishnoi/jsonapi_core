@@ -1,10 +1,9 @@
-use std::collections::BTreeMap;
 
 use leptos::prelude::*;
 
 use jsonapi_core::atomic::{AtomicOperation, AtomicRequest, OperationTarget};
 use jsonapi_core::{
-    Identity, PrimaryData, RelationshipData, Resource, ResourceIdentifier, ResourceRelationship,
+    PrimaryData, RelationshipData, Resource, ResourceIdentifier, ResourceRelationship,
 };
 
 use crate::api::ApiClient;
@@ -45,40 +44,24 @@ pub fn AtomicPage() -> impl IntoView {
         // Dogfood the typed atomic-ops model: build `AtomicRequest` from typed
         // operations (the `op` discriminant is compile-checked), pre-flight it
         // with `validate_lid_refs`, then serialize.
-        let author = Resource {
-            r#type: "authors".into(),
-            id: None,
-            lid: Some("new-author".into()),
-            attributes: serde_json::json!({
+        let author = Resource::new("authors")
+            .with_lid("new-author")
+            .with_attributes(serde_json::json!({
                 "name": author_name.get(),
                 "email": author_email.get(),
-            }),
-            relationships: BTreeMap::new(),
-            links: None,
-            meta: None,
-        };
+            }));
 
-        let mut article_rels = BTreeMap::new();
-        article_rels.insert(
-            "author".into(),
-            ResourceRelationship::new(RelationshipData::ToOne(Some(ResourceIdentifier {
-                r#type: "authors".into(),
-                identity: Identity::Lid("new-author".into()),
-                meta: None,
-            }))),
-        );
-        let article = Resource {
-            r#type: "articles".into(),
-            id: None,
-            lid: None,
-            attributes: serde_json::json!({
+        let article = Resource::new("articles")
+            .with_attributes(serde_json::json!({
                 "title": title.get(),
                 "body": "Created atomically.",
-            }),
-            relationships: article_rels,
-            links: None,
-            meta: None,
-        };
+            }))
+            .with_relationship(
+                "author",
+                ResourceRelationship::new(RelationshipData::ToOne(Some(
+                    ResourceIdentifier::with_lid("authors", "new-author"),
+                ))),
+            );
 
         let req = AtomicRequest {
             operations: vec![

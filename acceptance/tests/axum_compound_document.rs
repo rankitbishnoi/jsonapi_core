@@ -18,7 +18,7 @@ use jsonapi_axum::{
     DocumentBuilder, IncludeResolver, JsonApiError, JsonApiLayer, JsonApiQuery, JsonApiResponse,
     resolve_includes,
 };
-use jsonapi_core::{Identity, Relationship, RelationshipData, Resource, ResourceIdentifier};
+use jsonapi_core::{Relationship, RelationshipData, Resource, ResourceIdentifier};
 use serde_json::Value;
 
 #[derive(Debug, Clone, jsonapi_core::JsonApi)]
@@ -97,11 +97,9 @@ async fn list_articles(
 }
 
 fn author(id: &str) -> Relationship<Person> {
-    Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier {
-        r#type: "people".to_string(),
-        identity: Identity::Id(id.to_string()),
-        meta: None,
-    })))
+    Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier::new(
+        "people", id,
+    ))))
 }
 
 fn app() -> Router {

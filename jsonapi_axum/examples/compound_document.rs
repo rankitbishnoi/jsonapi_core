@@ -35,7 +35,7 @@ use jsonapi_axum::{
     ApiErrorExt, DocumentBuilder, IncludeResolver, IntoJsonApiError, JsonApiError, JsonApiLayer,
     JsonApiQuery, JsonApiResponse, ResultExt, resolve_includes, with_status,
 };
-use jsonapi_core::{Identity, Relationship, RelationshipData, Resource, ResourceIdentifier};
+use jsonapi_core::{Relationship, RelationshipData, Resource, ResourceIdentifier};
 
 /// An author resource.
 #[derive(Debug, Clone, jsonapi_core::JsonApi)]
@@ -152,11 +152,9 @@ async fn list_articles(
 }
 
 fn author(id: &str) -> Relationship<Person> {
-    Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier {
-        r#type: "people".to_string(),
-        identity: Identity::Id(id.to_string()),
-        meta: None,
-    })))
+    Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier::new(
+        "people", id,
+    ))))
 }
 
 fn app() -> Router {

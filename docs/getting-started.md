@@ -43,18 +43,14 @@ the JSON:API envelope (`type`, `id`, `attributes`, `relationships`).
 
 ```rust
 use jsonapi_core::{
-    Document, Identity, PrimaryData, Relationship, RelationshipData, ResourceIdentifier,
+    Document, PrimaryData, Relationship, RelationshipData, ResourceIdentifier,
 };
 
 let article = Article {
     id: "1".into(),
     title: "JSON:API paints my bikeshed!".into(),
     body: "The shortest article. Ever.".into(),
-    author: Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier {
-        r#type: "people".into(),
-        identity: Identity::Id("9".into()),
-        meta: None,
-    }))),
+    author: Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier::new("people", "9")))),
 };
 
 let doc: Document<Article> = Document::Data {

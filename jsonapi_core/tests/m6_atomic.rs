@@ -1,7 +1,5 @@
 #![cfg(feature = "atomic-ops")]
 
-use std::collections::BTreeMap;
-
 use jsonapi_core::{
     Identity, JsonApiMediaType, PrimaryData, Resource,
     atomic::{
@@ -12,15 +10,14 @@ use jsonapi_core::{
 };
 
 fn make_resource(type_: &str, id: Option<&str>, lid: Option<&str>) -> Resource {
-    Resource {
-        r#type: type_.into(),
-        id: id.map(str::to_owned),
-        lid: lid.map(str::to_owned),
-        attributes: serde_json::json!({}),
-        relationships: BTreeMap::new(),
-        links: None,
-        meta: None,
+    let mut r = Resource::new(type_).with_attributes(serde_json::json!({}));
+    if let Some(id) = id {
+        r = r.with_id(id);
     }
+    if let Some(lid) = lid {
+        r = r.with_lid(lid);
+    }
+    r
 }
 
 #[test]

@@ -12,8 +12,6 @@ fn main() {
 
 #[cfg(feature = "atomic-ops")]
 fn main() {
-    use std::collections::BTreeMap;
-
     use jsonapi_core::{
         Identity, JsonApiMediaType, PrimaryData, Resource,
         atomic::{ATOMIC_EXT_URI, AtomicOperation, AtomicRequest, OperationRef, OperationTarget},
@@ -21,36 +19,19 @@ fn main() {
 
     // Build three ops: add person (lid "p1"), add article (lid "a1"), then
     // update the article's `author` relationship — demonstrating lid refs.
-    let person = Resource {
-        r#type: "people".into(),
-        id: None,
-        lid: Some("p1".into()),
-        attributes: serde_json::json!({"name": "Dan Gebhardt"}),
-        relationships: BTreeMap::new(),
-        links: None,
-        meta: None,
-    };
+    let person = Resource::new("people")
+        .with_lid("p1")
+        .with_attributes(serde_json::json!({"name": "Dan Gebhardt"}));
 
-    let mut article_rels = BTreeMap::new();
-    article_rels.insert(
-        "author".into(),
-        jsonapi_core::ResourceRelationship::new(jsonapi_core::RelationshipData::ToOne(Some(
-            jsonapi_core::ResourceIdentifier {
-                r#type: "people".into(),
-                identity: Identity::Lid("p1".into()),
-                meta: None,
-            },
-        ))),
-    );
-    let article = Resource {
-        r#type: "articles".into(),
-        id: None,
-        lid: Some("a1".into()),
-        attributes: serde_json::json!({"title": "Hello JSON:API"}),
-        relationships: article_rels,
-        links: None,
-        meta: None,
-    };
+    let article = Resource::new("articles")
+        .with_lid("a1")
+        .with_attributes(serde_json::json!({"title": "Hello JSON:API"}))
+        .with_relationship(
+            "author",
+            jsonapi_core::ResourceRelationship::new(jsonapi_core::RelationshipData::ToOne(Some(
+                jsonapi_core::ResourceIdentifier::with_lid("people", "p1"),
+            ))),
+        );
 
     // Op 1: add the person (introduces lid "p1").
     // Op 2: add the article with default target (introduces lid "a1").
@@ -74,15 +55,11 @@ fn main() {
                     }),
                     href: None,
                 },
-                data: PrimaryData::Single(Box::new(Resource {
-                    r#type: "people".into(),
-                    id: None,
-                    lid: Some("p1".into()),
-                    attributes: serde_json::json!({}),
-                    relationships: BTreeMap::new(),
-                    links: None,
-                    meta: None,
-                })),
+                data: PrimaryData::Single(Box::new(
+                    Resource::new("people")
+                        .with_lid("p1")
+                        .with_attributes(serde_json::json!({})),
+                )),
             },
         ],
     };
