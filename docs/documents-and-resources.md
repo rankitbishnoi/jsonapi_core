@@ -141,16 +141,11 @@ let doc: Document<MyType> = Document::Data {
 use jsonapi_core::{ApiError, Document, ErrorSource, Resource};
 
 let doc: Document<Resource> = Document::Errors {
-    errors: vec![ApiError {
-        status: Some("422".into()),
-        title: Some("Validation failed".into()),
-        detail: Some("`title` is required".into()),
-        source: Some(ErrorSource {
-            pointer: Some("/data/attributes/title".into()),
-            ..Default::default()
-        }),
-        ..Default::default()
-    }],
+    errors: vec![ApiError::new()
+        .with_status("422")
+        .with_title("Validation failed")
+        .with_detail("`title` is required")
+        .with_source(ErrorSource::pointer("/data/attributes/title"))],
     meta: None,
     jsonapi: None,
     links: None,

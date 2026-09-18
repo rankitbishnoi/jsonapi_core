@@ -48,7 +48,7 @@ Attach the profile URI to a response with the builder:
 
 ```rust
 # use jsonapi_core::{DocumentBuilder, Resource, CURSOR_PAGINATION_PROFILE};
-# fn r() -> Resource { Resource { r#type: "articles".into(), id: Some("1".into()), lid: None, attributes: serde_json::json!({}), relationships: Default::default(), links: None, meta: None } }
+# fn r() -> Resource { Resource::new("articles").with_id("1").with_attributes(serde_json::json!({})) }
 let doc = DocumentBuilder::collection(vec![r()])
     .profile(CURSOR_PAGINATION_PROFILE)
     .build();

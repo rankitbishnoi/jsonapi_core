@@ -4,8 +4,8 @@
 
 ```rust
 use jsonapi_core::{DocumentBuilder, Link, Resource};
-# fn article() -> Resource { Resource { r#type: "articles".into(), id: Some("1".into()), lid: None, attributes: serde_json::json!({"title": "Hi"}), relationships: Default::default(), links: None, meta: None } }
-# fn author() -> Resource { Resource { r#type: "people".into(), id: Some("9".into()), lid: None, attributes: serde_json::json!({"name": "Dan"}), relationships: Default::default(), links: None, meta: None } }
+# fn article() -> Resource { Resource::new("articles").with_id("1").with_attributes(serde_json::json!({"title": "Hi"})) }
+# fn author() -> Resource { Resource::new("people").with_id("9").with_attributes(serde_json::json!({"name": "Dan"})) }
 
 let doc = DocumentBuilder::single(article())
     .include(author())
@@ -23,11 +23,9 @@ let doc = DocumentBuilder::single(article())
 ```rust
 use jsonapi_core::{ApiError, Document, Resource};
 
-let doc: Document<Resource> = Document::errors([ApiError {
-    status: Some("404".into()),
-    title: Some("Not Found".into()),
-    ..Default::default()
-}]);
+let doc: Document<Resource> = Document::errors([ApiError::new()
+    .with_status("404")
+    .with_title("Not Found")]);
 ```
 
 Use `Document::meta_only(meta)` for a meta-only response.

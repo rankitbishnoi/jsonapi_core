@@ -7,7 +7,7 @@ chapters.
 
 ```rust
 use jsonapi_core::{
-    Document, Identity, JsonApi, PrimaryData, Relationship, RelationshipData,
+    Document, JsonApi, PrimaryData, Relationship, RelationshipData,
     ResourceIdentifier,
 };
 
@@ -28,11 +28,7 @@ struct Person { #[jsonapi(id)] id: String, name: String }
 let article = Article {
     id: "1".into(),
     title: "Hello".into(),
-    author: Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier {
-        r#type: "people".into(),
-        identity: Identity::Id("9".into()),
-        meta: None,
-    }))),
+    author: Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier::new("people", "9")))),
 };
 
 let doc: Document<Article> = Document::Data {
@@ -130,15 +126,10 @@ println!("Content-Type: {}", mt.to_header_value());
 use jsonapi_core::{ApiError, Document, ErrorSource, Resource};
 
 let doc: Document<Resource> = Document::Errors {
-    errors: vec![ApiError {
-        status: Some("422".into()),
-        title: Some("Validation failed".into()),
-        source: Some(ErrorSource {
-            pointer: Some("/data/attributes/title".into()),
-            ..Default::default()
-        }),
-        ..Default::default()
-    }],
+    errors: vec![ApiError::new()
+        .with_status("422")
+        .with_title("Validation failed")
+        .with_source(ErrorSource::pointer("/data/attributes/title"))],
     meta: None, jsonapi: None, links: None,
 };
 ```

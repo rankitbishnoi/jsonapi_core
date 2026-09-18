@@ -74,14 +74,10 @@ without having to repeat the type at the call site. Construct one with
 `Relationship::new(...)`:
 
 ```rust
-use jsonapi_core::{Identity, Relationship, RelationshipData, ResourceIdentifier};
+use jsonapi_core::{Relationship, RelationshipData, ResourceIdentifier};
 
 let author: Relationship<Person> = Relationship::new(
-    RelationshipData::ToOne(Some(ResourceIdentifier {
-        r#type: "people".into(),
-        identity: Identity::Id("9".into()),
-        meta: None,
-    }))
+    RelationshipData::ToOne(Some(ResourceIdentifier::new("people", "9")))
 );
 ```
 

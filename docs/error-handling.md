@@ -168,21 +168,16 @@ pub struct ApiError {
 }
 ```
 
-It derives `Default`, so you typically build one with `..Default::default()`:
+Use the builder methods to populate only the fields you care about:
 
 ```rust
 use jsonapi_core::{ApiError, ErrorSource};
 
-let err = ApiError {
-    status: Some("422".into()),
-    title: Some("Validation failed".into()),
-    detail: Some("`title` is required".into()),
-    source: Some(ErrorSource {
-        pointer: Some("/data/attributes/title".into()),
-        ..Default::default()
-    }),
-    ..Default::default()
-};
+let err = ApiError::new()
+    .with_status("422")
+    .with_title("Validation failed")
+    .with_detail("`title` is required")
+    .with_source(ErrorSource::pointer("/data/attributes/title"));
 ```
 
 Wrap one or more in `Document::Errors`:
@@ -208,17 +203,16 @@ and HTTP status:
 use jsonapi_core::{ApiError, Error};
 
 fn into_api_error(err: &Error) -> (u16, ApiError) {
-    let api_err = ApiError {
-        status: Some(match err {
-            Error::MediaTypeMismatch { .. } | Error::UnsupportedMediaTypeParam { .. } => "415",
-            Error::NoAcceptableMediaType | Error::AllMediaTypesUnsupportedParams => "406",
-            _ => "400",
-        }.into()),
-        title: Some("Request rejected".into()),
-        detail: Some(err.to_string()),
-        ..Default::default()
+    let status_str = match err {
+        Error::MediaTypeMismatch { .. } | Error::UnsupportedMediaTypeParam { .. } => "415",
+        Error::NoAcceptableMediaType | Error::AllMediaTypesUnsupportedParams => "406",
+        _ => "400",
     };
-    let status: u16 = api_err.status.as_deref().unwrap_or("400").parse().unwrap_or(400);
+    let api_err = ApiError::new()
+        .with_status(status_str)
+        .with_title("Request rejected")
+        .with_detail(err.to_string());
+    let status: u16 = status_str.parse().unwrap_or(400);
     (status, api_err)
 }
 ```
@@ -234,15 +228,10 @@ When you can name the offending field, use `ErrorSource::pointer` (an
 ```rust
 use jsonapi_core::{ApiError, ErrorSource};
 
-ApiError {
-    status: Some("422".into()),
-    source: Some(ErrorSource {
-        pointer: Some("/data/attributes/email".into()),
-        ..Default::default()
-    }),
-    detail: Some("must be a valid email address".into()),
-    ..Default::default()
-};
+ApiError::new()
+    .with_status("422")
+    .with_source(ErrorSource::pointer("/data/attributes/email"))
+    .with_detail("must be a valid email address");
 ```
 
 Clients can use the pointer to attach the message to a specific form field —
