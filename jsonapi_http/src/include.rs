@@ -206,7 +206,7 @@ mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    use jsonapi_core::model::{Identity, RelationshipData, ResourceIdentifier};
+    use jsonapi_core::model::{RelationshipData, ResourceIdentifier};
 
     /// A fake in-memory store: a `type -> id -> Resource` map plus a call counter
     /// to assert batching (no N+1). `load` returns a `Send` future that borrows
@@ -257,41 +257,25 @@ mod tests {
     }
 
     fn resource(type_: &str, id: &str) -> Resource {
-        Resource {
-            r#type: type_.into(),
-            id: Some(id.into()),
-            lid: None,
-            attributes: serde_json::json!({}),
-            relationships: BTreeMap::new(),
-            links: None,
-            meta: None,
-        }
+        Resource::new(type_).with_id(id).with_attributes(serde_json::json!({}))
     }
 
     fn to_one(rel_type: &str, id: &str) -> ResourceRelationship {
-        ResourceRelationship::new(RelationshipData::ToOne(Some(ResourceIdentifier {
-            r#type: rel_type.into(),
-            identity: Identity::Id(id.into()),
-            meta: None,
-        })))
+        ResourceRelationship::new(RelationshipData::ToOne(Some(ResourceIdentifier::new(
+            rel_type, id,
+        ))))
     }
 
     fn to_one_lid(rel_type: &str, lid: &str) -> ResourceRelationship {
-        ResourceRelationship::new(RelationshipData::ToOne(Some(ResourceIdentifier {
-            r#type: rel_type.into(),
-            identity: Identity::Lid(lid.into()),
-            meta: None,
-        })))
+        ResourceRelationship::new(RelationshipData::ToOne(Some(
+            ResourceIdentifier::with_lid(rel_type, lid),
+        )))
     }
 
     fn to_many(rel_type: &str, ids: &[&str]) -> ResourceRelationship {
         ResourceRelationship::new(RelationshipData::ToMany(
             ids.iter()
-                .map(|id| ResourceIdentifier {
-                    r#type: rel_type.into(),
-                    identity: Identity::Id((*id).into()),
-                    meta: None,
-                })
+                .map(|id| ResourceIdentifier::new(rel_type, *id))
                 .collect(),
         ))
     }

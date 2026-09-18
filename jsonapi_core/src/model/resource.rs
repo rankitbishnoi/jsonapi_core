@@ -45,6 +45,7 @@ pub trait ResourceType {
 }
 
 /// Dynamic fallback for resources whose type is not known at compile time.
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Resource {
     /// The JSON:API type string (e.g. "articles").

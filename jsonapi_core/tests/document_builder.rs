@@ -3,15 +3,9 @@
 use jsonapi_core::{ApiError, Document, DocumentBuilder, Link, Resource};
 
 fn res(type_: &str, id: &str) -> Resource {
-    Resource {
-        r#type: type_.into(),
-        id: Some(id.into()),
-        lid: None,
-        attributes: serde_json::json!({"k": "v"}),
-        relationships: std::collections::BTreeMap::new(),
-        links: None,
-        meta: None,
-    }
+    Resource::new(type_)
+        .with_id(id)
+        .with_attributes(serde_json::json!({"k": "v"}))
 }
 
 #[test]
@@ -29,11 +23,9 @@ fn builds_and_serializes_a_compound_document() {
 
 #[test]
 fn errors_document_serializes() {
-    let doc: Document<Resource> = Document::errors([ApiError {
-        status: Some("422".into()),
-        title: Some("Unprocessable".into()),
-        ..Default::default()
-    }]);
+    let doc: Document<Resource> = Document::errors([ApiError::new()
+        .with_status("422")
+        .with_title("Unprocessable")]);
     let v = serde_json::to_value(&doc).unwrap();
     assert_eq!(v["errors"][0]["status"], "422");
     assert!(v.get("data").is_none());

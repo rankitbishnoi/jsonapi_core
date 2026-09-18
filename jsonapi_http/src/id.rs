@@ -28,16 +28,9 @@ pub enum ClientIdPolicy {
 /// Build an [`ApiError`] with `status`, its canonical reason as `title`, a
 /// `detail`, and a `source.pointer`.
 fn pointer_error(status: StatusCode, detail: String, pointer: &str) -> ApiError {
-    ApiError {
-        status: Some(status.as_u16().to_string()),
-        title: status.canonical_reason().map(str::to_string),
-        detail: Some(detail),
-        source: Some(ErrorSource {
-            pointer: Some(pointer.to_string()),
-            ..Default::default()
-        }),
-        ..Default::default()
-    }
+    crate::error::with_status(status)
+        .with_detail(detail)
+        .with_source(ErrorSource::pointer(pointer))
 }
 
 /// Assert a request body's `data.id` matches the endpoint (URL) id, per the

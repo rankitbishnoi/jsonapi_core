@@ -16,6 +16,7 @@ pub enum Hreflang {
 }
 
 /// JSON:API link object (as opposed to a bare URL string).
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LinkObject {
     /// The link's URI.

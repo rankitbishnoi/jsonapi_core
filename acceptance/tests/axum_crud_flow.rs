@@ -47,12 +47,12 @@ struct AppState {
 }
 
 fn not_found(id: &str) -> JsonApiError {
-    JsonApiError::from_api_error(ApiError {
-        status: Some("404".to_string()),
-        title: Some("Not Found".to_string()),
-        detail: Some(format!("article `{id}` does not exist")),
-        ..Default::default()
-    })
+    JsonApiError::from_api_error(
+        ApiError::new()
+            .with_status("404")
+            .with_title("Not Found")
+            .with_detail(format!("article `{id}` does not exist")),
+    )
 }
 
 async fn list(State(state): State<AppState>, JsonApiQuery(_q): JsonApiQuery) -> impl IntoResponse {

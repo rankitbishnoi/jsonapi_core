@@ -35,16 +35,13 @@ use crate::error::JsonApiError;
 /// Build a `400 Bad Request` JSON:API error for a malformed relationship body,
 /// with `source.pointer` `/data`.
 fn bad_linkage(detail: impl Into<String>) -> JsonApiError {
-    JsonApiError::from_api_error(ApiError {
-        status: Some("400".to_string()),
-        title: Some("Bad Request".to_string()),
-        detail: Some(detail.into()),
-        source: Some(ErrorSource {
-            pointer: Some("/data".to_string()),
-            ..Default::default()
-        }),
-        ..Default::default()
-    })
+    JsonApiError::from_api_error(
+        ApiError::new()
+            .with_status("400")
+            .with_title("Bad Request")
+            .with_detail(detail.into())
+            .with_source(ErrorSource::pointer("/data")),
+    )
 }
 
 /// Validate the content type, buffer the body, and parse its `data` member into
@@ -209,7 +206,6 @@ mod tests {
     use axum::Router;
     use axum::routing::post;
     use http::Request as HttpRequest;
-    use jsonapi_core::Identity;
     use serde_json::{Value, json};
     use tower::ServiceExt;
 
@@ -360,11 +356,7 @@ mod tests {
     #[test]
     fn relationship_response_document_shape() {
         pollster::block_on(async {
-            let data = RelationshipData::ToOne(Some(ResourceIdentifier {
-                r#type: "people".into(),
-                identity: Identity::Id("9".into()),
-                meta: None,
-            }));
+            let data = RelationshipData::ToOne(Some(ResourceIdentifier::new("people", "9")));
             let links = jsonapi_core::links::relationship_links(
                 "https://api.test",
                 "articles",

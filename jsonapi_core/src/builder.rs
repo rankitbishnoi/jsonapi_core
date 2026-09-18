@@ -11,9 +11,7 @@ use crate::model::{
 /// ```
 /// use jsonapi_core::{DocumentBuilder, Resource};
 /// # fn r(t: &str, id: &str) -> Resource {
-/// #     Resource { r#type: t.into(), id: Some(id.into()), lid: None,
-/// #         attributes: serde_json::json!({}), relationships: Default::default(),
-/// #         links: None, meta: None }
+/// #     Resource::new(t).with_id(id).with_attributes(serde_json::json!({}))
 /// # }
 /// let doc = DocumentBuilder::single(r("articles", "1"))
 ///     .include(r("people", "9"))

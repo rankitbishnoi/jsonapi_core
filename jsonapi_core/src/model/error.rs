@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use super::{Link, Meta};
 
 /// Source of a JSON:API error.
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct ErrorSource {
     /// A JSON pointer (RFC 6901) to the value in the request document that caused the error.
@@ -17,6 +18,7 @@ pub struct ErrorSource {
 }
 
 /// Links specific to an error object.
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct ErrorLinks {
     /// A link that leads to further details about the error.
@@ -28,6 +30,7 @@ pub struct ErrorLinks {
 }
 
 /// A JSON:API error object.
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct ApiError {
     /// A unique identifier for this particular occurrence of the error.

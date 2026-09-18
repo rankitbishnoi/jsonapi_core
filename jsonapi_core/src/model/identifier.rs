@@ -42,6 +42,7 @@ impl Default for Identity {
 }
 
 /// JSON:API resource identifier object.
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct ResourceIdentifier {
     /// The JSON:API type string.

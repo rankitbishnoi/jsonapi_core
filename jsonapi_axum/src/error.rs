@@ -268,10 +268,7 @@ mod tests {
 
     #[test]
     fn from_boxed_api_error_preserves_status_and_body() {
-        let api = ApiError {
-            status: Some("422".to_string()),
-            ..Default::default()
-        };
+        let api = ApiError::new().with_status("422");
         let (status, json) = read(JsonApiError::from(Box::new(api)).into_response());
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
         assert_eq!(json["errors"][0]["status"], "422");
@@ -282,16 +279,12 @@ mod tests {
         // Two 422s aggregate into a single errors document; the shared status
         // becomes the top-level HTTP status.
         let errors = [
-            ApiError {
-                status: Some("422".to_string()),
-                detail: Some("title is required".to_string()),
-                ..Default::default()
-            },
-            ApiError {
-                status: Some("422".to_string()),
-                detail: Some("body is required".to_string()),
-                ..Default::default()
-            },
+            ApiError::new()
+                .with_status("422")
+                .with_detail("title is required"),
+            ApiError::new()
+                .with_status("422")
+                .with_detail("body is required"),
         ];
         let (status, json) = read(JsonApiError::from_api_errors(errors).into_response());
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
