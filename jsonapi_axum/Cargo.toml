@@ -35,12 +35,12 @@ percent-encoding = "2"
 
 # --- Optional error-integration deps (all off by default) ---
 # G11: aggregate `validator::ValidationErrors` into JSON:API 422 errors.
-validator = { version = "0.20", optional = true, default-features = false }
+validator = { version = "0.21", optional = true, default-features = false }
 # G12: `From<anyhow::Error>` for ergonomic `?` in handlers.
 anyhow = { version = "1", optional = true }
 # G12: only the `sqlx::Error` type is needed; default-features = false avoids
 # pulling in a runtime or driver.
-sqlx = { version = "0.8", optional = true, default-features = false }
+sqlx = { version = "0.9", optional = true, default-features = false }
 # G13: fallback correlation-id generation when no upstream id is present.
 uuid = { version = "1", optional = true, default-features = false, features = ["v4"] }
 
@@ -66,14 +66,14 @@ testing = ["tower/util"]
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
-pollster = "0.4"
+pollster = "1.0"
 # Server runtime for the CRUD example only (feature-unified onto the lib's
 # default-features=false axum for example/test builds; never affects consumers).
 axum = { version = "0.8", features = ["tokio", "http1"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
 # Example composes `RequestIdLayer` with tower-http's `SetRequestIdLayer` to mint
 # and propagate an `x-request-id` (the recommended pairing).
-tower-http = { version = "0.6", features = ["request-id"] }
+tower-http = { version = "0.7", features = ["request-id"] }
 
 [lints]
 workspace = true
