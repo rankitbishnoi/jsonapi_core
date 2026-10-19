@@ -503,7 +503,7 @@ where
     /// [`TypeMismatch`](crate::Error::TypeMismatch),
     /// [`MalformedRelationship`](crate::Error::MalformedRelationship),
     /// [`MissingAttribute`](crate::Error::MissingAttribute), and
-    /// [`IncludedRefMissing`](crate::Error::IncludedRefMissing) —
+    /// [`FullLinkageViolation`](crate::Error::FullLinkageViolation) —
     /// rather than opaque [`serde_json::Error`] strings. Consumers can map
     /// each typed error to the right HTTP status (e.g. 502 for type
     /// mismatch — upstream sent the wrong shape — vs. 422 for required
@@ -516,26 +516,30 @@ where
     /// 1. [`TypeMismatch`](crate::Error::TypeMismatch) on primary data.
     /// 2. [`MissingAttribute`](crate::Error::MissingAttribute) on primary data.
     /// 3. [`MalformedRelationship`](crate::Error::MalformedRelationship) on primary data.
-    /// 4. [`IncludedRefMissing`](crate::Error::IncludedRefMissing) on primary data.
+    /// 4. [`FullLinkageViolation`](crate::Error::FullLinkageViolation) across the document.
     ///
     /// # `Document<Resource>` semantics
     ///
     /// When the primary type `P` is the dynamic [`Resource`](crate::Resource),
     /// the type check and required-attribute check are skipped (open-set
-    /// primary type). The relationship walk and `IncludedRefMissing` check
-    /// still run, so `Document::<Resource>::parse` is useful for
-    /// validating compound documents with arbitrary primary shapes.
+    /// primary type). The relationship walk and full-linkage check still run,
+    /// so `Document::<Resource>::parse` is useful for validating compound
+    /// documents with arbitrary primary shapes.
     ///
-    /// # `IncludedRefMissing` scope
+    /// # Full-linkage check
     ///
-    /// `IncludedRefMissing` is intentionally primary-data-only — relationships
-    /// *inside* an included resource are not validated, because partial-include
-    /// APIs routinely return compound documents whose included resources
-    /// reference other resources the consumer did not request. The check also
-    /// silently skips when the wire payload's `included` array is absent or
-    /// empty, since there is no compound resolution to validate against.
-    /// References that use only `lid` (no `id`) are skipped because atomic
-    /// operations resolve those at request execution rather than at parse time.
+    /// When `included` is present and non-empty, every included resource must be
+    /// referenced by at least one resource identifier object elsewhere in the
+    /// document — whether in the primary data's relationship linkage or in
+    /// another resource's — per JSON:API's full-linkage requirement for compound
+    /// documents. An unreferenced included resource is a
+    /// [`FullLinkageViolation`](crate::Error::FullLinkageViolation).
+    ///
+    /// This does *not* require that every relationship reference be present in
+    /// `included`: partial-include responses, whose linkage points at resources
+    /// the client did not request, are valid and parse cleanly. The check is a
+    /// no-op when `included` is absent or empty. An included resource identified
+    /// only by `lid` is matched against `lid` linkage.
     ///
     /// # Examples
     ///
@@ -549,18 +553,21 @@ where
     /// ```
     ///
     /// Unlike `serde_json::from_str`, a structural defect surfaces as a typed
-    /// [`Error`](crate::Error). Here a relationship references `people:9`, but
-    /// the (non-empty) `included` array doesn't contain it:
+    /// [`Error`](crate::Error). Here `included` carries a `people:1` that no
+    /// relationship references — a full-linkage violation:
     ///
     /// ```
     /// # use jsonapi_core::{Document, Error, Resource};
     /// let json = r#"{
     ///     "data": {"type": "articles", "id": "1", "attributes": {"title": "Hi"},
     ///         "relationships": {"author": {"data": {"type": "people", "id": "9"}}}},
-    ///     "included": [{"type": "people", "id": "1", "attributes": {"name": "Other"}}]
+    ///     "included": [
+    ///         {"type": "people", "id": "9", "attributes": {"name": "Dan"}},
+    ///         {"type": "people", "id": "1", "attributes": {"name": "Other"}}
+    ///     ]
     /// }"#;
     /// let err = Document::<Resource>::parse(json).unwrap_err();
-    /// assert!(matches!(err, Error::IncludedRefMissing { .. }));
+    /// assert!(matches!(err, Error::FullLinkageViolation { .. }));
     /// ```
     pub fn parse(s: &str) -> crate::Result<Self> {
         let value: serde_json::Value = serde_json::from_str(s)?;
@@ -629,24 +636,129 @@ where
     }
 }
 
-fn build_included_set(value: &serde_json::Value) -> std::collections::HashSet<(&str, &str)> {
-    let mut set = std::collections::HashSet::new();
-    let Some(arr) = value.get("included").and_then(|v| v.as_array()) else {
-        return set;
-    };
-    for entry in arr {
-        let Some(obj) = entry.as_object() else {
-            continue;
+/// A set of `(type, identifier)` pairs borrowed from the wire payload.
+type RefSet<'a> = std::collections::HashSet<(&'a str, &'a str)>;
+
+/// Collect every resource identifier that appears in `relationships.*.data`
+/// linkage across the primary data *and* the included resources. Per JSON:API's
+/// full-linkage rule, an included resource counts as referenced if any such
+/// identifier points at it — whether from primary data or from another resource.
+///
+/// The returned pair is `(id-references, lid-references)`, tracked separately so
+/// that an included resource identified by `id` is only matched by `id` linkage,
+/// and one identified by `lid` only by `lid` linkage.
+fn collect_references(value: &serde_json::Value) -> (RefSet<'_>, RefSet<'_>) {
+    let mut ref_ids = std::collections::HashSet::new();
+    let mut ref_lids = std::collections::HashSet::new();
+
+    fn add_identifier<'a>(
+        identity: &'a serde_json::Value,
+        ref_ids: &mut RefSet<'a>,
+        ref_lids: &mut RefSet<'a>,
+    ) {
+        let Some(obj) = identity.as_object() else {
+            return;
         };
-        let (Some(type_), Some(id)) = (
-            obj.get("type").and_then(|v| v.as_str()),
-            obj.get("id").and_then(|v| v.as_str()),
-        ) else {
-            continue;
+        let Some(type_) = obj.get("type").and_then(|v| v.as_str()) else {
+            return;
         };
-        set.insert((type_, id));
+        if let Some(id) = obj.get("id").and_then(|v| v.as_str()) {
+            ref_ids.insert((type_, id));
+        }
+        if let Some(lid) = obj.get("lid").and_then(|v| v.as_str()) {
+            ref_lids.insert((type_, lid));
+        }
     }
-    set
+
+    fn walk_resource<'a>(
+        res: &'a serde_json::Value,
+        ref_ids: &mut RefSet<'a>,
+        ref_lids: &mut RefSet<'a>,
+    ) {
+        let Some(rels) = res.get("relationships").and_then(|v| v.as_object()) else {
+            return;
+        };
+        for rel in rels.values() {
+            let Some(data) = rel.get("data") else {
+                continue;
+            };
+            match data {
+                serde_json::Value::Object(_) => add_identifier(data, ref_ids, ref_lids),
+                serde_json::Value::Array(arr) => {
+                    for entry in arr {
+                        add_identifier(entry, ref_ids, ref_lids);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    if let Some(data) = value.get("data") {
+        match data {
+            serde_json::Value::Object(_) => walk_resource(data, &mut ref_ids, &mut ref_lids),
+            serde_json::Value::Array(arr) => {
+                for item in arr {
+                    walk_resource(item, &mut ref_ids, &mut ref_lids);
+                }
+            }
+            _ => {}
+        }
+    }
+    if let Some(arr) = value.get("included").and_then(|v| v.as_array()) {
+        for res in arr {
+            walk_resource(res, &mut ref_ids, &mut ref_lids);
+        }
+    }
+
+    (ref_ids, ref_lids)
+}
+
+/// Full-linkage check (JSON:API compound documents): every resource in a
+/// non-empty `included` array must be referenced by at least one resource
+/// identifier object elsewhere in the document. The empty/absent case is a
+/// no-op — there is no compound resolution to validate.
+fn check_full_linkage(value: &serde_json::Value) -> crate::Result<()> {
+    let Some(included) = value.get("included").and_then(|v| v.as_array()) else {
+        return Ok(());
+    };
+    if included.is_empty() {
+        return Ok(());
+    }
+
+    let (ref_ids, ref_lids) = collect_references(value);
+
+    for (idx, res) in included.iter().enumerate() {
+        let Some(obj) = res.as_object() else {
+            continue;
+        };
+        let Some(type_) = obj.get("type").and_then(|v| v.as_str()) else {
+            continue;
+        };
+        let id = obj.get("id").and_then(|v| v.as_str());
+        let lid = obj.get("lid").and_then(|v| v.as_str());
+
+        // An included resource with no identifier at all is left to the regular
+        // Deserialize impl to reject.
+        if id.is_none() && lid.is_none() {
+            continue;
+        }
+
+        let linked = id.is_some_and(|id| ref_ids.contains(&(type_, id)))
+            || lid.is_some_and(|lid| ref_lids.contains(&(type_, lid)));
+
+        if !linked {
+            return Err(crate::Error::FullLinkageViolation {
+                r#type: type_.to_string(),
+                // At least one of `id`/`lid` is Some here: the no-identifier
+                // case was skipped by the guard above.
+                id: id.or(lid).expect("guarded: id or lid is present").to_string(),
+                location: format!("included[{idx}]"),
+            });
+        }
+    }
+
+    Ok(())
 }
 
 /// Structural pre-pass: catches type mismatches and malformed relationships
@@ -672,37 +784,33 @@ fn prevalidate<P: ResourceObject>(value: &serde_json::Value) -> crate::Result<()
         return Ok(());
     };
 
-    let included_set = build_included_set(value);
-
     match data {
         serde_json::Value::Object(_) => {
-            check_resource_full(data, &|| "data".to_string(), &info, &included_set)?;
+            check_resource_full(data, &|| "data".to_string(), &info)?;
         }
         serde_json::Value::Array(arr) => {
             for (idx, item) in arr.iter().enumerate() {
-                check_resource_full(item, &|| format!("data[{idx}]"), &info, &included_set)?;
+                check_resource_full(item, &|| format!("data[{idx}]"), &info)?;
             }
         }
         // Null primary data is always valid structurally.
         _ => {}
     }
 
-    // IncludedRefMissing intentionally fires only on relationships of the
-    // primary resource(s). Walking relationships of included resources too
-    // would over-fire on partial-include payloads — Drupal/JSON:API APIs
-    // routinely return compound documents containing references to
-    // resources the consumer didn't ask for. Strict transitive validation
-    // belongs in an opt-in `from_str_strict` constructor if a consumer
-    // ever asks for it.
+    // Full-linkage runs last: the per-resource shape checks above (type,
+    // required attributes, malformed relationships) take precedence so their
+    // errors win. Full linkage flags included resources nothing references; it
+    // does *not* require that every reference be included, so partial-include
+    // responses are accepted.
+    check_full_linkage(value)?;
 
     Ok(())
 }
 
-fn check_resource_full<'a>(
-    item: &'a serde_json::Value,
+fn check_resource_full(
+    item: &serde_json::Value,
     location: &dyn Fn() -> String,
     info: &crate::TypeInfo,
-    included_set: &std::collections::HashSet<(&'a str, &'a str)>,
 ) -> crate::Result<()> {
     let obj = match item.as_object() {
         Some(o) => o,
@@ -753,51 +861,17 @@ fn check_resource_full<'a>(
 
     if let Some(rels) = obj.get("relationships").and_then(|v| v.as_object()) {
         for (name, rel_value) in rels {
-            check_relationship(name, rel_value, location, included_set)?;
+            check_relationship(name, rel_value, location)?;
         }
     }
 
     Ok(())
 }
 
-fn check_included_ref<'a>(
+fn check_relationship(
     name: &str,
-    rel_location: &dyn Fn() -> String,
-    identity: &'a serde_json::Value,
-    included_set: &std::collections::HashSet<(&'a str, &'a str)>,
-) -> crate::Result<()> {
-    // Skip the check when the wire payload has no `included` array (or all
-    // entries were malformed). The empty set is the canonical "consumer didn't
-    // ask for compound resolution" signal — references stay unverified.
-    if included_set.is_empty() {
-        return Ok(());
-    }
-    let Some(obj) = identity.as_object() else {
-        return Ok(());
-    };
-    let Some(type_) = obj.get("type").and_then(|v| v.as_str()) else {
-        return Ok(());
-    };
-    let Some(id) = obj.get("id").and_then(|v| v.as_str()) else {
-        // lid-only — atomic-ops resolves these.
-        return Ok(());
-    };
-    if !included_set.contains(&(type_, id)) {
-        return Err(crate::Error::IncludedRefMissing {
-            name: name.to_string(),
-            r#type: type_.to_string(),
-            id: id.to_string(),
-            location: rel_location(),
-        });
-    }
-    Ok(())
-}
-
-fn check_relationship<'a>(
-    name: &str,
-    rel_value: &'a serde_json::Value,
+    rel_value: &serde_json::Value,
     location: &dyn Fn() -> String,
-    included_set: &std::collections::HashSet<(&'a str, &'a str)>,
 ) -> crate::Result<()> {
     let rel_obj = rel_value
         .as_object()
@@ -807,22 +881,15 @@ fn check_relationship<'a>(
             reason: "relationship value must be an object".into(),
         })?;
 
-    let rel_location = || format!("{}.relationships.{}", location(), name);
-
     // A relationship may omit `data` (links/meta only), but if `data` is
-    // present it must be null, an object, or an array. For object/array
-    // shapes, also verify each referenced (type, id) is in the included set.
+    // present it must be null, an object, or an array. Reference-to-included
+    // resolution is validated separately by the full-linkage pass, which walks
+    // the whole document rather than the primary data alone.
     if let Some(data) = rel_obj.get("data") {
         match data {
-            serde_json::Value::Null => {}
-            serde_json::Value::Object(_) => {
-                check_included_ref(name, &rel_location, data, included_set)?;
-            }
-            serde_json::Value::Array(arr) => {
-                for entry in arr {
-                    check_included_ref(name, &rel_location, entry, included_set)?;
-                }
-            }
+            serde_json::Value::Null
+            | serde_json::Value::Object(_)
+            | serde_json::Value::Array(_) => {}
             other => {
                 let kind = match other {
                     serde_json::Value::Bool(_) => "boolean",
@@ -845,138 +912,171 @@ fn check_relationship<'a>(
 #[cfg(test)]
 mod prepass_helpers {
     use super::*;
-    use std::collections::HashSet;
 
     #[test]
-    fn build_included_set_indexes_type_and_id_pairs() {
+    fn collect_references_gathers_primary_and_included_linkage() {
         let v: serde_json::Value = serde_json::from_str(
             r#"{
+                "data": {
+                    "type": "articles", "id": "1",
+                    "relationships": {
+                        "author": { "data": { "type": "people", "id": "9" } },
+                        "tags": { "data": [{ "type": "tags", "id": "5" }] }
+                    }
+                },
                 "included": [
-                    { "type": "people", "id": "1", "attributes": {} },
-                    { "type": "tags",   "id": "5", "attributes": {} }
+                    {
+                        "type": "people", "id": "9",
+                        "relationships": {
+                            "org": { "data": { "type": "orgs", "id": "42" } }
+                        }
+                    }
                 ]
             }"#,
         )
         .unwrap();
-        let set = build_included_set(&v);
-        let expected: HashSet<(&str, &str)> =
-            [("people", "1"), ("tags", "5")].into_iter().collect();
-        assert_eq!(set, expected);
+        let (ref_ids, _ref_lids) = collect_references(&v);
+        assert!(ref_ids.contains(&("people", "9")));
+        assert!(ref_ids.contains(&("tags", "5")));
+        // Transitive linkage from an included resource is collected too.
+        assert!(ref_ids.contains(&("orgs", "42")));
     }
 
     #[test]
-    fn build_included_set_returns_empty_when_included_absent() {
-        let v: serde_json::Value = serde_json::from_str(r#"{ "data": null }"#).unwrap();
-        let set = build_included_set(&v);
-        assert!(set.is_empty());
-    }
-
-    #[test]
-    fn build_included_set_skips_entries_missing_type_or_id() {
+    fn collect_references_separates_id_and_lid() {
         let v: serde_json::Value = serde_json::from_str(
             r#"{
+                "data": {
+                    "type": "articles", "id": "1",
+                    "relationships": {
+                        "author": { "data": { "type": "people", "lid": "tmp-1" } }
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+        let (ref_ids, ref_lids) = collect_references(&v);
+        assert!(ref_ids.is_empty());
+        assert!(ref_lids.contains(&("people", "tmp-1")));
+    }
+
+    #[test]
+    fn full_linkage_passes_when_every_included_is_referenced() {
+        let v: serde_json::Value = serde_json::from_str(
+            r#"{
+                "data": {
+                    "type": "articles", "id": "1",
+                    "relationships": {
+                        "author": { "data": { "type": "people", "id": "9" } }
+                    }
+                },
+                "included": [ { "type": "people", "id": "9", "attributes": {} } ]
+            }"#,
+        )
+        .unwrap();
+        assert!(check_full_linkage(&v).is_ok());
+    }
+
+    #[test]
+    fn full_linkage_accepts_partial_include_reference_not_in_included() {
+        // `author` references people:9, which is NOT in `included`. Only the
+        // requested comments are compiled, and they are referenced. Valid.
+        let v: serde_json::Value = serde_json::from_str(
+            r#"{
+                "data": {
+                    "type": "articles", "id": "1",
+                    "relationships": {
+                        "author": { "data": { "type": "people", "id": "9" } },
+                        "comments": { "data": [{ "type": "comments", "id": "5" }] }
+                    }
+                },
+                "included": [ { "type": "comments", "id": "5", "attributes": {} } ]
+            }"#,
+        )
+        .unwrap();
+        assert!(check_full_linkage(&v).is_ok());
+    }
+
+    #[test]
+    fn full_linkage_fails_for_unreferenced_included_resource() {
+        let v: serde_json::Value = serde_json::from_str(
+            r#"{
+                "data": {
+                    "type": "articles", "id": "1",
+                    "relationships": {
+                        "author": { "data": { "type": "people", "id": "9" } }
+                    }
+                },
                 "included": [
-                    { "type": "people", "id": "1" },
-                    { "type": "people" },
-                    { "id": "2" },
-                    { "type": "tags", "id": "5" }
+                    { "type": "people", "id": "9", "attributes": {} },
+                    { "type": "tags", "id": "99", "attributes": {} }
                 ]
             }"#,
         )
         .unwrap();
-        let set = build_included_set(&v);
-        assert_eq!(set.len(), 2);
-        assert!(set.contains(&("people", "1")));
-        assert!(set.contains(&("tags", "5")));
-    }
-
-    #[test]
-    fn check_included_ref_passes_for_present_id() {
-        let identity = serde_json::json!({ "type": "people", "id": "1" });
-        let mut set = HashSet::new();
-        set.insert(("people", "1"));
-        assert!(
-            check_included_ref(
-                "author",
-                &|| "data.relationships.author".to_string(),
-                &identity,
-                &set
-            )
-            .is_ok()
-        );
-    }
-
-    #[test]
-    fn check_included_ref_fails_for_absent_id() {
-        let identity = serde_json::json!({ "type": "people", "id": "9" });
-        let mut set: HashSet<(&str, &str)> = HashSet::new();
-        set.insert(("people", "1"));
-        let err = check_included_ref(
-            "author",
-            &|| "data.relationships.author".to_string(),
-            &identity,
-            &set,
-        )
-        .unwrap_err();
+        let err = check_full_linkage(&v).unwrap_err();
         assert!(
             matches!(
                 &err,
-                crate::Error::IncludedRefMissing { name, r#type: type_, id, location }
-                    if name == "author"
-                    && type_ == "people"
-                    && id == "9"
-                    && location == "data.relationships.author"
+                crate::Error::FullLinkageViolation { r#type: type_, id, location }
+                    if type_ == "tags" && id == "99" && location == "included[1]"
             ),
             "got: {err:?}",
         );
     }
 
     #[test]
-    fn check_included_ref_skips_when_set_is_empty() {
-        // Empty set means "no included on the wire" — refs are unverified.
-        let identity = serde_json::json!({ "type": "people", "id": "9" });
-        let set: HashSet<(&str, &str)> = HashSet::new();
-        assert!(
-            check_included_ref(
-                "author",
-                &|| "data.relationships.author".to_string(),
-                &identity,
-                &set
-            )
-            .is_ok()
-        );
+    fn full_linkage_satisfied_by_transitive_reference_from_another_included() {
+        // orgs:42 is referenced only by another included resource (people:9),
+        // not by primary data. Full linkage is still satisfied.
+        let v: serde_json::Value = serde_json::from_str(
+            r#"{
+                "data": {
+                    "type": "articles", "id": "1",
+                    "relationships": {
+                        "author": { "data": { "type": "people", "id": "9" } }
+                    }
+                },
+                "included": [
+                    {
+                        "type": "people", "id": "9",
+                        "relationships": {
+                            "org": { "data": { "type": "orgs", "id": "42" } }
+                        }
+                    },
+                    { "type": "orgs", "id": "42", "attributes": {} }
+                ]
+            }"#,
+        )
+        .unwrap();
+        assert!(check_full_linkage(&v).is_ok());
     }
 
     #[test]
-    fn check_included_ref_skips_lid_only_identifier() {
-        let identity = serde_json::json!({ "type": "people", "lid": "tmp-1" });
-        let mut set: HashSet<(&str, &str)> = HashSet::new();
-        set.insert(("other", "x"));
-        assert!(
-            check_included_ref(
-                "author",
-                &|| "data.relationships.author".to_string(),
-                &identity,
-                &set
-            )
-            .is_ok()
-        );
+    fn full_linkage_matches_lid_identified_included_against_lid_linkage() {
+        let v: serde_json::Value = serde_json::from_str(
+            r#"{
+                "data": {
+                    "type": "articles", "id": "1",
+                    "relationships": {
+                        "author": { "data": { "type": "people", "lid": "tmp-1" } }
+                    }
+                },
+                "included": [ { "type": "people", "lid": "tmp-1", "attributes": {} } ]
+            }"#,
+        )
+        .unwrap();
+        assert!(check_full_linkage(&v).is_ok());
     }
 
     #[test]
-    fn check_included_ref_skips_non_object_identity() {
-        let identity = serde_json::Value::Null;
-        let mut set: HashSet<(&str, &str)> = HashSet::new();
-        set.insert(("other", "x"));
-        assert!(
-            check_included_ref(
-                "author",
-                &|| "data.relationships.author".to_string(),
-                &identity,
-                &set
-            )
-            .is_ok()
-        );
+    fn full_linkage_skips_absent_or_empty_included() {
+        let absent: serde_json::Value = serde_json::from_str(r#"{ "data": null }"#).unwrap();
+        assert!(check_full_linkage(&absent).is_ok());
+
+        let empty: serde_json::Value =
+            serde_json::from_str(r#"{ "data": null, "included": [] }"#).unwrap();
+        assert!(check_full_linkage(&empty).is_ok());
     }
 }
 

@@ -143,7 +143,7 @@
 //! - [`Document::parse`] / [`Document::from_slice`] / [`Document::from_value`] —
 //!   parse with a structural pre-pass that surfaces
 //!   [`Error::TypeMismatch`], [`Error::MalformedRelationship`],
-//!   [`Error::MissingAttribute`], and [`Error::IncludedRefMissing`]
+//!   [`Error::MissingAttribute`], and [`Error::FullLinkageViolation`]
 //!   as typed errors instead of `serde_json::Error` strings.
 //!
 //! ```

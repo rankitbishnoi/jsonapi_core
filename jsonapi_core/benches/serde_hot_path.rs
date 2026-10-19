@@ -48,8 +48,8 @@ fn bench_resource_serde(c: &mut Criterion) {
     });
 }
 
-// Exercises the typed-parse pre-pass (build_included_set / check_relationship /
-// check_included_ref), which plain `serde_json::from_str` does not touch.
+// Exercises the typed-parse pre-pass (check_relationship / collect_references /
+// check_full_linkage), which plain `serde_json::from_str` does not touch.
 fn bench_parse_prepass(c: &mut Criterion) {
     c.bench_function("document_parse_compound", |b| {
         b.iter(|| {
