@@ -16,6 +16,40 @@ workspace version.
 
 ## [Unreleased]
 
+## [1.0.0-rc.2] — 2026-10-19
+
+### Changed
+
+- **Breaking:** `Document::parse`, `Document::from_slice`, and
+  `Document::from_value` now accept **partial-include responses**. You can parse
+  a `?include=comments` response that compiles the requested comments in
+  `included` while other relationships (e.g. `author`) carry linkage to resources
+  that were not requested — the recommended parsing path no longer rejects it.
+  Previously the pre-pass raised `Error::IncludedRefMissing` whenever a
+  primary-data relationship referenced a `(type, id)` absent from a non-empty
+  `included` array, which is the inverse of JSON:API's linkage requirement and
+  over-fired on ordinary compound documents. The pre-pass now enforces the
+  spec's actual **full-linkage** rule instead (see below).
+
+### Added
+
+- `Error::FullLinkageViolation { type, id, location }` — raised by the
+  `Document::from_*` pre-pass when a resource in a non-empty `included` array is
+  referenced by no resource identifier object anywhere in the document, as
+  required for JSON:API compound documents. References are gathered from both the
+  primary data's and the included resources' relationship linkage (transitive
+  linkage counts), and an included resource identified by `lid` is matched
+  against `lid` linkage. `location` points at the offending entry, e.g.
+  `"included[3]"`.
+
+### Removed
+
+- **Breaking:** `Error::IncludedRefMissing` — replaced by
+  `Error::FullLinkageViolation`. The old variant enforced the inverse of the
+  spec's full-linkage rule and rejected valid partial-include responses. Code
+  matching on it should match `FullLinkageViolation`, whose `location` names the
+  unreferenced `included[N]` entry rather than a primary relationship path.
+
 ## [1.0.0-rc.1] — 2026-09-17
 
 First release candidate for the stable `1.0` line. The public API surface
@@ -450,7 +484,8 @@ Initial release.
 - `Error` enum with structured variants for registry, member-name, media-type,
   document-structure, and include-path failures.
 
-[Unreleased]: https://github.com/rankitbishnoi/jsonapi_core/compare/v1.0.0-rc.1...HEAD
+[Unreleased]: https://github.com/rankitbishnoi/jsonapi_core/compare/v1.0.0-rc.2...HEAD
+[1.0.0-rc.2]: https://github.com/rankitbishnoi/jsonapi_core/compare/v1.0.0-rc.1...v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/rankitbishnoi/jsonapi_core/compare/v0.3.0...v1.0.0-rc.1
 [0.3.0]: https://github.com/rankitbishnoi/jsonapi_core/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/rankitbishnoi/jsonapi_core/compare/v0.2.0...v0.2.1
