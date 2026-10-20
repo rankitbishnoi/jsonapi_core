@@ -6,8 +6,7 @@
 
 use jsonapi_core::Relationship;
 use jsonapi_core::model::{
-    Document, Links, Meta, PrimaryData, RelationshipData, ResourceIdentifier,
-    ResourceObject,
+    Document, Links, Meta, PrimaryData, RelationshipData, ResourceIdentifier, ResourceObject,
 };
 
 // ============================================================

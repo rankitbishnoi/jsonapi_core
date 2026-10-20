@@ -752,7 +752,10 @@ fn check_full_linkage(value: &serde_json::Value) -> crate::Result<()> {
                 r#type: type_.to_string(),
                 // At least one of `id`/`lid` is Some here: the no-identifier
                 // case was skipped by the guard above.
-                id: id.or(lid).expect("guarded: id or lid is present").to_string(),
+                id: id
+                    .or(lid)
+                    .expect("guarded: id or lid is present")
+                    .to_string(),
                 location: format!("included[{idx}]"),
             });
         }

@@ -209,15 +209,16 @@ fn test_null_data_document() {
 /// Registry get via typed Relationship.
 #[test]
 fn test_registry_get_via_relationship() {
-    let included = vec![Resource::new("people")
-        .with_id("9")
-        .with_attributes(serde_json::json!({"name": "Dan"}))];
+    let included = vec![
+        Resource::new("people")
+            .with_id("9")
+            .with_attributes(serde_json::json!({"name": "Dan"})),
+    ];
 
     let registry = Registry::from_included(&included).unwrap();
-    let rel: Relationship<Resource> =
-        Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier::new(
-            "people", "9",
-        ))));
+    let rel: Relationship<Resource> = Relationship::new(RelationshipData::ToOne(Some(
+        ResourceIdentifier::new("people", "9"),
+    )));
 
     let person: Resource = registry.get(&rel).unwrap();
     assert_eq!(person.attributes["name"], "Dan");
@@ -239,10 +240,9 @@ fn from_str_rejects_data_and_errors_as_structure() {
 #[test]
 fn registry_get_on_lid_only_relationship_is_lid_not_indexed() {
     let registry = Registry::from_included::<Resource>(&[]).unwrap();
-    let rel: Relationship<Resource> =
-        Relationship::new(RelationshipData::ToOne(Some(
-            ResourceIdentifier::with_lid("people", "tmp-1"),
-        )));
+    let rel: Relationship<Resource> = Relationship::new(RelationshipData::ToOne(Some(
+        ResourceIdentifier::with_lid("people", "tmp-1"),
+    )));
     let err = registry.get(&rel).unwrap_err();
     assert!(matches!(err, jsonapi_core::Error::LidNotIndexed));
 }

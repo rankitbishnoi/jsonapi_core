@@ -45,9 +45,9 @@ fn main() {
         id: "1".into(),
         title: "JSON:API paints my bikeshed!".into(),
         body: "The shortest article. Ever.".into(),
-        author: Relationship::new(RelationshipData::ToOne(Some(
-            ResourceIdentifier::new("people", "9"),
-        ))),
+        author: Relationship::new(RelationshipData::ToOne(Some(ResourceIdentifier::new(
+            "people", "9",
+        )))),
     };
 
     // Wrap in a Document

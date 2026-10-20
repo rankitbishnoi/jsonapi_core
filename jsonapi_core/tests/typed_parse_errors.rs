@@ -682,8 +682,7 @@ fn from_str_full_linkage_accepts_island_cycle_unreachable_from_primary() {
             }
         ]
     }"#;
-    Document::<Resource>::parse(json)
-        .expect("island cycle satisfies document-wide full linkage");
+    Document::<Resource>::parse(json).expect("island cycle satisfies document-wide full linkage");
 }
 
 // ----- Single-step parse helpers (parse_single / parse_many) -----

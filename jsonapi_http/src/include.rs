@@ -257,7 +257,9 @@ mod tests {
     }
 
     fn resource(type_: &str, id: &str) -> Resource {
-        Resource::new(type_).with_id(id).with_attributes(serde_json::json!({}))
+        Resource::new(type_)
+            .with_id(id)
+            .with_attributes(serde_json::json!({}))
     }
 
     fn to_one(rel_type: &str, id: &str) -> ResourceRelationship {
@@ -267,9 +269,9 @@ mod tests {
     }
 
     fn to_one_lid(rel_type: &str, lid: &str) -> ResourceRelationship {
-        ResourceRelationship::new(RelationshipData::ToOne(Some(
-            ResourceIdentifier::with_lid(rel_type, lid),
-        )))
+        ResourceRelationship::new(RelationshipData::ToOne(Some(ResourceIdentifier::with_lid(
+            rel_type, lid,
+        ))))
     }
 
     fn to_many(rel_type: &str, ids: &[&str]) -> ResourceRelationship {
