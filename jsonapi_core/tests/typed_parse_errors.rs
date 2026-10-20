@@ -28,6 +28,29 @@ struct Person {
     name: String,
 }
 
+// ----- Regression: partial-include responses must parse (full-linkage) -----
+
+#[test]
+fn from_value_accepts_partial_include_response() {
+    // The issue repro: `author` references people:9 which is NOT in `included`,
+    // while the requested `comments:5` IS included and referenced. This is a
+    // valid partial-include response and must parse.
+    let value = serde_json::json!({
+        "data": {
+            "type": "articles",
+            "id": "1",
+            "attributes": {},
+            "relationships": {
+                "author": {"data": {"type": "people", "id": "9"}},
+                "comments": {"data": [{"type": "comments", "id": "5"}]}
+            }
+        },
+        "included": [{"type": "comments", "id": "5", "attributes": {}}]
+    });
+    Document::<Resource>::from_value(value)
+        .expect("partial-include response must parse under full-linkage");
+}
+
 // ----- Happy path -----
 
 #[test]
@@ -321,7 +344,7 @@ fn from_str_required_attribute_check_skipped_for_dynamic_resource() {
 }
 
 // ============================================================
-// IncludedRefMissing — deferred-variants plan
+// FullLinkageViolation — compound-document full-linkage check
 // ============================================================
 
 #[derive(Debug, Clone, PartialEq, JsonApi)]
@@ -345,7 +368,30 @@ struct ArticleWithRels {
 }
 
 #[test]
-fn from_str_surfaces_included_ref_missing_on_primary_to_one() {
+fn from_str_accepts_partial_include_response() {
+    // Partial include: `author` references people:9 which is NOT in `included`,
+    // while the requested comment IS included and referenced. Valid response.
+    let json = r#"{
+        "data": {
+            "type": "articles_with_rels",
+            "id": "1",
+            "attributes": { "title": "Hello" },
+            "relationships": {
+                "author":   { "data": { "type": "people", "id": "9" } },
+                "comments": { "data": [{ "type": "comments", "id": "5" }] }
+            }
+        },
+        "included": [
+            { "type": "comments", "id": "5", "attributes": { "body": "hi" } }
+        ]
+    }"#;
+    Document::<ArticleWithRels>::parse(json)
+        .expect("partial-include response must parse under full-linkage");
+}
+
+#[test]
+fn from_str_surfaces_full_linkage_violation_for_unreferenced_included() {
+    // people:1 is in `included` but no relationship anywhere references it.
     let json = r#"{
         "data": {
             "type": "articles_with_rels",
@@ -364,54 +410,17 @@ fn from_str_surfaces_included_ref_missing_on_primary_to_one() {
     assert!(
         matches!(
             &err,
-            Error::IncludedRefMissing { name, r#type: type_, id, location }
-                if name == "author" && type_ == "people" && id == "9"
-                && location == "data.relationships.author"
+            Error::FullLinkageViolation { r#type: type_, id, location }
+                if type_ == "people" && id == "1" && location == "included[0]"
         ),
         "got: {err:?}",
     );
 }
 
 #[test]
-fn from_str_surfaces_included_ref_missing_on_primary_to_many() {
-    let json = r#"{
-        "data": {
-            "type": "articles_with_rels",
-            "id": "1",
-            "attributes": { "title": "Hello" },
-            "relationships": {
-                "author":   { "data": null },
-                "comments": { "data": [
-                    { "type": "comments", "id": "1" },
-                    { "type": "comments", "id": "9" },
-                    { "type": "comments", "id": "2" }
-                ]}
-            }
-        },
-        "included": [
-            { "type": "comments", "id": "1", "attributes": { "body": "a" } },
-            { "type": "comments", "id": "2", "attributes": { "body": "c" } }
-        ]
-    }"#;
-    let err = Document::<ArticleWithRels>::parse(json).unwrap_err();
-    assert!(
-        matches!(
-            &err,
-            Error::IncludedRefMissing { name, r#type: type_, id, location }
-                if name == "comments" && type_ == "comments" && id == "9"
-                && location == "data.relationships.comments"
-        ),
-        "got: {err:?}",
-    );
-}
-
-#[test]
-fn from_str_does_not_fire_included_ref_missing_for_transitive_references() {
-    // IncludedRefMissing is intentionally primary-data-only. References
-    // *inside* an included resource are not validated against the included
-    // set, because partial-include APIs (Drupal etc.) routinely return
-    // included resources whose own relationships point to non-included
-    // resources the consumer didn't ask for.
+fn from_str_full_linkage_satisfied_by_transitive_reference() {
+    // orgs:42 is referenced only by another included resource (people:1), not
+    // by primary data. Full linkage is still satisfied.
     let json = r#"{
         "data": {
             "type": "articles_with_rels",
@@ -430,15 +439,16 @@ fn from_str_does_not_fire_included_ref_missing_for_transitive_references() {
                 "relationships": {
                     "organization": { "data": { "type": "orgs", "id": "42" } }
                 }
-            }
+            },
+            { "type": "orgs", "id": "42", "attributes": { "name": "Acme" } }
         ]
     }"#;
-    Document::<ArticleWithRels>::parse(json)
-        .expect("transitive included references must not fire IncludedRefMissing");
+    Document::<ArticleWithRels>::parse(json).expect("transitive linkage must satisfy full linkage");
 }
 
 #[test]
-fn from_str_lid_only_relationship_skipped() {
+fn from_str_full_linkage_matches_lid_identified_included() {
+    // Included resource identified by `lid` is matched against `lid` linkage.
     let json = r#"{
         "data": {
             "type": "articles_with_rels",
@@ -450,17 +460,11 @@ fn from_str_lid_only_relationship_skipped() {
             }
         },
         "included": [
-            { "type": "people", "id": "1", "attributes": { "name": "Dan" } }
+            { "type": "people", "lid": "tmp-1", "attributes": { "name": "Dan" } }
         ]
     }"#;
-    // Pre-pass must not fire IncludedRefMissing for lid-only references.
-    let result = Document::<ArticleWithRels>::parse(json);
-    if let Err(err) = &result {
-        assert!(
-            !matches!(err, Error::IncludedRefMissing { .. }),
-            "lid-only references must not trigger IncludedRefMissing, got: {err:?}",
-        );
-    }
+    Document::<ArticleWithRels>::parse(json)
+        .expect("lid-identified included must match lid linkage");
 }
 
 #[test]
@@ -482,7 +486,7 @@ fn from_str_relationship_with_null_data_is_not_an_error() {
 #[test]
 fn from_str_error_precedence_order_type_mismatch_first() {
     // Payload broken three ways: wrong primary type, missing required
-    // attribute, broken included ref. TypeMismatch must fire first.
+    // attribute, unreferenced included resource. TypeMismatch must fire first.
     let json = r#"{
         "data": {
             "type": "novels",
@@ -505,9 +509,9 @@ fn from_str_error_precedence_order_type_mismatch_first() {
 }
 
 #[test]
-fn from_str_error_precedence_order_missing_attribute_before_included_ref() {
-    // Type matches, but attribute is missing AND a relationship ref is
-    // missing. MissingAttribute must fire first.
+fn from_str_error_precedence_order_missing_attribute_before_full_linkage() {
+    // Type matches, but the required attribute is missing AND `included` carries
+    // an unreferenced resource. MissingAttribute must fire first.
     let json = r#"{
         "data": {
             "type": "articles_with_rels",
@@ -525,7 +529,7 @@ fn from_str_error_precedence_order_missing_attribute_before_included_ref() {
     let err = Document::<ArticleWithRels>::parse(json).unwrap_err();
     assert!(
         matches!(&err, Error::MissingAttribute { .. }),
-        "expected MissingAttribute before IncludedRefMissing, got: {err:?}",
+        "expected MissingAttribute before FullLinkageViolation, got: {err:?}",
     );
 }
 
@@ -552,7 +556,9 @@ fn from_str_present_reference_is_not_an_error() {
 }
 
 #[test]
-fn from_str_surfaces_included_ref_missing_on_primary_collection() {
+fn from_str_full_linkage_considers_whole_primary_collection() {
+    // people:9 is referenced by the second article, so it is linked. people:1 in
+    // `included` is referenced by neither article → full-linkage violation.
     let json = r#"{
         "data": [
             {
@@ -569,24 +575,114 @@ fn from_str_surfaces_included_ref_missing_on_primary_collection() {
                 "id": "2",
                 "attributes": { "title": "second" },
                 "relationships": {
-                    "author":   { "data": { "type": "people", "id": "missing" } },
+                    "author":   { "data": { "type": "people", "id": "9" } },
                     "comments": { "data": [] }
                 }
             }
         ],
         "included": [
-            { "type": "people", "id": "1", "attributes": { "name": "Dan" } }
+            { "type": "people", "id": "9", "attributes": { "name": "Dan" } },
+            { "type": "people", "id": "1", "attributes": { "name": "Nobody" } }
         ]
     }"#;
     let err = Document::<ArticleWithRels>::parse(json).unwrap_err();
     assert!(
         matches!(
             &err,
-            Error::IncludedRefMissing { location, .. }
-                if location == "data[1].relationships.author"
+            Error::FullLinkageViolation { r#type: type_, id, location }
+                if type_ == "people" && id == "1" && location == "included[1]"
         ),
         "got: {err:?}",
     );
+}
+
+#[test]
+fn from_str_full_linkage_fires_for_dynamic_resource_primary() {
+    // The type and required-attribute checks are skipped for the open-set
+    // `Resource` primary, but the full-linkage check must still run: tags:99 is
+    // included yet referenced by nothing.
+    let json = r#"{
+        "data": {
+            "type": "whatever",
+            "id": "1",
+            "relationships": {
+                "author": { "data": { "type": "people", "id": "9" } }
+            }
+        },
+        "included": [
+            { "type": "people", "id": "9", "attributes": {} },
+            { "type": "tags", "id": "99", "attributes": {} }
+        ]
+    }"#;
+    let err = Document::<Resource>::parse(json).unwrap_err();
+    assert!(
+        matches!(
+            &err,
+            Error::FullLinkageViolation { r#type: type_, id, location }
+                if type_ == "tags" && id == "99" && location == "included[1]"
+        ),
+        "got: {err:?}",
+    );
+}
+
+#[test]
+fn from_str_full_linkage_accepts_self_referencing_included() {
+    // Characterisation: an included resource whose own linkage points at itself
+    // counts as referenced, because references are gathered from included
+    // resources' relationships too. people:9 is not referenced by primary data,
+    // only by its own `self` relationship — and the document parses. Pinned so a
+    // future stricter reachability-from-primary reading is a deliberate change.
+    let json = r#"{
+        "data": {
+            "type": "whatever",
+            "id": "1",
+            "relationships": {
+                "noop": { "data": null }
+            }
+        },
+        "included": [
+            {
+                "type": "people", "id": "9", "attributes": {},
+                "relationships": {
+                    "self": { "data": { "type": "people", "id": "9" } }
+                }
+            }
+        ]
+    }"#;
+    Document::<Resource>::parse(json)
+        .expect("self-referencing included resource counts as referenced");
+}
+
+#[test]
+fn from_str_full_linkage_accepts_island_cycle_unreachable_from_primary() {
+    // Characterisation: two included resources reference each other but neither
+    // is referenced from primary data. They satisfy the check because linkage is
+    // gathered document-wide (not by reachability from primary). Pinned so the
+    // lenient behaviour can't drift silently.
+    let json = r#"{
+        "data": {
+            "type": "whatever",
+            "id": "1",
+            "relationships": {
+                "noop": { "data": null }
+            }
+        },
+        "included": [
+            {
+                "type": "people", "id": "9", "attributes": {},
+                "relationships": {
+                    "org": { "data": { "type": "orgs", "id": "42" } }
+                }
+            },
+            {
+                "type": "orgs", "id": "42", "attributes": {},
+                "relationships": {
+                    "lead": { "data": { "type": "people", "id": "9" } }
+                }
+            }
+        ]
+    }"#;
+    Document::<Resource>::parse(json).expect("island cycle satisfies document-wide full linkage");
 }
 
 // ----- Single-step parse helpers (parse_single / parse_many) -----

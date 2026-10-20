@@ -159,7 +159,8 @@ impl fmt::Display for JsonApiMediaType {
 /// `ext`/`profile` URIs enter a [`JsonApiMediaType`] so that
 /// [`JsonApiMediaType::to_header_value`] is always representable as a header.
 fn is_header_safe(uri: &str) -> bool {
-    uri.bytes().all(|b| b == b'\t' || (b'\x20'..=b'\x7e').contains(&b))
+    uri.bytes()
+        .all(|b| b == b'\t' || (b'\x20'..=b'\x7e').contains(&b))
 }
 
 /// Append `; key="v1 v2"` to `out`, escaping any `"` in values. No-op if `values`

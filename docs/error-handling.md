@@ -38,7 +38,7 @@ pub enum Error {
     TypeMismatch { expected: &'static str, got: String, location: String },
     MalformedRelationship { name: String, location: String, reason: String },
     MissingAttribute { resource_type: &'static str, attribute: &'static str, location: String },
-    IncludedRefMissing { name: String, r#type: String, id: String, location: String },
+    FullLinkageViolation { r#type: String, id: String, location: String },
 }
 ```
 
@@ -69,7 +69,7 @@ so the `?` operator works when interleaving with serde calls. It is
 | `TypeMismatch` | `Document::from_*` pre-pass: wire `data.type` ≠ `#[jsonapi(type = "...")]`. |
 | `MalformedRelationship` | `Document::from_*` pre-pass: relationship value isn't an object, or its `data` is structurally invalid. |
 | `MissingAttribute` | `Document::from_*` pre-pass: a required (non-`Option`, non-`Vec`) attribute is absent on the primary resource. |
-| `IncludedRefMissing` | `Document::from_*` pre-pass: a primary-resource relationship references `(type, id)` not in the wire `included` array. |
+| `FullLinkageViolation` | `Document::from_*` pre-pass: a resource in the wire `included` array is referenced by no resource identifier object in the document (JSON:API full-linkage rule). |
 
 ### Typed parse errors
 
@@ -84,37 +84,41 @@ failures to specific HTTP statuses.
 | `TypeMismatch` | Wire `data.type` doesn't match the consumer's `#[jsonapi(type = "...")]`. | `"data"` or `"data[N]"` |
 | `MalformedRelationship` | Relationship value isn't a JSON object, or its `data` member is neither null/object/array. | `"data"` or `"data[N]"` |
 | `MissingAttribute` | A non-`Option`, non-`Vec` attribute on the consumer's struct is absent from the wire `attributes` block on the primary resource. | `"data"` or `"data[N]"` |
-| `IncludedRefMissing` | A primary-resource relationship references a `(type, id)` pair that is not present in the wire `included` array. | `"data.relationships.<rel>"` or `"data[N].relationships.<rel>"` |
+| `FullLinkageViolation` | A resource in the wire `included` array is referenced by no resource identifier object elsewhere in the document. | `"included[N]"` |
 
 **Pre-pass walk order** (first error wins):
 
 1. `TypeMismatch` (primary data)
 2. `MissingAttribute` (primary data)
 3. `MalformedRelationship` (primary data)
-4. `IncludedRefMissing` (primary data)
+4. `FullLinkageViolation` (whole document)
 
-**`IncludedRefMissing` is intentionally primary-data-only.** Relationships
-*inside* an included resource (e.g. an included `author` whose own
-`organization` relationship references a non-included org) are not validated.
-Partial-include APIs routinely return compound documents whose included
-resources reference other resources the consumer did not request. Strict
-transitive validation belongs in a separate opt-in entrypoint (not yet
-shipped) — `from_str` matches the most permissive consumer-friendly default.
+**`FullLinkageViolation` enforces the spec's full-linkage rule.** Every resource
+in a non-empty `included` array must be referenced by at least one resource
+identifier object in the same document — whether in the primary data's
+relationship linkage or in another resource's. An included resource that nothing
+references is unreachable and signals a server-side compound-document defect.
 
-**References that use only `lid`** (no `id`) are also skipped — those are
-atomic-operation client-local identifiers, resolved at request execution time
-rather than at parse time.
+This is *not* the inverse: a relationship may reference a resource that is not in
+`included`. Partial-include responses — e.g. `?include=comments` returns the
+comments in `included` while `author` linkage points at a resource the client did
+not request — are valid and parse cleanly. The check only flags unreferenced
+*included* resources.
+
+**References that use only `lid`** (no `id`) are tracked as `lid` linkage; an
+included resource identified by `lid` is matched against it. (`lid`-only
+identifiers are atomic-operation client-local references, resolved at request
+execution time.)
 
 **`Document<Resource>` semantics.** When the primary type `P` is the dynamic
 `Resource`, the type check and required-attribute check are skipped (open-set
-primary type). The relationship walk and `IncludedRefMissing` check still
-run, so `Document::<Resource>::from_str` validates compound-document
-references on documents with arbitrary primary shapes.
+primary type). The relationship walk and full-linkage check still run, so
+`Document::<Resource>::from_str` validates compound-document linkage on documents
+with arbitrary primary shapes.
 
-**Empty-set behaviour.** When the wire payload's `included` array is absent
-or empty, `IncludedRefMissing` does not fire — there is no compound resolution
-to validate against. `IncludedRefMissing` only fires when `included` is
-present and non-empty, but a referenced `(type, id)` is missing from it.
+**Empty-set behaviour.** When the wire payload's `included` array is absent or
+empty, `FullLinkageViolation` does not fire — there is no compound document to
+validate.
 
 ### Mapping to HTTP status codes
 
@@ -127,7 +131,7 @@ A natural translation table for a handler:
 | `Structure`, `InvalidMemberName`, `QueryParse`, `InvalidIncludePath`, `InvalidAtomicOperation` | 400 Bad Request |
 | `Json` (during request parsing) | 400 Bad Request |
 | `RegistryLookup`, `NullRelationship`, `RelationshipCardinalityMismatch`, `LidNotIndexed` | Internal — these reflect *your* code's assumptions about the document |
-| `TypeMismatch`, `MalformedRelationship`, `IncludedRefMissing` | 502 Bad Gateway — upstream payload structurally wrong |
+| `TypeMismatch`, `MalformedRelationship`, `FullLinkageViolation` | 502 Bad Gateway — upstream payload structurally wrong |
 | `MissingAttribute` | 422 Unprocessable Entity — consumer's schema requires a field upstream omitted |
 | `UnexpectedDocumentShape` | Internal — caller used the wrong accessor |
 
@@ -136,6 +140,13 @@ a contract mismatch (consumer expected a field upstream considers optional);
 the other three pre-pass typed errors are `502 Bad Gateway` because the wire
 payload itself is broken.
 
+This table is written from the consumer's perspective — parsing an *upstream*
+response, where a structural defect is the upstream server's fault (`502`). The
+`jsonapi_http` crate's `status_for`, by contrast, parses *incoming request*
+bodies, where the same defect is the *client's* fault; it therefore maps
+`FullLinkageViolation` (and the other structural pre-pass errors) to `400 Bad
+Request`. Pick the status that matches where the document came from.
+
 ```rust
 use jsonapi_core::Error;
 
@@ -143,7 +154,7 @@ fn map_to_http_status(err: &Error) -> u16 {
     match err {
         Error::TypeMismatch { .. }
         | Error::MalformedRelationship { .. }
-        | Error::IncludedRefMissing { .. } => 502,
+        | Error::FullLinkageViolation { .. } => 502,
         Error::MissingAttribute { .. } => 422,
         Error::Json(_) => 400,
         _ => 500,

@@ -1,4 +1,3 @@
-
 use leptos::prelude::*;
 
 use jsonapi_core::atomic::{AtomicOperation, AtomicRequest, OperationTarget};

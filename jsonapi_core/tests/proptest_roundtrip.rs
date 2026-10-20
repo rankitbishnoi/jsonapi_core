@@ -3,8 +3,7 @@
 //! (dropped/renamed members, cardinality confusion) that point tests can miss.
 
 use jsonapi_core::{
-    Document, PrimaryData, RelationshipData, Resource, ResourceIdentifier,
-    ResourceRelationship,
+    Document, PrimaryData, RelationshipData, Resource, ResourceIdentifier, ResourceRelationship,
 };
 use proptest::prelude::*;
 
@@ -50,7 +49,9 @@ fn arb_resource() -> impl Strategy<Value = Resource> {
         prop::collection::btree_map(arb_member(), arb_relationship(), 0..3),
     )
         .prop_map(|(ty, id, attributes, relationships)| {
-            let mut r = Resource::new(ty).with_attributes(attributes).with_relationships(relationships);
+            let mut r = Resource::new(ty)
+                .with_attributes(attributes)
+                .with_relationships(relationships);
             if let Some(id) = id {
                 r = r.with_id(id);
             }

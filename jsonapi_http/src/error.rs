@@ -41,7 +41,7 @@ pub fn status_for(err: &Error) -> StatusCode {
         | Error::InvalidMemberName { .. }
         | Error::InvalidAtomicOperation { .. }
         | Error::MalformedRelationship { .. }
-        | Error::IncludedRefMissing { .. }
+        | Error::FullLinkageViolation { .. }
         | Error::UnexpectedDocumentShape { .. }
         // A `lid` in client-supplied linkage that resolves to no resource, or is
         // used where a server `id` is required, is a bad reference in the
@@ -118,8 +118,8 @@ fn source_for(err: &Error) -> Option<ErrorSource> {
         Error::MalformedRelationship { name, location, .. } => {
             format!("{}/relationships/{name}", location_to_pointer(location))
         }
-        // `location` is already the full relationship path.
-        Error::IncludedRefMissing { location, .. } => location_to_pointer(location),
+        // `location` points at the offending included entry, e.g. `included[3]`.
+        Error::FullLinkageViolation { location, .. } => location_to_pointer(location),
         _ => return None,
     };
 
@@ -575,11 +575,10 @@ mod tests {
                 StatusCode::UNPROCESSABLE_ENTITY,
             ),
             (
-                Error::IncludedRefMissing {
-                    name: "author".into(),
+                Error::FullLinkageViolation {
                     r#type: "people".into(),
                     id: "9".into(),
-                    location: "data.relationships.author".into(),
+                    location: "included[3]".into(),
                 },
                 StatusCode::BAD_REQUEST,
             ),
@@ -664,18 +663,17 @@ mod tests {
     }
 
     #[test]
-    fn to_api_error_uses_relationship_path_for_included_ref_missing() {
-        let err = Error::IncludedRefMissing {
-            name: "author".into(),
+    fn to_api_error_uses_included_path_for_full_linkage_violation() {
+        let err = Error::FullLinkageViolation {
             r#type: "people".into(),
             id: "9".into(),
-            location: "data.relationships.author".into(),
+            location: "included[3]".into(),
         };
         let api = to_api_error(&err);
 
         assert_eq!(
             api.source.as_ref().and_then(|s| s.pointer.as_deref()),
-            Some("/data/relationships/author")
+            Some("/included/3")
         );
     }
 

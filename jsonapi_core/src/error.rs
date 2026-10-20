@@ -205,28 +205,37 @@ pub enum Error {
         location: String,
     },
 
-    /// A relationship references a `(type, id)` pair that is not present in
-    /// the wire `included` array. Surfaced by
-    /// [`Document::parse`](crate::Document::parse),
+    /// A resource in the wire `included` array is not referenced by any
+    /// resource identifier object elsewhere in the document — a violation of
+    /// JSON:API's full-linkage requirement for compound documents.
+    ///
+    /// Full linkage means every included resource MUST be identified by at
+    /// least one resource identifier object in the same document, whether in
+    /// the primary data's relationship linkage or in another resource's
+    /// linkage. An included resource that nothing references is unreachable by
+    /// the client and signals a server-side compound-document defect.
+    ///
+    /// This is the spec's actual requirement. It does *not* require that every
+    /// relationship reference be present in `included`: partial-include
+    /// responses, whose linkage points at resources the client did not request,
+    /// are valid and parse cleanly.
+    ///
+    /// Surfaced by [`Document::parse`](crate::Document::parse),
     /// [`Document::from_slice`](crate::Document::from_slice), and
     /// [`Document::from_value`](crate::Document::from_value).
     ///
-    /// References that use only `lid` (no `id`) are intentionally skipped:
-    /// those are atomic-operation client-local identifiers, resolved at
-    /// request execution rather than at parse time.
+    /// An included resource identified only by `lid` is matched against `lid`
+    /// linkage; `lid`-only references resolve at atomic-operation execution.
     #[error(
-        "relationship `{name}` at {location} references {type}:{id}, but no such resource is included"
+        "included resource {type}:{id} at {location} is not referenced by the document (full-linkage violation)"
     )]
-    IncludedRefMissing {
-        /// Wire name of the offending relationship.
-        name: String,
-        /// Wire-side referenced resource type.
+    FullLinkageViolation {
+        /// Wire-side type of the unreferenced included resource.
         r#type: String,
-        /// Wire-side referenced resource id.
+        /// Wire-side `id` (or `lid`) of the unreferenced included resource.
         id: String,
-        /// JSON pointer-style path to the offending relationship, e.g.
-        /// `"data.relationships.author"` or
-        /// `"included[3].relationships.organization"`.
+        /// JSON pointer-style path to the offending included entry, e.g.
+        /// `"included[3]"`.
         location: String,
     },
 }
@@ -296,16 +305,15 @@ mod tests {
     }
 
     #[test]
-    fn test_included_ref_missing_display() {
-        let err = Error::IncludedRefMissing {
-            name: "author".into(),
+    fn test_full_linkage_violation_display() {
+        let err = Error::FullLinkageViolation {
             r#type: "people".into(),
             id: "9".into(),
-            location: "data.relationships.author".into(),
+            location: "included[3]".into(),
         };
         assert_eq!(
             err.to_string(),
-            "relationship `author` at data.relationships.author references people:9, but no such resource is included"
+            "included resource people:9 at included[3] is not referenced by the document (full-linkage violation)"
         );
     }
 }

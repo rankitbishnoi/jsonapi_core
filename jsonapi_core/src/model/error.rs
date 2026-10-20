@@ -241,8 +241,17 @@ mod tests {
 
     #[test]
     fn error_source_constructors_set_one_member() {
-        assert_eq!(ErrorSource::pointer("/data").pointer.as_deref(), Some("/data"));
-        assert_eq!(ErrorSource::parameter("sort").parameter.as_deref(), Some("sort"));
-        assert_eq!(ErrorSource::header("Accept").header.as_deref(), Some("Accept"));
+        assert_eq!(
+            ErrorSource::pointer("/data").pointer.as_deref(),
+            Some("/data")
+        );
+        assert_eq!(
+            ErrorSource::parameter("sort").parameter.as_deref(),
+            Some("sort")
+        );
+        assert_eq!(
+            ErrorSource::header("Accept").header.as_deref(),
+            Some("Accept")
+        );
     }
 }
