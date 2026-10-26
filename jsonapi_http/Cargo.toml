@@ -28,7 +28,7 @@ http-body-util = "0.1"
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
-pollster = "0.4"
+pollster = "1.0"
 
 [lints]
 workspace = true

@@ -21,7 +21,7 @@ serde_json = "1"
 jsonapi_axum = { path = "../jsonapi_axum", features = ["testing"] }
 axum = { version = "0.8", default-features = false }
 tower = { version = "0.5", features = ["util"] }
-pollster = "0.4"
+pollster = "1.0"
 
 [lints]
 workspace = true
