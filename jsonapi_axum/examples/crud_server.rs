@@ -53,7 +53,8 @@ use jsonapi_axum::{
     with_status,
 };
 use jsonapi_core::{
-    Link, PageNumberPage, PageStrategy, RelationshipData, ResourceIdentifier, links,
+    Link, PageNumberPage, PageStrategy, RelationshipData, ResourceIdentifier, relationship_links,
+    resource_self,
 };
 use tower_http::request_id::{MakeRequestUuid, SetRequestIdLayer};
 
@@ -211,7 +212,7 @@ async fn get_article(
     let article = state.articles.lock().unwrap().get(&id).cloned();
     match article {
         Some(article) => {
-            let self_link = links::resource_self(&base, "articles", &id);
+            let self_link = resource_self(&base, "articles", &id);
             Ok(JsonApiResponse::new(
                 DocumentBuilder::single(article)
                     .link("self", Link::String(self_link))
@@ -253,7 +254,7 @@ async fn create_article(
         .unwrap()
         .insert(article.id.clone(), article.clone());
 
-    let self_link = links::resource_self(&base, "articles", &article.id);
+    let self_link = resource_self(&base, "articles", &article.id);
     Ok(JsonApiResponse::new(
         DocumentBuilder::single(article)
             .link("self", Link::String(self_link.clone()))
@@ -295,7 +296,7 @@ async fn update_article(
     let updated = article.clone();
     drop(store);
 
-    let self_link = links::resource_self(&base, "articles", &id);
+    let self_link = resource_self(&base, "articles", &id);
     Ok(JsonApiResponse::new(
         DocumentBuilder::single(updated)
             .link("self", Link::String(self_link))
@@ -331,7 +332,7 @@ fn tags_response(state: &AppState, id: &str) -> RelationshipResponse {
         .get(id)
         .cloned()
         .unwrap_or_default();
-    let links = links::relationship_links(&state.base_url.0, "articles", id, "tags");
+    let links = relationship_links(&state.base_url.0, "articles", id, "tags");
     RelationshipResponse::new(RelationshipData::ToMany(current)).links(links)
 }
 

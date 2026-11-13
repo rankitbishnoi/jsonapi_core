@@ -9,7 +9,7 @@ use axum::routing::get;
 use tower::ServiceExt;
 
 use jsonapi_axum::{BaseUrl, DocumentBuilder, JsonApiResponse};
-use jsonapi_core::{Link, links};
+use jsonapi_core::{Link, resource_self};
 use serde_json::Value;
 
 #[derive(Debug, Clone, jsonapi_core::JsonApi)]
@@ -42,7 +42,7 @@ async fn get_article(
     };
     // Attach a top-level self link + a per-relationship links object using the
     // core assembly functions and the app-configured base URL.
-    let self_url = links::resource_self(&base, "articles", &id);
+    let self_url = resource_self(&base, "articles", &id);
     JsonApiResponse::new(
         DocumentBuilder::single(article)
             .link("self", Link::String(self_url))

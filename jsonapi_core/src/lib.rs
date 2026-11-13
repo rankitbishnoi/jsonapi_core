@@ -467,6 +467,10 @@ pub use case::{CaseConfig, CaseConvention};
 pub use error::{Cardinality, Error, Result};
 pub use field::Field;
 pub use fieldset::{FieldsetConfig, SparseSerializer, sparse_filter};
+pub use links::{
+    collection_self, collection_self_links, relationship_links, relationship_related,
+    relationship_self, resource_self, resource_self_links,
+};
 pub use media_type::{JsonApiMediaType, negotiate_accept, validate_content_type};
 pub use model::{
     ApiError, Document, ErrorLinks, ErrorSource, HasLinks, HasMeta, Hreflang, Identity,

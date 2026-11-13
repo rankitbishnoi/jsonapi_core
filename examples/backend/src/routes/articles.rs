@@ -8,7 +8,7 @@ use jsonapi_axum::{
     NegotiatedMediaType, OffsetPage, PageNumberPage, SortField, pagination_links_with_base,
     resolve_includes, with_status,
 };
-use jsonapi_core::{JsonApiMediaType, Link, PageStrategy, Resource, links};
+use jsonapi_core::{JsonApiMediaType, Link, PageStrategy, Resource, resource_self};
 use validator::Validate;
 
 use crate::domain::{ArticlePatch, NewArticle};
@@ -176,7 +176,7 @@ pub async fn get(
     JsonApiQueryValidated { query, .. }: JsonApiQueryValidated<ArticleResource>,
 ) -> Result<impl IntoResponse, JsonApiError> {
     let article = article_repo::get(&state.pool, &id).await?;
-    let self_link = links::resource_self(&state.base_url.0, "articles", &article.id);
+    let self_link = resource_self(&state.base_url.0, "articles", &article.id);
 
     let tag_ids = tag_repo::ids_for_article(&state.pool, &article.id).await?;
     let comment_ids = comment_repo::ids_for_article(&state.pool, &article.id).await?;
@@ -250,7 +250,7 @@ pub async fn create(
 
     let article = article_repo::create(&state.pool, &new_article, &id, &ts).await?;
     let resource = article_resource_from_parts(article, &[], &[]);
-    let self_link = links::resource_self(&state.base_url.0, "articles", &id);
+    let self_link = resource_self(&state.base_url.0, "articles", &id);
 
     Ok(JsonApiResponse::new(
         DocumentBuilder::single(resource)
@@ -282,7 +282,7 @@ pub async fn patch(
     let tag_ids = tag_repo::ids_for_article(&state.pool, &article.id).await?;
     let comment_ids = comment_repo::ids_for_article(&state.pool, &article.id).await?;
     let resource = article_resource_from_parts(article, &tag_ids, &comment_ids);
-    let self_link = links::resource_self(&state.base_url.0, "articles", &id);
+    let self_link = resource_self(&state.base_url.0, "articles", &id);
 
     Ok(JsonApiResponse::new(
         DocumentBuilder::single(resource)

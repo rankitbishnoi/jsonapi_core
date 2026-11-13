@@ -6,7 +6,7 @@ use axum::http::StatusCode;
 use jsonapi_axum::{
     ApiErrorExt, JsonApiError, JsonApiToMany, JsonApiToOne, RelationshipResponse, with_status,
 };
-use jsonapi_core::{RelationshipData, ResourceIdentifier, links};
+use jsonapi_core::{RelationshipData, ResourceIdentifier, relationship_links};
 
 use crate::repo::{article_repo, tag_repo};
 use crate::state::AppState;
@@ -31,7 +31,7 @@ pub async fn get_tags(
 ) -> Result<RelationshipResponse, JsonApiError> {
     article_repo::get(&state.pool, &id).await?;
     let tag_ids = tag_repo::ids_for_article(&state.pool, &id).await?;
-    let l = links::relationship_links(&state.base_url.0, "articles", &id, "tags");
+    let l = relationship_links(&state.base_url.0, "articles", &id, "tags");
     Ok(
         RelationshipResponse::new(RelationshipData::ToMany(ResourceIdentifier::many(
             "tags", tag_ids,
@@ -49,7 +49,7 @@ pub async fn replace_tags(
     let new_ids = client_ids(&incoming)?;
     tag_repo::replace_article_tags(&state.pool, &id, &new_ids).await?;
     let tag_ids = tag_repo::ids_for_article(&state.pool, &id).await?;
-    let l = links::relationship_links(&state.base_url.0, "articles", &id, "tags");
+    let l = relationship_links(&state.base_url.0, "articles", &id, "tags");
     Ok(
         RelationshipResponse::new(RelationshipData::ToMany(ResourceIdentifier::many(
             "tags", tag_ids,
@@ -67,7 +67,7 @@ pub async fn add_tags(
     let add_ids = client_ids(&incoming)?;
     tag_repo::add_article_tags(&state.pool, &id, &add_ids).await?;
     let tag_ids = tag_repo::ids_for_article(&state.pool, &id).await?;
-    let l = links::relationship_links(&state.base_url.0, "articles", &id, "tags");
+    let l = relationship_links(&state.base_url.0, "articles", &id, "tags");
     Ok(
         RelationshipResponse::new(RelationshipData::ToMany(ResourceIdentifier::many(
             "tags", tag_ids,
@@ -85,7 +85,7 @@ pub async fn remove_tags(
     let rm_ids = client_ids(&incoming)?;
     tag_repo::remove_article_tags(&state.pool, &id, &rm_ids).await?;
     let tag_ids = tag_repo::ids_for_article(&state.pool, &id).await?;
-    let l = links::relationship_links(&state.base_url.0, "articles", &id, "tags");
+    let l = relationship_links(&state.base_url.0, "articles", &id, "tags");
     Ok(
         RelationshipResponse::new(RelationshipData::ToMany(ResourceIdentifier::many(
             "tags", tag_ids,
@@ -101,7 +101,7 @@ pub async fn get_author(
     Path(id): Path<String>,
 ) -> Result<RelationshipResponse, JsonApiError> {
     let author_id = article_repo::author_id_of(&state.pool, &id).await?;
-    let l = links::relationship_links(&state.base_url.0, "articles", &id, "author");
+    let l = relationship_links(&state.base_url.0, "articles", &id, "author");
     Ok(
         RelationshipResponse::new(RelationshipData::ToOne(Some(ResourceIdentifier::new(
             "authors", &author_id,
@@ -122,7 +122,7 @@ pub async fn set_author(
     })?;
     let author_id = rid.require_id().map_err(JsonApiError::from)?;
     article_repo::set_author(&state.pool, &id, author_id).await?;
-    let l = links::relationship_links(&state.base_url.0, "articles", &id, "author");
+    let l = relationship_links(&state.base_url.0, "articles", &id, "author");
     Ok(
         RelationshipResponse::new(RelationshipData::ToOne(Some(ResourceIdentifier::new(
             "authors", author_id,

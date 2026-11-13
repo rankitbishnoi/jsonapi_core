@@ -80,7 +80,7 @@ impl<P, I> JsonApiResponse<P, I> {
 
     /// Shape a `201 Created` response: sets status `201` and the `Location`
     /// header to `self_link` (typically
-    /// [`links::resource_self`](jsonapi_core::links::resource_self) built from a
+    /// [`resource_self`](jsonapi_core::resource_self) built from a
     /// [`BaseUrl`](crate::BaseUrl)).
     #[must_use]
     pub fn created(self, self_link: impl Into<String>) -> Self {

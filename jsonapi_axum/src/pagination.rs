@@ -26,7 +26,7 @@ use jsonapi_core::{Links, PageStrategy, PaginationLinks};
 /// The generated links use `uri.path()` (relative) as their base, so behind a
 /// reverse proxy they carry the *internal* host. When the document's other links
 /// (e.g. `self`) are built from an app-configured base via
-/// [`links::resource_self`](jsonapi_core::links::resource_self), use
+/// [`resource_self`](jsonapi_core::resource_self), use
 /// [`pagination_links_with_base`] instead so every link agrees on host.
 ///
 /// ```no_run
@@ -45,10 +45,10 @@ pub fn pagination_links(uri: &Uri, strategy: PageStrategy, total: Option<u64>) -
 
 /// Like [`pagination_links`], but prefixes the app-configured `base` (e.g. from
 /// [`BaseUrl`](crate::BaseUrl)) so the generated `first`/`prev`/`next`/`last`
-/// links carry the same host as [`resource_self`](jsonapi_core::links::resource_self).
+/// links carry the same host as [`resource_self`](jsonapi_core::resource_self).
 ///
 /// The link base becomes `{base}{path}` (a trailing slash on `base` is trimmed,
-/// matching `links::resource_self`). Query parameters are preserved exactly as in
+/// matching `resource_self`). Query parameters are preserved exactly as in
 /// [`pagination_links`].
 ///
 /// ```no_run

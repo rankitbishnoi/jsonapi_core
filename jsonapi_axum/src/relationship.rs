@@ -153,7 +153,7 @@ impl RelationshipResponse {
     }
 
     /// Attach relationship `links` (typically
-    /// [`links::relationship_links`](jsonapi_core::links::relationship_links)).
+    /// [`relationship_links`](jsonapi_core::relationship_links)).
     #[must_use]
     pub fn links(mut self, links: Links) -> Self {
         self.links = Some(links);
@@ -357,12 +357,8 @@ mod tests {
     fn relationship_response_document_shape() {
         pollster::block_on(async {
             let data = RelationshipData::ToOne(Some(ResourceIdentifier::new("people", "9")));
-            let links = jsonapi_core::links::relationship_links(
-                "https://api.test",
-                "articles",
-                "1",
-                "author",
-            );
+            let links =
+                jsonapi_core::relationship_links("https://api.test", "articles", "1", "author");
             let response = RelationshipResponse::new(data).links(links).into_response();
 
             assert_eq!(
