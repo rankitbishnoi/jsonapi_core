@@ -3,8 +3,10 @@
 //!
 //! **Implementation detail.** This crate exists so that `jsonapi_core` (at
 //! runtime) and `jsonapi_core_derive` (at macro-expansion time) validate member
-//! names against a single source of truth. It carries no API-stability guarantee
-//! for direct use — depend on `jsonapi_core` instead.
+//! names against a single source of truth. It is **not covered by SemVer**:
+//! `jsonapi_core` and `jsonapi_core_derive` depend on an exact version of it,
+//! and its API may change in any release. Do not depend on it directly —
+//! depend on `jsonapi_core` instead.
 //!
 //! The entry point is [`classify_member_name`], which both validates a name per
 //! the JSON:API 1.1 character rules and reports which kind of member it is.

@@ -24,20 +24,21 @@ pub enum MemberNameKind {
     },
 }
 
-impl From<jsonapi_core_validation::MemberNameKind<'_>> for MemberNameKind {
-    fn from(kind: jsonapi_core_validation::MemberNameKind<'_>) -> Self {
-        use jsonapi_core_validation::MemberNameKind as Shared;
-        match kind {
-            Shared::Standard => MemberNameKind::Standard,
-            Shared::AtMember { namespace, member } => MemberNameKind::AtMember {
-                namespace: namespace.to_string(),
-                member: member.to_string(),
-            },
-            Shared::ExtensionMember { namespace, member } => MemberNameKind::ExtensionMember {
-                namespace: namespace.to_string(),
-                member: member.to_string(),
-            },
-        }
+/// Map the shared, borrowed classification to the owned public enum. Kept
+/// private so no `jsonapi_core_validation` type appears in this crate's
+/// public API.
+fn from_shared(kind: jsonapi_core_validation::MemberNameKind<'_>) -> MemberNameKind {
+    use jsonapi_core_validation::MemberNameKind as Shared;
+    match kind {
+        Shared::Standard => MemberNameKind::Standard,
+        Shared::AtMember { namespace, member } => MemberNameKind::AtMember {
+            namespace: namespace.to_string(),
+            member: member.to_string(),
+        },
+        Shared::ExtensionMember { namespace, member } => MemberNameKind::ExtensionMember {
+            namespace: namespace.to_string(),
+            member: member.to_string(),
+        },
     }
 }
 
@@ -50,7 +51,7 @@ impl From<jsonapi_core_validation::MemberNameKind<'_>> for MemberNameKind {
 #[must_use = "validation result should be used"]
 pub fn validate_member_name(name: &str) -> crate::Result<MemberNameKind> {
     jsonapi_core_validation::classify_member_name(name)
-        .map(MemberNameKind::from)
+        .map(from_shared)
         .map_err(|reason| crate::Error::InvalidMemberName {
             name: name.to_string(),
             reason,
