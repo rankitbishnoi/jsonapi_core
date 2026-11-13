@@ -170,6 +170,9 @@ The following are **public API** and changes to them are governed by SemVer:
   `sparse_filter`, `DocumentBuilder`, `CursorPage`, `CursorLinks`,
   `CURSOR_PAGINATION_PROFILE`, `OffsetPage`, `PageNumberPage`, `PageStrategy`,
   `PageWindow`, `PaginationLinks`,
+  `collection_self`, `collection_self_links`, `resource_self`,
+  `resource_self_links`, `relationship_self`, `relationship_related`,
+  `relationship_links`,
   `CaseConfig`, `CaseConvention`, `Error`, `Result`, `Cardinality`, `JsonApiMediaType`,
   `validate_content_type`, `negotiate_accept`, `validate_member_name`,
   `MemberNameKind`).
