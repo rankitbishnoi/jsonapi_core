@@ -20,7 +20,7 @@ version, and older headings refer to that shared version.
 
 ## [Unreleased]
 
-## [http-0.4.0] — UNRELEASED
+## [http-0.4.0] — 2026-11-13
 
 ### Changed
 
@@ -40,7 +40,7 @@ version, and older headings refer to that shared version.
   below `1.0.0-rc.2`, `cargo update` will **not** move you there on its own.
 - The `1.0.0-rc.1` and `1.0.0-rc.2` releases of both crates are yanked.
 
-## [1.0.0] — UNRELEASED
+## [1.0.0] — 2026-11-13
 
 First stable release of the core line (`jsonapi_core`, `jsonapi_core_derive`,
 `jsonapi_core_validation`). The public API listed in the
