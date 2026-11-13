@@ -31,7 +31,7 @@ pub fn generate(
 fn gen_resource_type(name: &syn::Ident, struct_attrs: &StructAttrs) -> TokenStream {
     let type_name = &struct_attrs.type_name;
     quote! {
-        impl ::jsonapi_core::model::ResourceType for #name {
+        impl ::jsonapi_core::ResourceType for #name {
             const TYPE: &'static str = #type_name;
         }
     }
@@ -74,8 +74,8 @@ fn gen_accessor_traits(name: &syn::Ident, fields: &[ParsedField]) -> TokenStream
         .map(|f| {
             let ident = &f.ident;
             quote! {
-                impl ::jsonapi_core::model::HasLinks for #name {
-                    fn links(&self) -> ::core::option::Option<&::jsonapi_core::model::Links> {
+                impl ::jsonapi_core::HasLinks for #name {
+                    fn links(&self) -> ::core::option::Option<&::jsonapi_core::Links> {
                         self.#ident.as_ref()
                     }
                 }
@@ -89,8 +89,8 @@ fn gen_accessor_traits(name: &syn::Ident, fields: &[ParsedField]) -> TokenStream
         .map(|f| {
             let ident = &f.ident;
             quote! {
-                impl ::jsonapi_core::model::HasMeta for #name {
-                    fn meta(&self) -> ::core::option::Option<&::jsonapi_core::model::Meta> {
+                impl ::jsonapi_core::HasMeta for #name {
+                    fn meta(&self) -> ::core::option::Option<&::jsonapi_core::Meta> {
                         self.#ident.as_ref()
                     }
                 }
@@ -153,7 +153,7 @@ fn gen_resource_object(
                 quote! { #explicit }
             } else {
                 let inner = relationship_inner_type(&f.ty)?;
-                quote! { <#inner as ::jsonapi_core::model::ResourceType>::TYPE }
+                quote! { <#inner as ::jsonapi_core::ResourceType>::TYPE }
             };
             Some((wire, target))
         })
@@ -175,7 +175,7 @@ fn gen_resource_object(
         .collect();
 
     quote! {
-        impl ::jsonapi_core::model::ResourceObject for #name {
+        impl ::jsonapi_core::ResourceObject for #name {
             fn resource_type(&self) -> &str {
                 #type_name
             }
