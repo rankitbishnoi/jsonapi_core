@@ -6,10 +6,10 @@ All notable changes to the workspace crates (`jsonapi_core`,
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
-within the bounds described in the [versioning policy](./README.md#versioning-policy).
+within the bounds described in the [versioning policy](https://github.com/rankitbishnoi/jsonapi_core/blob/main/README.md#versioning-policy).
 
 From `1.0.0` the workspace has two release lines (see the
-[versioning policy](./README.md#release-lines)):
+[versioning policy](https://github.com/rankitbishnoi/jsonapi_core/blob/main/README.md#release-lines)):
 
 - **Core** — `jsonapi_core`, `jsonapi_core_derive`, `jsonapi_core_validation`.
   Headings like `[1.0.0]`.
@@ -44,7 +44,7 @@ version, and older headings refer to that shared version.
 
 First stable release of the core line (`jsonapi_core`, `jsonapi_core_derive`,
 `jsonapi_core_validation`). The public API listed in the
-[versioning policy](./README.md#what-is-public-api) is now covered by SemVer.
+[versioning policy](https://github.com/rankitbishnoi/jsonapi_core/blob/main/README.md#what-is-public-api) is now covered by SemVer.
 
 ### Added
 
@@ -137,7 +137,7 @@ First stable release of the core line (`jsonapi_core`, `jsonapi_core_derive`,
 ## [1.0.0-rc.1] — 2026-09-17
 
 First release candidate for the stable `1.0` line. The public API surface
-described in the [versioning policy](./README.md#versioning-policy) is now
+described in the [versioning policy](https://github.com/rankitbishnoi/jsonapi_core/blob/main/README.md#versioning-policy) is now
 considered stable; the RC period is for consumer feedback before the final
 `1.0.0` tag.
 
