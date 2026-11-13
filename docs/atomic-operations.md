@@ -65,11 +65,16 @@ Tagged on the wire by `op` (`"add"`, `"update"`, `"remove"`).
 `OperationTarget` describes *where* the operation applies:
 
 ```rust
+#[non_exhaustive]
 pub struct OperationTarget {
     pub r#ref: Option<OperationRef>,
     pub href: Option<String>,
 }
 ```
+
+Build one with `OperationTarget::reference(OperationRef::new(type, identity))`
+(optionally `.with_relationship(name)` on the `OperationRef`),
+`OperationTarget::href(url)`, or `OperationTarget::default()` for no target.
 
 | `ref` | `href` | Meaning |
 |-------|--------|---------|
@@ -107,33 +112,27 @@ let article = Resource::new("articles")
     .with_relationships(article_rels);
 
 // 3. Update the article's author relationship via lid reference.
-let req = AtomicRequest {
-    operations: vec![
-        AtomicOperation::Add {
-            target: OperationTarget::default(),
-            data: PrimaryData::Single(Box::new(person)),
-        },
-        AtomicOperation::Add {
-            target: OperationTarget::default(),
-            data: PrimaryData::Single(Box::new(article)),
-        },
-        AtomicOperation::Update {
-            target: OperationTarget {
-                r#ref: Some(OperationRef {
-                    r#type: "articles".into(),
-                    identity: Identity::Lid("a1".into()),
-                    relationship: Some("author".into()),
-                }),
-                href: None,
-            },
-            data: PrimaryData::Single(Box::new(
-                Resource::new("people")
-                    .with_lid("p1")
-                    .with_attributes(serde_json::json!({})),
-            )),
-        },
-    ],
-};
+let req = AtomicRequest::new(vec![
+    AtomicOperation::Add {
+        target: OperationTarget::default(),
+        data: PrimaryData::Single(Box::new(person)),
+    },
+    AtomicOperation::Add {
+        target: OperationTarget::default(),
+        data: PrimaryData::Single(Box::new(article)),
+    },
+    AtomicOperation::Update {
+        target: OperationTarget::reference(
+            OperationRef::new("articles", Identity::Lid("a1".into()))
+                .with_relationship("author"),
+        ),
+        data: PrimaryData::Single(Box::new(
+            Resource::new("people")
+                .with_lid("p1")
+                .with_attributes(serde_json::json!({})),
+        )),
+    },
+]);
 ```
 
 ## Pre-flight validation

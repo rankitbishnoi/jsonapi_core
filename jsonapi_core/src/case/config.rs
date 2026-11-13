@@ -34,10 +34,19 @@ impl CaseConvention {
 ///
 /// Used by the derive macro when `#[jsonapi(case = "...")]` is specified on a struct.
 /// The default convention is [`CaseConvention::None`] (pass-through).
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct CaseConfig {
     /// Case convention applied to attribute and relationship member names.
     pub member_case: CaseConvention,
+}
+
+impl CaseConfig {
+    /// Construct a config that converts member names to `member_case`.
+    #[must_use]
+    pub const fn new(member_case: CaseConvention) -> Self {
+        Self { member_case }
+    }
 }
 
 #[cfg(test)]

@@ -12,13 +12,7 @@ fn parses_a_realistic_query_string() {
         q.include,
         vec!["author".to_string(), "comments".to_string()]
     );
-    assert_eq!(
-        q.sort[0],
-        SortField {
-            field: "created".into(),
-            descending: true
-        }
-    );
+    assert_eq!(q.sort[0], SortField::new("created", true));
     assert_eq!(q.page.get("size").map(String::as_str), Some("10"));
     assert_eq!(
         q.filter.get("status").unwrap(),

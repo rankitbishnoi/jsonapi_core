@@ -293,6 +293,7 @@ impl PageNumberPage {
 /// and `offset` is precomputed for a `LIMIT ? OFFSET ?` query or a
 /// `.skip(offset).take(limit)` slice. `number` is the 1-based page the window
 /// falls on, for building `page[number]` links.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PageWindow {
     /// 1-based page number the window falls on.
@@ -301,6 +302,19 @@ pub struct PageWindow {
     pub offset: u64,
     /// Rows in the page, clamped to `1..=max` (`LIMIT` / `page[size]`).
     pub limit: u64,
+}
+
+impl PageWindow {
+    /// Construct a window from its 1-based page `number`, zero-based `offset`,
+    /// and `limit`.
+    #[must_use]
+    pub const fn new(number: u64, offset: u64, limit: u64) -> Self {
+        Self {
+            number,
+            offset,
+            limit,
+        }
+    }
 }
 
 /// Clamp a requested page size into `1..=max`, treating a `0` `max` as `1` so

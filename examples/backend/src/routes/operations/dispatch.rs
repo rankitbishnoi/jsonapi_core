@@ -44,15 +44,13 @@ pub(super) async fn add_author(
     attrs.insert("email".into(), Value::String(author.email));
     attrs.insert("createdAt".into(), Value::String(author.created_at));
 
-    Ok(AtomicResult {
-        data: Some(PrimaryData::Single(Box::new(
+    Ok(
+        AtomicResult::default().with_data(PrimaryData::Single(Box::new(
             Resource::new("authors")
                 .with_id(author.id)
                 .with_attributes(Value::Object(attrs)),
         ))),
-        meta: None,
-        links: None,
-    })
+    )
 }
 
 pub(super) async fn update_author(
@@ -77,15 +75,13 @@ pub(super) async fn update_author(
     attrs.insert("email".into(), Value::String(author.email));
     attrs.insert("createdAt".into(), Value::String(author.created_at));
 
-    Ok(AtomicResult {
-        data: Some(PrimaryData::Single(Box::new(
+    Ok(
+        AtomicResult::default().with_data(PrimaryData::Single(Box::new(
             Resource::new("authors")
                 .with_id(author.id)
                 .with_attributes(Value::Object(attrs)),
         ))),
-        meta: None,
-        links: None,
-    })
+    )
 }
 
 pub(super) async fn remove_author(
@@ -137,16 +133,14 @@ pub(super) async fn add_article(
     let author_rel =
         jsonapi_core::ResourceRelationship::new(RelationshipData::ToOne(Some(author_rid)));
 
-    Ok(AtomicResult {
-        data: Some(PrimaryData::Single(Box::new(
+    Ok(
+        AtomicResult::default().with_data(PrimaryData::Single(Box::new(
             Resource::new("articles")
                 .with_id(article.id)
                 .with_attributes(Value::Object(attrs))
                 .with_relationship("author", author_rel),
         ))),
-        meta: None,
-        links: None,
-    })
+    )
 }
 
 pub(super) async fn update_article(
@@ -177,16 +171,14 @@ pub(super) async fn update_article(
     let author_rel =
         jsonapi_core::ResourceRelationship::new(RelationshipData::ToOne(Some(author_rid)));
 
-    Ok(AtomicResult {
-        data: Some(PrimaryData::Single(Box::new(
+    Ok(
+        AtomicResult::default().with_data(PrimaryData::Single(Box::new(
             Resource::new("articles")
                 .with_id(article.id)
                 .with_attributes(Value::Object(attrs))
                 .with_relationship("author", author_rel),
         ))),
-        meta: None,
-        links: None,
-    })
+    )
 }
 
 pub(super) async fn remove_article(

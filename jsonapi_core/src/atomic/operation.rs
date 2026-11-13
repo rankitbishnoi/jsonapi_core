@@ -11,6 +11,7 @@ use crate::{Identity, PrimaryData, Resource};
 ///
 /// Wire form: `{"atomic:operations": [...]}`. Execution order is significant —
 /// later operations may reference `lid` values introduced by earlier `add` ops.
+#[non_exhaustive]
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct AtomicRequest {
     /// Ordered list of operations to execute atomically.
@@ -19,6 +20,14 @@ pub struct AtomicRequest {
     /// key is a deserialization error.
     #[serde(rename = "atomic:operations")]
     pub operations: Vec<AtomicOperation>,
+}
+
+impl AtomicRequest {
+    /// Construct a request from its `atomic:operations`.
+    #[must_use]
+    pub fn new(operations: Vec<AtomicOperation>) -> Self {
+        Self { operations }
+    }
 }
 
 /// A single atomic operation.
@@ -66,6 +75,7 @@ pub enum AtomicOperation {
 /// Having both set is spec-illegal. Use [`OperationTarget::is_valid`] to check,
 /// or [`AtomicRequest::validate_lid_refs`](crate::AtomicRequest::validate_lid_refs)
 /// which also flags this case along with `lid` reference errors.
+#[non_exhaustive]
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct OperationTarget {
     /// Structured reference to the target resource.
@@ -78,6 +88,24 @@ pub struct OperationTarget {
 }
 
 impl OperationTarget {
+    /// Target an operation at a resource or relationship by `ref`.
+    #[must_use]
+    pub fn reference(r#ref: OperationRef) -> Self {
+        Self {
+            r#ref: Some(r#ref),
+            href: None,
+        }
+    }
+
+    /// Target an operation at a URL by `href`.
+    #[must_use]
+    pub fn href(href: impl Into<String>) -> Self {
+        Self {
+            r#ref: None,
+            href: Some(href.into()),
+        }
+    }
+
     /// Returns `false` if both `ref` and `href` are set (spec violation).
     #[must_use]
     pub fn is_valid(&self) -> bool {
@@ -91,6 +119,7 @@ impl OperationTarget {
 /// [`ResourceIdentifier`](crate::ResourceIdentifier). An optional
 /// `relationship` name narrows the operation to a specific relationship
 /// of the referenced resource.
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct OperationRef {
     /// JSON:API type string.
@@ -99,6 +128,25 @@ pub struct OperationRef {
     pub identity: Identity,
     /// Relationship name, if this op targets a relationship rather than the resource itself.
     pub relationship: Option<String>,
+}
+
+impl OperationRef {
+    /// Construct a `ref` targeting the resource `r#type` + `identity`.
+    #[must_use]
+    pub fn new(r#type: impl Into<String>, identity: Identity) -> Self {
+        Self {
+            r#type: r#type.into(),
+            identity,
+            relationship: None,
+        }
+    }
+
+    /// Target the named relationship of the referenced resource.
+    #[must_use]
+    pub fn with_relationship(mut self, relationship: impl Into<String>) -> Self {
+        self.relationship = Some(relationship.into());
+        self
+    }
 }
 
 #[derive(Serialize)]

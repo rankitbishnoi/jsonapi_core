@@ -62,18 +62,16 @@ pub fn AtomicPage() -> impl IntoView {
                 ))),
             );
 
-        let req = AtomicRequest {
-            operations: vec![
-                AtomicOperation::Add {
-                    target: OperationTarget::default(),
-                    data: PrimaryData::Single(Box::new(author)),
-                },
-                AtomicOperation::Add {
-                    target: OperationTarget::default(),
-                    data: PrimaryData::Single(Box::new(article)),
-                },
-            ],
-        };
+        let req = AtomicRequest::new(vec![
+            AtomicOperation::Add {
+                target: OperationTarget::default(),
+                data: PrimaryData::Single(Box::new(author)),
+            },
+            AtomicOperation::Add {
+                target: OperationTarget::default(),
+                data: PrimaryData::Single(Box::new(article)),
+            },
+        ]);
 
         // Client-side pre-flight: reject inconsistent lid references before the
         // network round-trip (no exchange is recorded when this fails).

@@ -226,7 +226,18 @@ The following are **public API** and changes to them are governed by SemVer:
 All public enums (`PrimaryData`, `Document`, `RelationshipData`, `Identity`,
 `Hreflang`, `Link`, `CaseConvention`, `MemberNameKind`, `Error`, …) carry
 `#[non_exhaustive]`. New variants may be added in **minor** releases. Match
-arms in consumer code must include a `_ =>` fall-through.
+arms in consumer code must include a `_ =>` fall-through. The one exception is
+`Field` (`Absent` / `Null` / `Set`), which is deliberately exhaustive, like
+`Option`.
+
+Public data structs that track the JSON:API spec are sealed the same way
+(`Resource`, `ResourceIdentifier`, `ApiError`, `ErrorSource`, `ErrorLinks`,
+`LinkObject`, `Query`, `SortField`, `CaseConfig`, the pagination types including
+`PageWindow`, and the atomic types `AtomicRequest`, `AtomicResponse`,
+`AtomicResult`, `OperationTarget`, `OperationRef`). New fields may be added in
+**minor** releases, so build them with their constructors and `with_*` setters
+(or `Default` plus field assignment) rather than struct literals. `Relationship<T>`
+is deliberately not sealed.
 
 ### MSRV policy
 

@@ -36,33 +36,27 @@ fn main() {
     // Op 1: add the person (introduces lid "p1").
     // Op 2: add the article with default target (introduces lid "a1").
     // Op 3: update the article's author relationship — ref.lid "a1" introduced above.
-    let req = AtomicRequest {
-        operations: vec![
-            AtomicOperation::Add {
-                target: OperationTarget::default(),
-                data: PrimaryData::Single(Box::new(person)),
-            },
-            AtomicOperation::Add {
-                target: OperationTarget::default(),
-                data: PrimaryData::Single(Box::new(article)),
-            },
-            AtomicOperation::Update {
-                target: OperationTarget {
-                    r#ref: Some(OperationRef {
-                        r#type: "articles".into(),
-                        identity: Identity::Lid("a1".into()),
-                        relationship: Some("author".into()),
-                    }),
-                    href: None,
-                },
-                data: PrimaryData::Single(Box::new(
-                    Resource::new("people")
-                        .with_lid("p1")
-                        .with_attributes(serde_json::json!({})),
-                )),
-            },
-        ],
-    };
+    let req = AtomicRequest::new(vec![
+        AtomicOperation::Add {
+            target: OperationTarget::default(),
+            data: PrimaryData::Single(Box::new(person)),
+        },
+        AtomicOperation::Add {
+            target: OperationTarget::default(),
+            data: PrimaryData::Single(Box::new(article)),
+        },
+        AtomicOperation::Update {
+            target: OperationTarget::reference(
+                OperationRef::new("articles", Identity::Lid("a1".into()))
+                    .with_relationship("author"),
+            ),
+            data: PrimaryData::Single(Box::new(
+                Resource::new("people")
+                    .with_lid("p1")
+                    .with_attributes(serde_json::json!({})),
+            )),
+        },
+    ]);
 
     // Pre-flight validation.
     req.validate_lid_refs().expect("lid refs should validate");

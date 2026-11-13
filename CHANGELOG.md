@@ -54,8 +54,22 @@ First stable release of the core line (`jsonapi_core`, `jsonapi_core_derive`,
   crate root and are part of the public API. The `jsonapi_core::links` module
   path keeps working but, like every module path, is not covered by SemVer.
 
+- Constructors for the newly sealed types: `PageWindow::new`,
+  `CaseConfig::new`, `SortField::new`, `AtomicRequest::new`,
+  `AtomicResponse::new` (+ `with_jsonapi` / `with_meta` / `with_links`),
+  `AtomicResult::with_data` / `with_meta` / `with_links`,
+  `OperationRef::new` (+ `with_relationship`), and
+  `OperationTarget::reference` / `OperationTarget::href`.
+
 ### Changed
 
+- **Breaking:** `Query`, `SortField`, `CaseConfig`, `PageWindow`,
+  `AtomicRequest`, `AtomicResponse`, `AtomicResult`, `OperationTarget`, and
+  `OperationRef` are now `#[non_exhaustive]`, so fields can be added in minor
+  releases. Struct-literal construction from outside the crate no longer
+  compiles; use the constructors above, or `Default` plus field assignment.
+  Fields stay public for reading. `Field` and `Relationship<T>` are
+  deliberately left exhaustive.
 - `#[derive(JsonApi)]` output refers only to crate-root items, and
   `jsonapi_core` now depends on exact versions of `jsonapi_core_derive` and
   `jsonapi_core_validation`.
@@ -78,6 +92,11 @@ First stable release of the core line (`jsonapi_core`, `jsonapi_core_derive`,
   `cargo update -p jsonapi_core`.
 - Replace any `CursorLinks::build(true, prev, next, last)` call with
   `.first().prev(..).next(..).last(..).links()` (set only the links you need).
+- Replace struct literals of the sealed types, e.g.
+  `AtomicRequest { operations }` → `AtomicRequest::new(operations)`,
+  `OperationTarget { r#ref: Some(r), href: None }` →
+  `OperationTarget::reference(r)`,
+  `SortField { field, descending }` → `SortField::new(field, descending)`.
 - Prefer crate-root imports (`jsonapi_core::Resource`) over module paths
   (`jsonapi_core::model::Resource`).
 

@@ -69,10 +69,7 @@ mod tests {
 
     #[test]
     fn serializes_with_atomic_content_type() {
-        let atomic = AtomicResponse {
-            results: vec![AtomicResult::default()],
-            ..Default::default()
-        };
+        let atomic = AtomicResponse::new(vec![AtomicResult::default()]);
         let (status, content_type, json) = read(AtomicJsonApiResponse(atomic).into_response());
 
         assert_eq!(status, StatusCode::OK);

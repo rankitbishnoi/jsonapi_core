@@ -354,7 +354,7 @@
 //! ```
 //! use jsonapi_core::{CaseConvention, CaseConfig};
 //!
-//! let config = CaseConfig { member_case: CaseConvention::CamelCase };
+//! let config = CaseConfig::new(CaseConvention::CamelCase);
 //! assert_eq!(config.member_case.convert("first_name"), "firstName");
 //! assert_eq!(CaseConvention::KebabCase.convert("firstName"), "first-name");
 //! assert_eq!(CaseConvention::None.convert("first_name"), "first_name");
@@ -395,16 +395,14 @@
 //!     PrimaryData, Resource,
 //! };
 //!
-//! let req = AtomicRequest {
-//!     operations: vec![AtomicOperation::Add {
-//!         target: OperationTarget::default(),
-//!         data: PrimaryData::Single(Box::new(
-//!             Resource::new("articles")
-//!                 .with_lid("a1")
-//!                 .with_attributes(serde_json::json!({"title": "Hello"})),
-//!         )),
-//!     }],
-//! };
+//! let req = AtomicRequest::new(vec![AtomicOperation::Add {
+//!     target: OperationTarget::default(),
+//!     data: PrimaryData::Single(Box::new(
+//!         Resource::new("articles")
+//!             .with_lid("a1")
+//!             .with_attributes(serde_json::json!({"title": "Hello"})),
+//!     )),
+//! }]);
 //!
 //! assert_eq!(ATOMIC_EXT_URI, "https://jsonapi.org/ext/atomic");
 //! let json = serde_json::to_string(&req).unwrap();

@@ -126,19 +126,18 @@ proptest! {
             let refs: Vec<&str> = field_names.iter().map(String::as_str).collect();
             expected_fields = expected_fields.fields(type_name, &refs);
         }
-        let expected = Query {
-            sort: sorts
-                .iter()
-                .map(|(field, desc)| SortField { field: field.clone(), descending: *desc })
-                .collect(),
-            include: includes.clone(),
-            fields: expected_fields,
-            page: pages.clone(),
-            filter: filters
-                .iter()
-                .map(|(key, value)| (key.clone(), vec![value.clone()]))
-                .collect(),
-        };
+        let mut expected = Query::default();
+        expected.sort = sorts
+            .iter()
+            .map(|(field, desc)| SortField::new(field.clone(), *desc))
+            .collect();
+        expected.include = includes.clone();
+        expected.fields = expected_fields;
+        expected.page = pages.clone();
+        expected.filter = filters
+            .iter()
+            .map(|(key, value)| (key.clone(), vec![value.clone()]))
+            .collect();
 
         let parsed = Query::from_query_string(&query_string)
             .expect("a builder-produced query string must parse");

@@ -60,10 +60,7 @@ pub async fn operations(
     tx.commit().await.map_err(JsonApiError::from)?;
 
     // 5. Build response.
-    let response_body = AtomicResponse {
-        results,
-        ..Default::default()
-    };
+    let response_body = AtomicResponse::new(results);
 
     Ok(AtomicJsonApiResponse(response_body))
 }

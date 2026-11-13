@@ -7,12 +7,24 @@ use percent_encoding::percent_decode_str;
 use crate::FieldsetConfig;
 
 /// A single `sort` field with its direction.
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SortField {
     /// The field name (without the leading `-`).
     pub field: String,
     /// Whether the sort is descending (leading `-` in the token).
     pub descending: bool,
+}
+
+impl SortField {
+    /// Construct a sort field; `descending` corresponds to a leading `-`.
+    #[must_use]
+    pub fn new(field: impl Into<String>, descending: bool) -> Self {
+        Self {
+            field: field.into(),
+            descending,
+        }
+    }
 }
 
 /// A parsed JSON:API request query.
@@ -29,6 +41,7 @@ pub struct SortField {
 /// # Ok(())
 /// # }
 /// ```
+#[non_exhaustive]
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Query {
     /// Parsed `sort` fields, in request order.

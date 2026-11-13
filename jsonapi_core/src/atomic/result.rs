@@ -9,6 +9,7 @@ use crate::{JsonApiObject, Links, Meta, PrimaryData, Resource};
 /// For a successful `remove`, the wire form is often an empty object `{}`
 /// (all fields omitted). For `add` and `update`, `data` carries the
 /// resource(s) produced or modified.
+#[non_exhaustive]
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct AtomicResult {
     /// Resource(s) produced or modified by the operation.
@@ -24,11 +25,35 @@ pub struct AtomicResult {
     pub links: Option<Links>,
 }
 
+impl AtomicResult {
+    /// Set the result's primary `data`.
+    #[must_use]
+    pub fn with_data(mut self, data: PrimaryData<Resource>) -> Self {
+        self.data = Some(data);
+        self
+    }
+
+    /// Set the result's `meta`.
+    #[must_use]
+    pub fn with_meta(mut self, meta: Meta) -> Self {
+        self.meta = Some(meta);
+        self
+    }
+
+    /// Set the result's `links`.
+    #[must_use]
+    pub fn with_links(mut self, links: Links) -> Self {
+        self.links = Some(links);
+        self
+    }
+}
+
 /// Response envelope mirroring [`AtomicRequest`](crate::AtomicRequest).
 ///
 /// Contains an ordered `results` array aligning 1:1 with the request's
 /// `operations`. Top-level `jsonapi`, `meta`, and `links` members are
 /// optional, matching normal JSON:API document semantics.
+#[non_exhaustive]
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct AtomicResponse {
     /// One result per operation in the corresponding request, in order.
@@ -46,6 +71,38 @@ pub struct AtomicResponse {
     /// Optional top-level links.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub links: Option<Links>,
+}
+
+impl AtomicResponse {
+    /// Construct a response from its `atomic:results`.
+    #[must_use]
+    pub fn new(results: Vec<AtomicResult>) -> Self {
+        Self {
+            results,
+            ..Self::default()
+        }
+    }
+
+    /// Set the top-level `jsonapi` object.
+    #[must_use]
+    pub fn with_jsonapi(mut self, jsonapi: JsonApiObject) -> Self {
+        self.jsonapi = Some(jsonapi);
+        self
+    }
+
+    /// Set the top-level `meta`.
+    #[must_use]
+    pub fn with_meta(mut self, meta: Meta) -> Self {
+        self.meta = Some(meta);
+        self
+    }
+
+    /// Set the top-level `links`.
+    #[must_use]
+    pub fn with_links(mut self, links: Links) -> Self {
+        self.links = Some(links);
+        self
+    }
 }
 
 #[cfg(test)]

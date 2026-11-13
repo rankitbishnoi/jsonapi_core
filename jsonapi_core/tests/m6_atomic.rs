@@ -162,18 +162,16 @@ fn spec_lid_reference_round_trip() {
 
 #[test]
 fn mixed_type_payload_round_trips() {
-    let req = AtomicRequest {
-        operations: vec![
-            AtomicOperation::Add {
-                target: OperationTarget::default(),
-                data: PrimaryData::Single(Box::new(make_resource("people", None, Some("p1")))),
-            },
-            AtomicOperation::Add {
-                target: OperationTarget::default(),
-                data: PrimaryData::Single(Box::new(make_resource("articles", None, Some("a1")))),
-            },
-        ],
-    };
+    let req = AtomicRequest::new(vec![
+        AtomicOperation::Add {
+            target: OperationTarget::default(),
+            data: PrimaryData::Single(Box::new(make_resource("people", None, Some("p1")))),
+        },
+        AtomicOperation::Add {
+            target: OperationTarget::default(),
+            data: PrimaryData::Single(Box::new(make_resource("articles", None, Some("a1")))),
+        },
+    ]);
     let json = serde_json::to_value(&req).unwrap();
     let round: AtomicRequest = serde_json::from_value(json).unwrap();
     assert_eq!(round, req);
@@ -212,18 +210,12 @@ fn response_with_mixed_results_round_trips() {
 
 #[test]
 fn validate_lid_refs_catches_dangling_ref() {
-    let req = AtomicRequest {
-        operations: vec![AtomicOperation::Update {
-            target: OperationTarget {
-                r#ref: Some(OperationRef {
-                    r#type: "people".into(),
-                    identity: Identity::Lid("ghost".into()),
-                    relationship: None,
-                }),
-                href: None,
-            },
-            data: PrimaryData::Single(Box::new(make_resource("people", None, Some("ghost")))),
-        }],
-    };
+    let req = AtomicRequest::new(vec![AtomicOperation::Update {
+        target: OperationTarget::reference(OperationRef::new(
+            "people",
+            Identity::Lid("ghost".into()),
+        )),
+        data: PrimaryData::Single(Box::new(make_resource("people", None, Some("ghost")))),
+    }]);
     assert!(req.validate_lid_refs().is_err());
 }
