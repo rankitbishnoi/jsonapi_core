@@ -156,40 +156,6 @@ impl<'a> CursorLinks<'a> {
         links
     }
 
-    /// Build the links from positional arguments.
-    ///
-    /// Superseded by the fluent [`first`](Self::first)/[`prev`](Self::prev)/
-    /// [`next`](Self::next)/[`last`](Self::last) setters + [`links`](Self::links),
-    /// which read more clearly at the call site.
-    #[deprecated(
-        since = "0.5.0",
-        note = "use the fluent .first()/.prev()/.next()/.last().links() builder instead"
-    )]
-    #[must_use]
-    pub fn build(
-        &self,
-        first: bool,
-        prev: Option<&str>,
-        next: Option<&str>,
-        last: Option<&str>,
-    ) -> Links {
-        let mut links = Links::new();
-        if first {
-            links.insert("first", Some(Link::String(self.url(None))));
-        }
-        if let Some(cur) = prev {
-            links.insert("prev", Some(Link::String(self.url(Some(("before", cur))))));
-        }
-        if let Some(cur) = next {
-            links.insert("next", Some(Link::String(self.url(Some(("after", cur))))));
-        }
-        if let Some(cur) = last {
-            // `last` uses page[before]: the cursor marking the end boundary.
-            links.insert("last", Some(Link::String(self.url(Some(("before", cur))))));
-        }
-        links
-    }
-
     fn url(&self, cursor: Option<(&str, &str)>) -> String {
         let mut qb = QueryBuilder::new();
         for (k, v) in &self.preserved {
@@ -626,16 +592,6 @@ mod tests {
         assert!(last.contains("page[before]=endcur"));
         assert!(!last.contains("page[after]"));
         assert!(last.contains("page[size]=10"));
-    }
-
-    #[test]
-    #[allow(deprecated)]
-    fn cursor_links_deprecated_build_matches_fluent() {
-        let base = CursorLinks::new("/articles").size(10);
-        let positional = base.clone().build(true, None, Some("nextcur"), None);
-        let fluent = base.first().next("nextcur").links();
-        assert_eq!(positional.get("next"), fluent.get("next"));
-        assert_eq!(positional.get("first"), fluent.get("first"));
     }
 
     // --- Offset & page-number typed views + link builders (G7) ---
