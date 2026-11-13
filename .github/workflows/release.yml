@@ -79,7 +79,9 @@ jobs:
         if: steps.line.outputs.line == 'core' && github.ref_name != 'v1.0.0'
         uses: obi1kenobi/cargo-semver-checks-action@6b69fcf40e9b5fb17adeb57e4b6ecd020649a239 # v2
         with:
-          package: jsonapi_core, jsonapi_core_derive, jsonapi_core_validation
+          # jsonapi_core_validation is deliberately excluded: it is not covered by
+          # SemVer (core pins it with `=`), so its API may change in any release.
+          package: jsonapi_core, jsonapi_core_derive
       - name: SemVer compliance (http line)
         if: steps.line.outputs.line == 'http' && github.ref_name != 'http-v0.4.0'
         uses: obi1kenobi/cargo-semver-checks-action@6b69fcf40e9b5fb17adeb57e4b6ecd020649a239 # v2
@@ -182,6 +184,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Extract release notes from CHANGELOG
+        id: notes
         run: |
           # CHANGELOG headings: `## [1.0.0]` for the core line,
           # `## [http-0.4.0]` for the http line.
@@ -189,6 +192,9 @@ jobs:
             http-v*) TAG_VERSION="http-${GITHUB_REF_NAME#http-v}" ;;
             *)       TAG_VERSION="${GITHUB_REF_NAME#v}" ;;
           esac
+          # Bare semver (no `http-` prefix) drives the prerelease flag, so the
+          # `-` in `http-v0.4.0` does not mark HTTP releases as prereleases.
+          echo "version=${TAG_VERSION#http-}" >> "$GITHUB_OUTPUT"
           awk -v ver="$TAG_VERSION" '
             $0 ~ "^## \\[" ver "\\]" { in_section = 1; print; next }
             in_section && /^## \[/ { exit }
@@ -206,4 +212,7 @@ jobs:
           generate_release_notes: true
           append_body: true
           draft: false
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          prerelease: ${{ contains(steps.notes.outputs.version, '-') }}
+          # Keep GitHub's "Latest release" on the core line; HTTP-line releases
+          # should not take it over.
+          make_latest: ${{ !startsWith(github.ref_name, 'http-v') }}
