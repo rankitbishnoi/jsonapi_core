@@ -8,13 +8,78 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 within the bounds described in the [versioning policy](./README.md#versioning-policy).
 
-All five publishable crates in this workspace (`jsonapi_core`,
-`jsonapi_core_derive`, `jsonapi_core_validation`, `jsonapi_http`, and
-`jsonapi_axum`) are versioned in lockstep via `workspace.package.version` and
-released together under one tag. Versions in this file refer to that shared
-workspace version.
+From `1.0.0` the workspace has two release lines (see the
+[versioning policy](./README.md#release-lines)):
+
+- **Core** — `jsonapi_core`, `jsonapi_core_derive`, `jsonapi_core_validation`.
+  Headings like `[1.0.0]`.
+- **HTTP** — `jsonapi_http`, `jsonapi_axum`. Headings like `[http-0.4.0]`.
+
+Up to and including `1.0.0-rc.2`, all five crates shared one lockstep workspace
+version, and older headings refer to that shared version.
 
 ## [Unreleased]
+
+## [http-0.4.0] — UNRELEASED
+
+### Changed
+
+- **`jsonapi_http` and `jsonapi_axum` leave the 1.0 line.** Their public API
+  exposes pre-1.0 crates (`axum` 0.8, `tower` 0.5, `http-body-util` 0.1, and
+  optionally `validator` 0.20 and `sqlx` 0.8), so a stable 1.0 promise would
+  force a major bump every time one of those moves. They now version
+  independently on 0.x, starting at `0.4.0`, and depend on `jsonapi_core = "1"`.
+  The API is unchanged from `1.0.0-rc.2`.
+- `jsonapi_axum` docs and examples use the crate-root link helpers
+  (`jsonapi_core::resource_self`, `jsonapi_core::relationship_links`) instead
+  of the `jsonapi_core::links` module path.
+
+### Upgrading from 1.0.0-rc.x
+
+- Change your requirement from `"1.0.0-rc.2"` to `"0.4"`. Because `0.4.0` sorts
+  below `1.0.0-rc.2`, `cargo update` will **not** move you there on its own.
+- The `1.0.0-rc.1` and `1.0.0-rc.2` releases of both crates are yanked.
+
+## [1.0.0] — UNRELEASED
+
+First stable release of the core line (`jsonapi_core`, `jsonapi_core_derive`,
+`jsonapi_core_validation`). The public API listed in the
+[versioning policy](./README.md#what-is-public-api) is now covered by SemVer.
+
+### Added
+
+- The link helpers `collection_self`, `collection_self_links`,
+  `resource_self`, `resource_self_links`, `relationship_self`,
+  `relationship_related`, and `relationship_links` are re-exported at the
+  crate root and are part of the public API. The `jsonapi_core::links` module
+  path keeps working but, like every module path, is not covered by SemVer.
+
+### Changed
+
+- `#[derive(JsonApi)]` output refers only to crate-root items, and
+  `jsonapi_core` now depends on exact versions of `jsonapi_core_derive` and
+  `jsonapi_core_validation`.
+- `jsonapi_http` and `jsonapi_axum` are no longer versioned with the core
+  crates; see the `http-0.4.0` entry above.
+
+### Removed
+
+- **Breaking:** `CursorLinks::build(first, prev, next, last)`, deprecated in
+  favour of the fluent `.first()` / `.prev()` / `.next()` / `.last()` /
+  `.links()` builder.
+- **Breaking:** the public
+  `impl From<jsonapi_core_validation::MemberNameKind<'_>> for MemberNameKind`.
+  `jsonapi_core_validation` is an implementation detail; use
+  `validate_member_name`, which returns `MemberNameKind` directly.
+
+### Upgrading from 1.0.0-rc.2
+
+- Your existing `"1.0.0-rc.2"` requirement already matches `1.0.0`; run
+  `cargo update -p jsonapi_core`.
+- Replace any `CursorLinks::build(true, prev, next, last)` call with
+  `.first().prev(..).next(..).last(..).links()` (set only the links you need).
+- Prefer crate-root imports (`jsonapi_core::Resource`) over module paths
+  (`jsonapi_core::model::Resource`).
 
 ## [1.0.0-rc.2] — 2026-10-19
 

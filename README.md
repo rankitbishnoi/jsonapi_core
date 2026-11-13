@@ -147,14 +147,24 @@ Or browse the markdown directly starting at [`docs/introduction.md`](https://git
 
 `jsonapi_core` follows [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
 
-### Lockstep workspace versions
+### Release lines
 
-All five publishable crates — `jsonapi_core`, `jsonapi_core_derive`,
-`jsonapi_core_validation`, `jsonapi_http`, and `jsonapi_axum` — are versioned in
-lockstep via `workspace.package.version` and released together under one tag.
-Pin only the crates you depend on directly (e.g. `jsonapi_core` for the type
-model, `jsonapi_axum` for an axum service); `jsonapi_core_derive` is re-exported
-via the `derive` feature and `jsonapi_core_validation` is an internal detail.
+The workspace publishes two independently versioned release lines:
+
+- **Core (1.x)** — `jsonapi_core`, `jsonapi_core_derive`, and
+  `jsonapi_core_validation`, versioned in lockstep and released together under a
+  `v<version>` tag. `jsonapi_core` depends on exact versions of the other two.
+- **HTTP (0.x)** — `jsonapi_http` and `jsonapi_axum`, released together under an
+  `http-v<version>` tag. Their public API exposes pre-1.0 ecosystem crates
+  (`axum` 0.8, `tower` 0.5, `http-body-util` 0.1, and optionally `validator`
+  0.20 and `sqlx` 0.8), so they stay on 0.x and take a minor bump whenever one
+  of those crates does — without forcing a `jsonapi_core` major release. They
+  depend on `jsonapi_core = "1"`.
+
+Pin only the crates you depend on directly (e.g. `jsonapi_core = "1"` for the
+type model, `jsonapi_axum = "0.4"` for an axum service); `jsonapi_core_derive`
+is re-exported via the `derive` feature and `jsonapi_core_validation` is an
+internal detail.
 
 ### What is public API
 
@@ -193,6 +203,13 @@ The following are **public API** and changes to them are governed by SemVer:
 
 - Anything inside a `pub(crate)` or private module path. Items not re-exported
   at the crate root may be relocated or removed in any release.
+- Module paths. `jsonapi_core`'s modules (`jsonapi_core::model`,
+  `jsonapi_core::links`, …) are reachable, but only the crate-root re-exports
+  listed above are covered by SemVer — import from the root
+  (`jsonapi_core::Resource`, not `jsonapi_core::model::Resource`).
+- `jsonapi_core_validation`, in its entirety. It exists only so the runtime and
+  the derive share one implementation; `jsonapi_core` pins it to an exact
+  version and its API may change in any release.
 - The exact text of error `Display` messages (the `Error` *enum variants* are
   public; the formatted strings are not).
 - The exact alias ordering inside the fuzzy-deserialization fall-through chain
@@ -214,19 +231,15 @@ arms in consumer code must include a `_ =>` fall-through.
 ### MSRV policy
 
 The minimum supported Rust version is currently **1.94.1**. MSRV bumps require
-a minor-version release (≥ `0.x.0` while pre-1.0; ≥ `x.0.0` post-1.0) and
+a minor-version release (`1.x.0` on the core line, `0.x.0` on the HTTP line) and
 will be called out in the [changelog](https://github.com/rankitbishnoi/jsonapi_core/blob/main/CHANGELOG.md).
 
 ### Stability
 
-The public API described above is stable as of the `1.0` line. Breaking changes
+The core line's public API described above is stable as of `1.0.0`. Breaking changes
 to it require a major-version bump (`2.0.0`); new functionality ships in minor
 releases and fixes in patch releases, per SemVer. A detailed changelog
 accompanies every release so each upgrade has a clear migration path.
-
-`1.0.0-rc.1` is the first release candidate: the API is frozen for the RC
-period so consumers can validate it before the final `1.0.0` tag. Report any
-issue you would want addressed before `1.0.0` via the tracker.
 
 ### Changelog
 
